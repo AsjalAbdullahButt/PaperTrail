@@ -65,5 +65,9 @@ def chunk_text(
         piece = normalized[start : start + chunk_size].strip()
         if piece:
             chunks.append(piece)
+        # Stop once this window reaches the end, so we don't emit a tiny
+        # trailing chunk that is fully contained in the previous one.
+        if start + chunk_size >= n:
+            break
         start += step
     return chunks

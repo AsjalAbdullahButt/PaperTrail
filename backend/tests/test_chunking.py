@@ -18,15 +18,17 @@ def test_chunks_respect_size_and_overlap():
     text = "".join(chr(ord("a") + (i % 26)) for i in range(2000))
     chunks = chunk_text(text, chunk_size=800, overlap=150)
 
-    # Expected chunk count: start indices step by (800-150)=650 across len 2000.
-    # starts: 0, 650, 1300, 1950 -> 4 chunks.
-    assert len(chunks) == 4
-    # Every chunk (except possibly the last) is exactly chunk_size long.
-    assert all(len(c) == 800 for c in chunks[:-1])
-    assert len(chunks[-1]) <= 800
+    # start indices step by (800-150)=650: 0, 650, 1300 (window 1300..2000
+    # reaches the end, so we stop) -> 3 chunks of lengths 800, 800, 700.
+    assert len(chunks) == 3
+    assert len(chunks[0]) == 800
+    assert len(chunks[1]) == 800
+    assert len(chunks[2]) == 700
+    assert all(len(c) <= 800 for c in chunks)
 
     # Consecutive chunks overlap by exactly `overlap` characters.
     assert text[650:800] == chunks[0][650:800] == chunks[1][:150]
+    assert text[1300:1450] == chunks[1][650:800] == chunks[2][:150]
 
 
 def test_invalid_overlap_raises():
