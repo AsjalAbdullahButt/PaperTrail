@@ -5,14 +5,20 @@ import {
   useState,
   type ChangeEvent,
   type CSSProperties,
-  type ReactNode,
 } from "react";
 import {
+  ApiError,
   askQuery,
+  logout,
   uploadDocument,
   type QueryResponse,
   type Source,
 } from "@/lib/api";
+import { useAuthState } from "@/lib/useAuth";
+import AuthScreen from "@/components/AuthScreen";
+import DocumentManager from "@/components/DocumentManager";
+import ChatHistoryPanel from "@/components/ChatHistoryPanel";
+import { renderAnswerWithCitations } from "@/components/Citations";
 
 /* ----------------------------- Theme tokens ------------------------------ */
 type ThemeVars = Record<string, string>;
@@ -94,58 +100,6 @@ function MagnifierIcon() {
   );
 }
 
-/** Renders answer text, turning [n] tokens into citation chip links. */
-function renderAnswerWithCitations(answer: string, maxN: number): ReactNode[] {
-  const nodes: ReactNode[] = [];
-  const re = /\[(\d+)\]/g;
-  let last = 0;
-  let m: RegExpExecArray | null;
-  let key = 0;
-  while ((m = re.exec(answer)) !== null) {
-    const n = parseInt(m[1], 10);
-    if (m.index > last) nodes.push(answer.slice(last, m.index));
-    if (n >= 1 && n <= maxN) {
-      nodes.push(<CitationChip key={`c${key++}`} n={n} />);
-    } else {
-      nodes.push(m[0]);
-    }
-    last = re.lastIndex;
-  }
-  if (last < answer.length) nodes.push(answer.slice(last));
-  return nodes;
-}
-
-function CitationChip({ n }: { n: number }) {
-  const [hover, setHover] = useState(false);
-  return (
-    <a
-      href={`#src-${n}`}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        minWidth: 20,
-        height: 20,
-        padding: "0 5px",
-        margin: "0 1px",
-        borderRadius: 6,
-        fontSize: 11.5,
-        fontWeight: 700,
-        textDecoration: "none",
-        color: hover ? "var(--onAccent)" : "var(--accent)",
-        background: hover ? "var(--accent)" : "var(--chip-bg)",
-        border: "1px solid var(--chip-border)",
-        verticalAlign: "middle",
-        transform: "translateY(-1px)",
-      }}
-    >
-      {n}
-    </a>
-  );
-}
-
 function SuggestionChip({ q, onPick }: { q: string; onPick: () => void }) {
   const [hover, setHover] = useState(false);
   return (
@@ -201,7 +155,6 @@ function SourceCard({ src }: { src: Source }) {
       }}
     >
       <div style={{ display: "flex", alignItems: "flex-start", gap: 11 }}>
-        {/* document icon */}
         <div
           style={{
             width: 30,
@@ -242,8 +195,40 @@ function SourceCard({ src }: { src: Source }) {
   );
 }
 
+function HeaderButton({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        padding: "9px 14px",
+        borderRadius: 12,
+        border: `1px solid ${hover ? "var(--accent)" : "var(--card-border)"}`,
+        background: "var(--seg-bg)",
+        color: "var(--text)",
+        fontFamily: "inherit",
+        fontWeight: 600,
+        fontSize: 13.5,
+        cursor: "pointer",
+        flex: "none",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
 /* -------------------------------- Page ----------------------------------- */
 export default function Home() {
+  const authed = useAuthState();
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [mode, setMode] = useState<"rag" | "direct">("rag");
   const [query, setQuery] = useState("");
@@ -258,9 +243,34 @@ export default function Home() {
   const [toast, setToast] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const [docsOpen, setDocsOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [docRefreshKey, setDocRefreshKey] = useState(0);
+
   const isDark = theme === "dark";
   const t = THEMES[theme];
   const answered = result !== null;
+
+  function showToast(kind: "ok" | "err", text: string) {
+    setToast({ kind, text });
+    window.setTimeout(() => setToast(null), 4000);
+  }
+
+  function handleUnauthorized() {
+    logout();
+    setAuthed(false);
+    setResult(null);
+    setDocsOpen(false);
+    setHistoryOpen(false);
+    showToast("err", "Your session expired. Please sign in again.");
+  }
+
+  function signOut() {
+    logout();
+    setAuthed(false);
+    setResult(null);
+    setQuery("");
+  }
 
   async function runQuery(q: string) {
     const question = q.trim();
@@ -274,16 +284,12 @@ export default function Home() {
       setAnswerMode(mode);
       setTiming((performance.now() - start) / 1000);
     } catch (e) {
+      if (e instanceof ApiError && e.status === 401) return handleUnauthorized();
       setError(e instanceof Error ? e.message : "Something went wrong.");
       setResult(null);
     } finally {
       setAsking(false);
     }
-  }
-
-  function showToast(kind: "ok" | "err", text: string) {
-    setToast({ kind, text });
-    window.setTimeout(() => setToast(null), 4000);
   }
 
   async function handleFile(e: ChangeEvent<HTMLInputElement>) {
@@ -294,7 +300,9 @@ export default function Home() {
     try {
       const res = await uploadDocument(file);
       showToast("ok", `Uploaded ${res.filename} · ${res.chunks_created} chunks`);
+      setDocRefreshKey((k) => k + 1); // refresh the document manager
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) return handleUnauthorized();
       showToast("err", err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
@@ -352,177 +360,201 @@ export default function Home() {
       </div>
 
       <div style={{ position: "relative", zIndex: 1, maxWidth: 1200, margin: "0 auto", padding: "22px 28px 80px" }}>
-        {/* TOP BAR */}
-        <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "10px 16px", borderRadius: 18, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(18px) saturate(140%)", WebkitBackdropFilter: "blur(18px) saturate(140%)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 11, flex: 1, minWidth: 0 }}>
-            <div style={{ width: 30, height: 30, borderRadius: 9, background: ACCENT_GRADIENT, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 14px var(--accentGlow)" }}>
-              <div style={{ width: 11, height: 11, borderRadius: 3, background: "#fff", opacity: 0.95 }} />
-            </div>
-            <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: "-.02em", color: "var(--text)" }}>PaperTrail</span>
-          </div>
+        {authed === false && <AuthScreen onAuthed={() => setAuthed(true)} />}
 
-          {/* Segmented mode toggle */}
-          <div style={{ display: "flex", gap: 3, padding: 4, borderRadius: 13, background: "var(--seg-bg)", border: "1px solid var(--card-border)" }}>
-            <button onClick={() => setMode("rag")} style={mode === "rag" ? segActive : segIdle}>RAG mode</button>
-            <button onClick={() => setMode("direct")} style={mode === "direct" ? segActive : segIdle}>Direct mode</button>
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, justifyContent: "flex-end" }}>
-            {/* Theme switch */}
-            <button
-              onClick={() => setTheme(isDark ? "light" : "dark")}
-              aria-label="Toggle theme"
-              style={{ position: "relative", width: 60, height: 30, borderRadius: 16, border: "1px solid var(--card-border)", background: "var(--seg-bg)", cursor: "pointer", padding: 0, flex: "none" }}
-            >
-              <span style={{ position: "absolute", top: 3, left: isDark ? 33 : 3, width: 24, height: 24, borderRadius: "50%", background: ACCENT_GRADIENT, boxShadow: "0 2px 8px var(--accentGlow)", transition: "left .28s cubic-bezier(.4,0,.2,1)" }} />
-            </button>
-            {/* Upload */}
-            <button
-              onClick={() => fileRef.current?.click()}
-              disabled={uploading}
-              style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 15px", borderRadius: 12, border: "none", cursor: uploading ? "default" : "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 13.5, opacity: uploading ? 0.7 : 1, ...accentBtn }}
-            >
-              {uploading ? (
-                <Spinner />
-              ) : (
-                <span style={{ fontSize: 15, lineHeight: 1, marginTop: -1 }}>+</span>
-              )}
-              {uploading ? "Uploading…" : "Upload document"}
-            </button>
-            <input ref={fileRef} type="file" accept=".pdf,.txt,.md" onChange={handleFile} style={{ display: "none" }} />
-          </div>
-        </div>
-
-        {/* SEARCH BAR */}
-        <div style={{ marginTop: 40 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px 9px 16px", borderRadius: 20, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px) saturate(150%)", WebkitBackdropFilter: "blur(22px) saturate(150%)", boxShadow: "0 14px 40px var(--cardShadow)" }}>
-            <MagnifierIcon />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") runQuery(query || SUGGESTIONS[0]); }}
-              placeholder="Ask anything about your documents…"
-              style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", fontFamily: "inherit", fontSize: 16.5, color: "var(--text)", padding: "2px 4px" }}
-            />
-            <button
-              onClick={() => runQuery(query || SUGGESTIONS[0])}
-              disabled={asking}
-              style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px 20px", borderRadius: 14, border: "none", cursor: asking ? "default" : "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 14, flex: "none", opacity: asking ? 0.75 : 1, ...accentBtn }}
-            >
-              {asking ? <Spinner /> : null}
-              {asking ? "Asking…" : "Ask"}
-              {!asking && <span style={{ fontSize: 15, marginTop: -1 }}>→</span>}
-            </button>
-          </div>
-          {error && (
-            <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 12, fontSize: 13.5, color: "#ff8a80", background: "rgba(255,80,80,.10)", border: "1px solid rgba(255,120,120,.35)" }}>
-              {error}
-            </div>
-          )}
-        </div>
-
-        {/* EMPTY / LANDING STATE */}
-        {!answered && !asking && (
-          <div style={{ textAlign: "center", marginTop: 90, animation: "rise .5s ease both" }}>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 13px", borderRadius: 20, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(14px)", fontSize: 12.5, fontWeight: 600, color: "var(--muted)", letterSpacing: ".01em" }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--accent)", boxShadow: "0 0 8px var(--accent)" }} />
-              Grounded in your documents
-            </div>
-            <h1 style={{ margin: "22px auto 0", maxWidth: 640, fontSize: 44, lineHeight: 1.08, letterSpacing: "-.03em", fontWeight: 800, color: "var(--text)" }}>
-              Answers you can trace back<br />to the source.
-            </h1>
-            <p style={{ margin: "16px auto 0", maxWidth: 500, fontSize: 16, lineHeight: 1.55, color: "var(--muted)" }}>
-              Ask a question and PaperTrail retrieves the exact passages, cites them inline, and shows you how confident it is.
-            </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 11, justifyContent: "center", marginTop: 34 }}>
-              {SUGGESTIONS.map((q) => (
-                <SuggestionChip key={q} q={q} onPick={() => { setQuery(q); runQuery(q); }} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* LOADING SKELETON */}
-        {asking && !answered && (
-          <div style={{ marginTop: 34, animation: "rise .35s ease both" }}>
-            <SkeletonCard />
-          </div>
-        )}
-
-        {/* ANSWERED STATE */}
-        {result && (
-          <div style={{ display: "flex", gap: 22, marginTop: 34, flexWrap: "wrap", alignItems: "flex-start", animation: "rise .45s ease both" }}>
-            {/* ANSWER CARD */}
-            <div style={{ flex: "1 1 520px", minWidth: 300, padding: "30px 32px", borderRadius: 22, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px) saturate(150%)", WebkitBackdropFilter: "blur(22px) saturate(150%)", boxShadow: "0 18px 50px var(--cardShadow)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 18 }}>
-                <div style={{ width: 22, height: 22, borderRadius: 7, background: ACCENT_GRADIENT, flex: "none" }} />
-                <span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--muted)" }}>
-                  {answerMode === "rag" ? "Retrieved answer" : "Direct answer"}
-                </span>
-              </div>
-              <div style={{ fontSize: 19, lineHeight: 1.62, letterSpacing: "-.01em", color: "var(--text)", fontWeight: 400, whiteSpace: "pre-wrap" }}>
-                {renderAnswerWithCitations(result.answer, result.sources.length)}
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 26, paddingTop: 18, borderTop: "1px solid var(--card-border)", flexWrap: "wrap" }}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
-                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--accent)", boxShadow: "0 0 8px var(--accent)" }} />
-                  {answerMode === "rag" ? confidence : "Direct answer"}
-                </span>
-                <span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--muted)", opacity: 0.5 }} />
-                <span style={{ fontSize: 13, color: "var(--muted)" }}>
-                  {answerMode === "rag"
-                    ? `Grounded in ${result.sources.length} source${result.sources.length === 1 ? "" : "s"}`
-                    : "No retrieval"}
-                </span>
-                <span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--muted)", opacity: 0.5 }} />
-                <span style={{ fontSize: 13, color: "var(--muted)" }}>answered in {timing.toFixed(1)}s</span>
-              </div>
-            </div>
-
-            {/* SOURCES COLUMN */}
-            {result.sources.length > 0 && (
-              <div style={{ flex: "1 1 300px", minWidth: 270, maxWidth: 380 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "2px 4px 14px" }}>
-                  <span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)" }}>Sources</span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)" }}>
-                    {result.sources.length} document{result.sources.length === 1 ? "" : "s"}
-                  </span>
+        {authed === true && (
+          <>
+            {/* TOP BAR */}
+            <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 16px", borderRadius: 18, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(18px) saturate(140%)", WebkitBackdropFilter: "blur(18px) saturate(140%)", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0 }}>
+                <div style={{ width: 30, height: 30, borderRadius: 9, background: ACCENT_GRADIENT, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 14px var(--accentGlow)" }}>
+                  <div style={{ width: 11, height: 11, borderRadius: 3, background: "#fff", opacity: 0.95 }} />
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  {result.sources.map((src) => (
-                    <SourceCard key={src.n} src={src} />
+                <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: "-.02em", color: "var(--text)" }}>PaperTrail</span>
+              </div>
+
+              {/* Segmented mode toggle */}
+              <div role="group" aria-label="Answer mode" style={{ display: "flex", gap: 3, padding: 4, borderRadius: 13, background: "var(--seg-bg)", border: "1px solid var(--card-border)" }}>
+                <button onClick={() => setMode("rag")} aria-pressed={mode === "rag"} style={mode === "rag" ? segActive : segIdle}>RAG mode</button>
+                <button onClick={() => setMode("direct")} aria-pressed={mode === "direct"} style={mode === "direct" ? segActive : segIdle}>Direct mode</button>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto", flexWrap: "wrap" }}>
+                <HeaderButton label="Documents" onClick={() => setDocsOpen(true)} />
+                <HeaderButton label="History" onClick={() => setHistoryOpen(true)} />
+                {/* Theme switch */}
+                <button
+                  onClick={() => setTheme(isDark ? "light" : "dark")}
+                  aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
+                  style={{ position: "relative", width: 60, height: 30, borderRadius: 16, border: "1px solid var(--card-border)", background: "var(--seg-bg)", cursor: "pointer", padding: 0, flex: "none" }}
+                >
+                  <span style={{ position: "absolute", top: 3, left: isDark ? 33 : 3, width: 24, height: 24, borderRadius: "50%", background: ACCENT_GRADIENT, boxShadow: "0 2px 8px var(--accentGlow)", transition: "left .28s cubic-bezier(.4,0,.2,1)" }} />
+                </button>
+                {/* Upload */}
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  disabled={uploading}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 15px", borderRadius: 12, border: "none", cursor: uploading ? "default" : "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 13.5, opacity: uploading ? 0.7 : 1, ...accentBtn }}
+                >
+                  {uploading ? <Spinner /> : <span style={{ fontSize: 15, lineHeight: 1, marginTop: -1 }}>+</span>}
+                  {uploading ? "Uploading…" : "Upload document"}
+                </button>
+                <input ref={fileRef} type="file" accept=".pdf,.txt,.md" onChange={handleFile} style={{ display: "none" }} />
+                <HeaderButton label="Sign out" onClick={signOut} />
+              </div>
+            </div>
+
+            {/* SEARCH BAR */}
+            <div style={{ marginTop: 40 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px 9px 16px", borderRadius: 20, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px) saturate(150%)", WebkitBackdropFilter: "blur(22px) saturate(150%)", boxShadow: "0 14px 40px var(--cardShadow)" }}>
+                <MagnifierIcon />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") runQuery(query || SUGGESTIONS[0]); }}
+                  placeholder="Ask anything about your documents…"
+                  aria-label="Ask a question about your documents"
+                  style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", fontFamily: "inherit", fontSize: 16.5, color: "var(--text)", padding: "2px 4px" }}
+                />
+                <button
+                  onClick={() => runQuery(query || SUGGESTIONS[0])}
+                  disabled={asking}
+                  style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px 20px", borderRadius: 14, border: "none", cursor: asking ? "default" : "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 14, flex: "none", opacity: asking ? 0.75 : 1, ...accentBtn }}
+                >
+                  {asking ? <Spinner /> : null}
+                  {asking ? "Asking…" : "Ask"}
+                  {!asking && <span style={{ fontSize: 15, marginTop: -1 }}>→</span>}
+                </button>
+              </div>
+              {error && (
+                <div role="alert" style={{ marginTop: 12, padding: "10px 14px", borderRadius: 12, fontSize: 13.5, color: "#ff8a80", background: "rgba(255,80,80,.10)", border: "1px solid rgba(255,120,120,.35)" }}>
+                  {error}
+                </div>
+              )}
+            </div>
+
+            {/* EMPTY / LANDING STATE */}
+            {!answered && !asking && (
+              <div style={{ textAlign: "center", marginTop: 90, animation: "rise .5s ease both" }}>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 13px", borderRadius: 20, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(14px)", fontSize: 12.5, fontWeight: 600, color: "var(--muted)", letterSpacing: ".01em" }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--accent)", boxShadow: "0 0 8px var(--accent)" }} />
+                  Grounded in your documents
+                </div>
+                <h1 style={{ margin: "22px auto 0", maxWidth: 640, fontSize: 44, lineHeight: 1.08, letterSpacing: "-.03em", fontWeight: 800, color: "var(--text)" }}>
+                  Answers you can trace back<br />to the source.
+                </h1>
+                <p style={{ margin: "16px auto 0", maxWidth: 500, fontSize: 16, lineHeight: 1.55, color: "var(--muted)" }}>
+                  Ask a question and PaperTrail retrieves the exact passages, cites them inline, and shows you how confident it is.
+                </p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 11, justifyContent: "center", marginTop: 34 }}>
+                  {SUGGESTIONS.map((q) => (
+                    <SuggestionChip key={q} q={q} onPick={() => { setQuery(q); runQuery(q); }} />
                   ))}
                 </div>
               </div>
             )}
-          </div>
+
+            {/* LOADING SKELETON */}
+            {asking && !answered && (
+              <div style={{ marginTop: 34, animation: "rise .35s ease both" }}>
+                <SkeletonCard />
+              </div>
+            )}
+
+            {/* ANSWERED STATE */}
+            {result && (
+              <div style={{ display: "flex", gap: 22, marginTop: 34, flexWrap: "wrap", alignItems: "flex-start", animation: "rise .45s ease both" }}>
+                <div style={{ flex: "1 1 520px", minWidth: 300, padding: "30px 32px", borderRadius: 22, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px) saturate(150%)", WebkitBackdropFilter: "blur(22px) saturate(150%)", boxShadow: "0 18px 50px var(--cardShadow)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 18 }}>
+                    <div style={{ width: 22, height: 22, borderRadius: 7, background: ACCENT_GRADIENT, flex: "none" }} />
+                    <span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--muted)" }}>
+                      {answerMode === "rag" ? "Retrieved answer" : "Direct answer"}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 19, lineHeight: 1.62, letterSpacing: "-.01em", color: "var(--text)", fontWeight: 400, whiteSpace: "pre-wrap" }}>
+                    {renderAnswerWithCitations(result.answer, result.sources.length)}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 26, paddingTop: 18, borderTop: "1px solid var(--card-border)", flexWrap: "wrap" }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--accent)", boxShadow: "0 0 8px var(--accent)" }} />
+                      {answerMode === "rag" ? confidence : "Direct answer"}
+                    </span>
+                    <span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--muted)", opacity: 0.5 }} />
+                    <span style={{ fontSize: 13, color: "var(--muted)" }}>
+                      {answerMode === "rag"
+                        ? `Grounded in ${result.sources.length} source${result.sources.length === 1 ? "" : "s"}`
+                        : "No retrieval"}
+                    </span>
+                    <span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--muted)", opacity: 0.5 }} />
+                    <span style={{ fontSize: 13, color: "var(--muted)" }}>answered in {timing.toFixed(1)}s</span>
+                  </div>
+                </div>
+
+                {result.sources.length > 0 && (
+                  <div style={{ flex: "1 1 300px", minWidth: 270, maxWidth: 380 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "2px 4px 14px" }}>
+                      <span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)" }}>Sources</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)" }}>
+                        {result.sources.length} document{result.sources.length === 1 ? "" : "s"}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                      {result.sources.map((src) => (
+                        <SourceCard key={src.n} src={src} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
 
-      {/* TOAST */}
-      {toast && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: 22,
-            right: 22,
-            zIndex: 50,
-            padding: "12px 16px",
-            borderRadius: 12,
-            fontSize: 13.5,
-            fontWeight: 600,
-            color: "var(--text)",
-            background: "var(--card-bg)",
-            border: `1px solid ${toast.kind === "ok" ? "var(--chip-border)" : "rgba(255,120,120,.4)"}`,
-            backdropFilter: "blur(18px) saturate(150%)",
-            WebkitBackdropFilter: "blur(18px) saturate(150%)",
-            boxShadow: "0 10px 30px var(--cardShadow)",
-            animation: "rise .3s ease both",
-          }}
-        >
-          {toast.text}
-        </div>
+      {/* Slide-over panels */}
+      {authed === true && (
+        <>
+          <DocumentManager
+            open={docsOpen}
+            onClose={() => setDocsOpen(false)}
+            refreshKey={docRefreshKey}
+            onChanged={() => setDocRefreshKey((k) => k + 1)}
+            onUnauthorized={handleUnauthorized}
+          />
+          <ChatHistoryPanel
+            open={historyOpen}
+            onClose={() => setHistoryOpen(false)}
+            refreshKey={docRefreshKey}
+            onUnauthorized={handleUnauthorized}
+          />
+        </>
       )}
+
+      {/* TOAST */}
+      <div aria-live="polite" role="status" style={{ position: "fixed", bottom: 22, right: 22, zIndex: 70 }}>
+        {toast && (
+          <div
+            style={{
+              padding: "12px 16px",
+              borderRadius: 12,
+              fontSize: 13.5,
+              fontWeight: 600,
+              color: "var(--text)",
+              background: "var(--card-bg)",
+              border: `1px solid ${toast.kind === "ok" ? "var(--chip-border)" : "rgba(255,120,120,.4)"}`,
+              backdropFilter: "blur(18px) saturate(150%)",
+              WebkitBackdropFilter: "blur(18px) saturate(150%)",
+              boxShadow: "0 10px 30px var(--cardShadow)",
+              animation: "rise .3s ease both",
+            }}
+          >
+            <span style={{ marginRight: 8 }} aria-hidden>
+              {toast.kind === "ok" ? "✓" : "⚠"}
+            </span>
+            {toast.text}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -531,6 +563,7 @@ export default function Home() {
 function Spinner() {
   return (
     <span
+      aria-hidden
       style={{
         width: 14,
         height: 14,

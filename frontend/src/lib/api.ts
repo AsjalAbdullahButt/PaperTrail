@@ -4,6 +4,13 @@ const API_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:8000";
 
 const TOKEN_KEY = "papertrail_token";
+export const AUTH_EVENT = "papertrail-auth";
+
+function broadcastAuthChange(): void {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(AUTH_EVENT));
+  }
+}
 
 /* ------------------------------- types ---------------------------------- */
 export type Source = {
@@ -68,11 +75,17 @@ export function getToken(): string | null {
 }
 
 function setToken(token: string): void {
-  if (typeof window !== "undefined") window.localStorage.setItem(TOKEN_KEY, token);
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(TOKEN_KEY, token);
+    broadcastAuthChange();
+  }
 }
 
 export function clearToken(): void {
-  if (typeof window !== "undefined") window.localStorage.removeItem(TOKEN_KEY);
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(TOKEN_KEY);
+    broadcastAuthChange();
+  }
 }
 
 export function isAuthenticated(): boolean {
