@@ -1,4 +1,6 @@
-@import "tailwindcss";
+/* PaperTrail uses a hand-authored inline-style + CSS-variable design system
+   (see page.tsx / components). Tailwind was installed but never used, so it was
+   removed to eliminate the contradiction and trim the dependency tree. */
 
 /* ---- Reset / base (ported from the reference design) ---- */
 * {

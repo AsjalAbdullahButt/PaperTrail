@@ -20,7 +20,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${jakarta.variable} antialiased`}>
+    <html lang="en" className={jakarta.variable}>
       <body>{children}</body>
     </html>
   );

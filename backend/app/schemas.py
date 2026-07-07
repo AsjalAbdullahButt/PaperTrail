@@ -3,7 +3,26 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+
+# --- Auth ---
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=8, max_length=128)
+
+
+class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    email: EmailStr
+    created_at: datetime
+
+
+class TokenOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
 
 
 # --- Documents ---
@@ -48,3 +67,23 @@ class QueryResponse(BaseModel):
     answer: str
     mode: str
     sources: list[SourceOut]
+
+
+# --- Chat history ---
+class ChatHistoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    question: str
+    answer: str
+    mode: str
+    created_at: datetime
+
+
+class ChatHistoryPage(BaseModel):
+    """Paginated, newest-first chat history."""
+
+    items: list[ChatHistoryOut]
+    total: int
+    limit: int
+    offset: int

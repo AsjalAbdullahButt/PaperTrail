@@ -24,6 +24,43 @@ class Settings(BaseSettings):
     db_password: str = ""
     db_name: str = "papertrail"
 
+    # --- Uploads / limits ---
+    # Hard ceiling on a single upload. Rejected with HTTP 413 above this.
+    max_upload_mb: int = 25
+    # Hard ceiling on how many chunks a single RAG query will scan in memory.
+    # NOTE: brute-force NumPy cosine similarity does not scale past a few
+    # thousand chunks; beyond this a real ANN/vector index is required.
+    max_query_chunks: int = 5000
+
+    # --- CORS ---
+    # Comma-separated list of allowed browser origins. Environment-driven so
+    # production origins are configured without code changes.
+    cors_origins: str = "http://localhost:3000"
+
+    # --- Auth (JWT) ---
+    # Secret used to sign JWTs. MUST be overridden in production via env;
+    # the dev default is deliberately obvious and unsafe.
+    jwt_secret: str = "dev-only-insecure-change-me-in-production-please"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 60 * 24  # 24h access tokens
+
+    # --- Redis / rate limiting / caching ---
+    # When set (e.g. redis://localhost:6379/0) rate limiting and the query cache
+    # use Redis so limits/cache are shared across API workers. When empty they
+    # fall back to in-process storage (fine for a single worker / local dev).
+    redis_url: str = ""
+    rate_limit_enabled: bool = True
+    rate_limit_query: str = "60/minute"
+    rate_limit_upload: str = "20/minute"
+    # Query-response cache TTL in seconds (0 disables caching).
+    query_cache_ttl_seconds: int = 300
+
+    # --- SQLAlchemy connection pool ---
+    db_pool_size: int = 10
+    db_max_overflow: int = 20
+    db_pool_timeout: int = 30
+    db_pool_recycle: int = 1800  # recycle connections every 30 min
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -57,6 +94,19 @@ class Settings(BaseSettings):
             f"mysql+pymysql://{user}:{pwd}"
             f"@{self.db_host}:{self.db_port}/?charset=utf8mb4"
         )
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """Parsed allow-list of CORS origins (empty entries dropped)."""
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def max_upload_bytes(self) -> int:
+        return self.max_upload_mb * 1024 * 1024
+
+    @property
+    def jwt_secret_is_default(self) -> bool:
+        return self.jwt_secret == "dev-only-insecure-change-me-in-production-please"
 
     @property
     def openai_ready(self) -> bool:

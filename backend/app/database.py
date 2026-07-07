@@ -17,8 +17,25 @@ class Base(DeclarativeBase):
     """Declarative base for all ORM models."""
 
 
-# echo=False keeps logs clean; pool_pre_ping avoids stale-connection errors.
-engine = create_engine(settings.database_url, pool_pre_ping=True, echo=False)
+# Explicit pool sizing (do not rely on SQLAlchemy defaults of 5+10):
+#   pool_size       - persistent connections kept open per worker process.
+#   max_overflow    - extra short-lived connections allowed under burst load.
+#   pool_timeout    - seconds a request waits for a free connection before erroring.
+#   pool_recycle    - proactively recycle connections so MySQL's wait_timeout
+#                     (default 8h) never hands us a dead socket.
+#   pool_pre_ping   - cheap liveness check that also guards against stale conns.
+# Effective ceiling of concurrent DB connections per worker = pool_size +
+# max_overflow. Keep (workers * (pool_size + max_overflow)) below MySQL's
+# max_connections. See DEPLOYMENT.md.
+engine = create_engine(
+    settings.database_url,
+    pool_pre_ping=True,
+    pool_size=settings.db_pool_size,
+    max_overflow=settings.db_max_overflow,
+    pool_timeout=settings.db_pool_timeout,
+    pool_recycle=settings.db_pool_recycle,
+    echo=False,
+)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
@@ -29,6 +46,16 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def check_db() -> tuple[bool, str | None]:
+    """Readiness probe: run a trivial query to confirm the DB is reachable."""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return True, None
+    except Exception as exc:  # noqa: BLE001
+        return False, str(exc)
 
 
 def create_database_if_missing() -> None:

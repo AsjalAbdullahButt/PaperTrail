@@ -18,6 +18,36 @@ def file_type_from_name(filename: str) -> str:
     return filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
 
 
+def sniff_content_ok(data: bytes, file_type: str) -> bool:
+    """Best-effort content validation by magic bytes / decodability.
+
+    Guards against a file whose extension lies about its content (a binary
+    blob renamed ``.txt``, or a non-PDF renamed ``.pdf``). Extension checks
+    alone are not enough.
+    """
+    file_type = file_type.lower()
+    if file_type == "pdf":
+        # Every PDF begins with "%PDF-" (optionally after a few junk bytes).
+        return data[:1024].lstrip()[:5] == b"%PDF-"
+    if file_type in {"txt", "md"}:
+        # Reject content with NUL bytes (a strong binary signal) and anything
+        # that is not decodable as UTF-8/Latin-1 text.
+        if b"\x00" in data[:8192]:
+            return False
+        try:
+            data.decode("utf-8")
+            return True
+        except UnicodeDecodeError:
+            # Fall back to a tolerant check: mostly-printable bytes.
+            sample = data[:8192]
+            printable = sum(
+                1 for b in sample if b in (9, 10, 13) or 32 <= b <= 126 or b >= 160
+            )
+            return printable / max(1, len(sample)) > 0.85
+    # Unknown types are handled by the extension allow-list upstream.
+    return True
+
+
 def extract_text(data: bytes, file_type: str) -> tuple[str, int | None]:
     """Extract plain text from raw bytes.
 
