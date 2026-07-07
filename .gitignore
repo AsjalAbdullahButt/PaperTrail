@@ -35,6 +35,9 @@ node_modules/
 out/
 build/
 coverage/
+test-results/
+playwright-report/
+playwright/.cache/
 *.tsbuildinfo
 next-env.d.ts
 frontend/.env*.local
