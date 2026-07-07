@@ -257,8 +257,7 @@ export default function Home() {
   }
 
   function handleUnauthorized() {
-    logout();
-    setAuthed(false);
+    logout(); // clears the token and notifies the auth store -> AuthScreen shows
     setResult(null);
     setDocsOpen(false);
     setHistoryOpen(false);
@@ -267,7 +266,6 @@ export default function Home() {
 
   function signOut() {
     logout();
-    setAuthed(false);
     setResult(null);
     setQuery("");
   }
@@ -360,7 +358,7 @@ export default function Home() {
       </div>
 
       <div style={{ position: "relative", zIndex: 1, maxWidth: 1200, margin: "0 auto", padding: "22px 28px 80px" }}>
-        {authed === false && <AuthScreen onAuthed={() => setAuthed(true)} />}
+        {authed === false && <AuthScreen />}
 
         {authed === true && (
           <>

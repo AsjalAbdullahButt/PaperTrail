@@ -5,8 +5,11 @@ import { ApiError, login, register } from "@/lib/api";
 
 const ACCENT_GRADIENT = "linear-gradient(135deg,var(--accent),var(--accent2))";
 
-/** Sign-in / register card shown when the user has no valid token. */
-export default function AuthScreen({ onAuthed }: { onAuthed: () => void }) {
+/** Sign-in / register card shown when the user has no valid token.
+ *
+ * On success, api.login/api.register store the token and broadcast an auth
+ * change, so the app switches automatically; onAuthed is an optional hook. */
+export default function AuthScreen({ onAuthed }: { onAuthed?: () => void }) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,7 +24,7 @@ export default function AuthScreen({ onAuthed }: { onAuthed: () => void }) {
     try {
       if (mode === "login") await login(email, password);
       else await register(email, password);
-      onAuthed();
+      onAuthed?.();
     } catch (err) {
       const msg =
         err instanceof ApiError
