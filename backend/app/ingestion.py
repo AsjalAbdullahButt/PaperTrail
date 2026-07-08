@@ -101,3 +101,69 @@ def chunk_text(
             break
         start += step
     return chunks
+
+
+def chunk_blocks(
+    blocks: list[dict], chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP
+) -> list[dict]:
+    """Chunk provenance-carrying blocks (from services.extractor.extract_blocks).
+
+    Concatenates block texts, windows them exactly like ``chunk_text``, and
+    attributes each chunk the ``page_number`` and ``section_heading`` of the
+    block that its start position falls in (the current heading section carries
+    forward across body blocks). Returns
+    ``[{"text","page_number","section_heading"}]``.
+    """
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be positive")
+    if overlap < 0 or overlap >= chunk_size:
+        raise ValueError("overlap must be >= 0 and < chunk_size")
+
+    sep = "\n\n"
+    full = ""
+    # (start, end, page, section) spans into the joined text.
+    spans: list[tuple[int, int, int, str | None]] = []
+    current_section: str | None = None
+    for b in blocks:
+        text = (b.get("text") or "").strip()
+        if not text:
+            continue
+        if b.get("is_heading"):
+            current_section = b.get("heading") or text
+        section = b.get("heading") if b.get("is_heading") else current_section
+        start = len(full)
+        full += text
+        spans.append((start, len(full), int(b.get("page", 1)), section))
+        full += sep
+
+    full = full.rstrip()
+    if not full:
+        return []
+
+    def _attr(pos: int) -> tuple[int, str | None]:
+        for s, e, page, section in spans:
+            if s <= pos < e:
+                return page, section
+        # Position fell in a separator between blocks: use the preceding block.
+        prev = [sp for sp in spans if sp[0] <= pos]
+        if prev:
+            _, _, page, section = prev[-1]
+            return page, section
+        return 1, None
+
+    step = chunk_size - overlap
+    out: list[dict] = []
+    start = 0
+    n = len(full)
+    while start < n:
+        window = full[start : start + chunk_size]
+        piece = window.strip()
+        if piece:
+            page, section = _attr(start)
+            out.append(
+                {"text": piece, "page_number": page, "section_heading": section}
+            )
+        if start + chunk_size >= n:
+            break
+        start += step
+    return out

@@ -1,10 +1,40 @@
-"""Tests for ingestion: PDF extraction, content sniffing, error handling."""
+"""Tests for ingestion: extraction, chunking provenance, importance, outline."""
 from __future__ import annotations
+
+import io
 
 import pytest
 
-from app.ingestion import extract_text, sniff_content_ok
+from app.ingestion import chunk_blocks, extract_text, sniff_content_ok
+from app.services import extractor
+from app.services.importance import extract_highlights, score_chunks
+from app.services.outliner import extract_outline
 from ._helpers import make_encrypted_pdf, make_text_pdf
+
+
+def _make_docx(paras: list[tuple[str, str | None]]) -> bytes:
+    """Build a .docx from (text, style) pairs; style None => body paragraph."""
+    import docx
+
+    d = docx.Document()
+    for text, style in paras:
+        d.add_paragraph(text, style=style) if style else d.add_paragraph(text)
+    buf = io.BytesIO()
+    d.save(buf)
+    return buf.getvalue()
+
+
+def _make_xlsx(rows: list[list]) -> bytes:
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Sheet1"
+    for row in rows:
+        ws.append(row)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
 
 
 def test_extract_text_from_pdf():

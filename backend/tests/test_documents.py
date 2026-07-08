@@ -24,7 +24,7 @@ def test_upload_pdf_extracts_text(client):
 
 def test_upload_unsupported_type_rejected(client):
     res = upload_bytes(client, "malware.exe", b"MZ\x90\x00binary", "application/octet-stream")
-    assert res.status_code == 400
+    assert res.status_code == 415
     assert "Unsupported file type" in res.json()["error"]["message"]
 
 

@@ -95,6 +95,20 @@ class Document(Base):
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
     file_type: Mapped[str] = mapped_column(String(32), nullable=False)
     page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    word_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    # Where the original upload is stored on disk (uploads/{user_id}/{uuid}.ext).
+    file_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    # JSON: [{"heading","level","chunk_index"}] and
+    #       [{"text","score","chunk_index"}] respectively.
+    outline_json: Mapped[str | None] = mapped_column(
+        LONGTEXT().with_variant(Text(), "sqlite"), nullable=True
+    )
+    highlights_json: Mapped[str | None] = mapped_column(
+        LONGTEXT().with_variant(Text(), "sqlite"), nullable=True
+    )
+    processed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP_COL, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP_COL, nullable=False, default=_utcnow, server_default=func.now()
     )
@@ -123,6 +137,13 @@ class Chunk(Base):
     )
     importance_score: Mapped[float] = mapped_column(
         Float, nullable=False, default=0.0, server_default="0"
+    )
+    page_number: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1"
+    )
+    section_heading: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    retrieved_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
     )
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP_COL, nullable=False, default=_utcnow, server_default=func.now()

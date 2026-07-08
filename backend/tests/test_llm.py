@@ -21,7 +21,10 @@ def test_offline_embed_empty_input():
 
 
 def test_offline_generate_rag_uses_top_context(monkeypatch):
-    monkeypatch.setattr(llm.settings, "openai_api_key", "")  # force offline
+    # Force the offline path: clear BOTH providers (a Groq key alone still
+    # routes chat generation to Groq).
+    monkeypatch.setattr(llm.settings, "openai_api_key", "")
+    monkeypatch.setattr(llm.settings, "groq_api_key", "")
     out = llm.generate_answer("q", ["the most relevant passage"], "rag")
     assert "offline mode" in out.lower()
     assert "most relevant passage" in out
@@ -34,6 +37,7 @@ def test_offline_generate_rag_no_context():
 
 def test_offline_generate_direct_mode_notes_missing_key(monkeypatch):
     monkeypatch.setattr(llm.settings, "openai_api_key", "")
+    monkeypatch.setattr(llm.settings, "groq_api_key", "")
     out = llm.generate_answer("what is 2+2?", [], "direct")
     assert "offline mode" in out.lower()
 

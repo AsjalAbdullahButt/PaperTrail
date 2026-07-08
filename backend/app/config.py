@@ -34,7 +34,13 @@ class Settings(BaseSettings):
 
     # --- Uploads / limits ---
     # Hard ceiling on a single upload. Rejected with HTTP 413 above this.
-    max_upload_mb: int = 25
+    max_upload_mb: int = 50
+    # Directory (outside the web root) where original uploads are stored as
+    # uploads/{user_id}/{uuid}.{ext}. Never inside frontend/public.
+    uploads_dir: str = "uploads"
+    # When false, the original file is deleted after processing (only chunks +
+    # embeddings are needed to answer queries).
+    store_originals: bool = True
     # Hard ceiling on how many chunks a single RAG query will scan in memory.
     # NOTE: brute-force NumPy cosine similarity does not scale past a few
     # thousand chunks; beyond this a real ANN/vector index is required.

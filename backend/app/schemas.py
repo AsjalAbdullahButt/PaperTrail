@@ -46,10 +46,35 @@ class DocumentOut(BaseModel):
     chunk_count: int | None = None
 
 
+class Highlight(BaseModel):
+    text: str
+    score: float
+    chunk_index: int
+
+
+class OutlineEntry(BaseModel):
+    heading: str
+    level: int
+    chunk_index: int
+
+
 class UploadResult(BaseModel):
     id: str
     filename: str
+    file_type: str
+    page_count: int | None = None
+    word_count: int = 0
     chunks_created: int
+    highlights: list[Highlight] = []
+    outline: list[OutlineEntry] = []
+
+
+class DocumentStatus(BaseModel):
+    id: str
+    filename: str
+    processed: bool
+    processed_at: datetime | None = None
+    chunk_count: int = 0
 
 
 class DeleteResult(BaseModel):
