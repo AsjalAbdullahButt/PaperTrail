@@ -1,7 +1,8 @@
 """Authentication dependency: resolve the current user from a Bearer JWT.
 
-Returns 401 for missing/invalid/expired tokens. Downstream routes use the
-returned User to scope every query to that user's own rows.
+Returns 401 for missing/invalid/expired tokens, or for a user that is inactive
+or no longer exists. Downstream routes use the returned User to scope every
+query to that user's own rows.
 """
 from __future__ import annotations
 
@@ -26,11 +27,13 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="Not authenticated.")
     try:
         payload = decode_access_token(credentials.credentials)
-        user_id = int(payload["sub"])
+        user_id = str(payload["sub"])
     except (jwt.PyJWTError, KeyError, ValueError):
         raise HTTPException(status_code=401, detail="Invalid or expired token.")
 
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=401, detail="User no longer exists.")
+    if not user.is_active:
+        raise HTTPException(status_code=401, detail="Account is disabled.")
     return user

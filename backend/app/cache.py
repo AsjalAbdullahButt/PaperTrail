@@ -22,14 +22,14 @@ from .config import settings
 _WS_RE = re.compile(r"\s+")
 
 
-def make_query_key(user_id: int, question: str, mode: str) -> str:
+def make_query_key(user_id: str, question: str, mode: str) -> str:
     """Stable cache key for (user, normalized question, mode)."""
     normalized = _WS_RE.sub(" ", question.strip().lower())
     digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
     return f"qcache:{user_id}:{mode}:{digest}"
 
 
-def user_prefix(user_id: int) -> str:
+def user_prefix(user_id: str) -> str:
     return f"qcache:{user_id}:"
 
 

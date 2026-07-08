@@ -8,15 +8,24 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 # --- Auth ---
 class UserCreate(BaseModel):
+    """Login/registration credentials. ``display_name`` is optional (register)."""
+
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=128)
+    display_name: str | None = Field(default=None, max_length=100)
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=1, max_length=128)
 
 
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
+    id: str
     email: EmailStr
+    display_name: str | None = None
     created_at: datetime
 
 
@@ -29,7 +38,7 @@ class TokenOut(BaseModel):
 class DocumentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
+    id: str
     filename: str
     file_type: str
     page_count: int | None = None
@@ -38,17 +47,17 @@ class DocumentOut(BaseModel):
 
 
 class UploadResult(BaseModel):
-    id: int
+    id: str
     filename: str
     chunks_created: int
 
 
 class DeleteResult(BaseModel):
-    id: int
+    id: str
     deleted: bool
 
 
-# --- Query (Phase 4) ---
+# --- Query ---
 class QueryRequest(BaseModel):
     question: str = Field(..., min_length=1)
     mode: str = Field("rag", pattern="^(rag|direct)$")
@@ -59,7 +68,7 @@ class SourceOut(BaseModel):
     title: str  # filename
     snippet: str
     score: float  # similarity as a percentage (0-100)
-    document_id: int
+    document_id: str
     chunk_index: int
 
 
@@ -73,7 +82,7 @@ class QueryResponse(BaseModel):
 class ChatHistoryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
+    id: str
     question: str
     answer: str
     mode: str

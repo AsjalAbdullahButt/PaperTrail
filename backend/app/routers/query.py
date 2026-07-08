@@ -152,7 +152,7 @@ def _compute_query(
 
 
 def _save_history(
-    db: Session, user_id: int, question: str, answer: str, mode: str
+    db: Session, user_id: str, question: str, answer: str, mode: str
 ) -> None:
     db.add(
         ChatHistory(user_id=user_id, question=question, answer=answer, mode=mode)

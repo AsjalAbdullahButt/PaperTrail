@@ -50,7 +50,14 @@ class Settings(BaseSettings):
     # the dev default is deliberately obvious and unsafe.
     jwt_secret: str = "dev-only-insecure-change-me-in-production-please"
     jwt_algorithm: str = "HS256"
-    jwt_expire_minutes: int = 60 * 24  # 24h access tokens
+    jwt_expire_minutes: int = 30  # short-lived access tokens (Phase 1)
+    # Refresh tokens are long-lived and stored in an httpOnly cookie; a new
+    # access token is minted from them without re-entering credentials.
+    refresh_expire_days: int = 7
+    # Name of the httpOnly cookie carrying the refresh token.
+    refresh_cookie_name: str = "papertrail_refresh"
+    # Secure flag on the refresh cookie. Off in local dev (http), on in prod.
+    cookie_secure: bool = False
 
     # --- Redis / rate limiting / caching ---
     # When set (e.g. redis://localhost:6379/0) rate limiting and the query cache

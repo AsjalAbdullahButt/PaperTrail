@@ -1,13 +1,21 @@
-"""SQLAlchemy ORM models: documents, chunks, chat_history.
+"""SQLAlchemy ORM models.
 
-Embeddings are stored as a JSON-serialized list of floats in a LONGTEXT
-column (per the design: no separate vector database — similarity is computed
-in Python/NumPy).
+Primary keys and foreign keys are UUID strings (CHAR(36) on MySQL, stored as
+``String(36)`` so the same schema works on SQLite for the CI/test path). UUIDs
+are generated application-side so inserts don't depend on a MySQL-only
+``DEFAULT (UUID())`` and behave identically across dialects.
+
+Embeddings are stored as a JSON-serialized list of floats in a LONGTEXT column
+(per the design: no separate vector database — similarity is computed in
+Python/NumPy).
 """
 from datetime import datetime, timezone
+from uuid import uuid4
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -24,22 +32,56 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _uuid() -> str:
+    return str(uuid4())
+
+
+# CHAR(36) on MySQL, String(36) elsewhere. A single alias keeps every PK/FK
+# column definition consistent and dialect-portable.
+UUID_COL = String(36)
+
+
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True, index=True)
+    id: Mapped[str] = mapped_column(UUID_COL, primary_key=True, default=_uuid)
+    email: Mapped[str] = mapped_column(
+        String(255), nullable=False, unique=True, index=True
+    )
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    display_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    last_login: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=_utcnow, server_default=func.now()
     )
 
 
+class TokenBlacklist(Base):
+    """Revoked refresh-token JTIs (populated on logout).
+
+    A refresh token is rejected if its ``jti`` is present here. Rows older than
+    the refresh-token lifetime are safe to purge (a background job handles that
+    in Phase 8); until then they simply accumulate harmlessly.
+    """
+
+    __tablename__ = "token_blacklist"
+
+    jti: Mapped[str] = mapped_column(UUID_COL, primary_key=True)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    revoked_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=_utcnow, server_default=func.now()
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
 class Document(Base):
     __tablename__ = "documents"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(
+    id: Mapped[str] = mapped_column(UUID_COL, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
@@ -59,18 +101,20 @@ class Document(Base):
 class Chunk(Base):
     __tablename__ = "chunks"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    document_id: Mapped[int] = mapped_column(
+    id: Mapped[str] = mapped_column(UUID_COL, primary_key=True, default=_uuid)
+    document_id: Mapped[str] = mapped_column(
         ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True
     )
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     # JSON-serialized list[float]. LONGTEXT holds large embedding vectors on
     # MySQL (production); TEXT is substituted on other dialects (e.g. SQLite)
-    # so a lightweight CI path can exercise the schema without MySQL. The
-    # production DDL is unchanged.
+    # so a lightweight CI path can exercise the schema without MySQL.
     embedding: Mapped[str] = mapped_column(
         LONGTEXT().with_variant(Text(), "sqlite"), nullable=False
+    )
+    importance_score: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0, server_default="0"
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=_utcnow, server_default=func.now()
@@ -82,8 +126,8 @@ class Chunk(Base):
 class ChatHistory(Base):
     __tablename__ = "chat_history"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(
+    id: Mapped[str] = mapped_column(UUID_COL, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     question: Mapped[str] = mapped_column(Text, nullable=False)

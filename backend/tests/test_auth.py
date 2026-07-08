@@ -37,7 +37,7 @@ def test_duplicate_registration_rejected(anon_client):
         "/api/auth/register",
         json={"email": "dupe@papertrail.io", "password": "password123"},
     )
-    assert res.status_code == 409
+    assert res.status_code == 422
 
 
 def test_login_success_and_failure(anon_client):
@@ -87,6 +87,68 @@ def test_expired_token_rejected(anon_client, monkeypatch):
     token = create_access_token(123)
     res = anon_client.get("/api/documents", headers={"Authorization": f"Bearer {token}"})
     assert res.status_code == 401
+
+
+# --------------------- refresh / logout / me --------------------------- #
+def test_register_sets_refresh_cookie_and_refresh_issues_new_access(anon_client):
+    from app.config import settings
+
+    reg = anon_client.post(
+        "/api/auth/register",
+        json={"email": "refresh-me@papertrail.io", "password": "password123"},
+    )
+    assert reg.status_code == 201
+    # httpOnly refresh cookie was set by the register response...
+    assert settings.refresh_cookie_name in anon_client.cookies
+    # ...and the client resends it, so /refresh mints a fresh access token.
+    res = anon_client.post("/api/auth/refresh")
+    assert res.status_code == 200
+    assert res.json()["access_token"]
+
+
+def test_refresh_without_cookie_is_401(anon_client):
+    anon_client.cookies.clear()
+    res = anon_client.post("/api/auth/refresh")
+    assert res.status_code == 401
+
+
+def test_logout_revokes_refresh_token(anon_client):
+    anon_client.post(
+        "/api/auth/register",
+        json={"email": "logout-me@papertrail.io", "password": "password123"},
+    )
+    # Refresh works before logout.
+    assert anon_client.post("/api/auth/refresh").status_code == 200
+    # Capture the (httpOnly) refresh token so we can present the *same* revoked
+    # token after the logout response clears the cookie jar.
+    from app.config import settings
+
+    revoked = anon_client.cookies.get(settings.refresh_cookie_name)
+    assert anon_client.post("/api/auth/logout").status_code == 200
+    # The revoked token is rejected even if replayed directly.
+    res = anon_client.post(
+        "/api/auth/refresh",
+        headers={"Authorization": f"Bearer {revoked}"},
+    )
+    assert res.status_code == 401
+
+
+def test_me_requires_token(anon_client):
+    assert anon_client.get("/api/auth/me").status_code == 401
+
+
+def test_display_name_persisted_on_register(anon_client):
+    token = anon_client.post(
+        "/api/auth/register",
+        json={
+            "email": "named@papertrail.io",
+            "password": "password123",
+            "display_name": "Ada Lovelace",
+        },
+    ).json()["access_token"]
+    me = anon_client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert me.status_code == 200
+    assert me.json()["display_name"] == "Ada Lovelace"
 
 
 # ----------------------- cross-user isolation -------------------------- #

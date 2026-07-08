@@ -142,7 +142,7 @@ def list_documents(
 
 @router.delete("/{document_id}", response_model=DeleteResult)
 def delete_document(
-    document_id: int,
+    document_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
