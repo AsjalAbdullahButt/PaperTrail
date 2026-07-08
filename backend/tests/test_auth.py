@@ -41,10 +41,10 @@ def test_duplicate_registration_rejected(anon_client):
 
 
 def test_login_success_and_failure(anon_client):
-    register_and_token(anon_client, "bob@papertrail.io", "correct-horse")
+    register_and_token(anon_client, "bob@papertrail.io", "correct-horse-9")
     ok = anon_client.post(
         "/api/auth/login",
-        json={"email": "bob@papertrail.io", "password": "correct-horse"},
+        json={"email": "bob@papertrail.io", "password": "correct-horse-9"},
     )
     assert ok.status_code == 200 and ok.json()["access_token"]
 

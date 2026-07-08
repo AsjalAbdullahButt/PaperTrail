@@ -222,8 +222,27 @@ async function parseError(res: Response): Promise<string> {
 }
 
 async function handle<T>(res: Response): Promise<T> {
+  if (res.status === 503 && typeof window !== "undefined") {
+    const { default: toast } = await import("react-hot-toast");
+    toast.error("Service temporarily unavailable — please try again in a moment.");
+  }
   if (!res.ok) throw new ApiError(await parseError(res), res.status);
   return res.json() as Promise<T>;
+}
+
+/** Download the current user's data export ZIP (triggers a browser download). */
+export async function exportMyData(): Promise<void> {
+  const res = await fetch(`${API_URL}/api/export/my-data`, { headers: authHeaders() });
+  if (!res.ok) throw new ApiError(await parseError(res), res.status);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "papertrail-export.zip";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 /* -------------------------------- auth ---------------------------------- */

@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import {
   ApiError,
   askQuery,
+  exportMyData,
   uploadDocument,
   type QueryMode,
   type QueryResponse,
@@ -23,60 +24,12 @@ import ChatHistoryPanel from "@/components/ChatHistoryPanel";
 import UploadReadyCard from "@/components/UploadReadyCard";
 import MindMap from "@/components/MindMap";
 import ConfidenceGauge from "@/components/ConfidenceGauge";
+import CommandPalette from "@/components/CommandPalette";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { THEMES, useTheme } from "@/lib/theme";
 import { renderAnswerWithCitations } from "@/components/Citations";
 
 /* ----------------------------- Theme tokens ------------------------------ */
-type ThemeVars = Record<string, string>;
-
-const THEMES: Record<"dark" | "light", ThemeVars> = {
-  dark: {
-    "--bg":
-      "radial-gradient(1200px 800px at 20% 0%, #14161d 0%, #0a0b0f 55%, #08090c 100%)",
-    "--text": "#f3f4f7",
-    "--muted": "rgba(243,244,247,.55)",
-    "--onAccent": "#08130f",
-    "--card-bg": "rgba(255,255,255,.045)",
-    "--card-border": "rgba(255,255,255,.10)",
-    "--seg-bg": "rgba(255,255,255,.05)",
-    "--doc-bg": "rgba(255,255,255,.05)",
-    "--accent": "#34d399",
-    "--accent2": "#a78bfa",
-    "--accentGlow": "rgba(52,211,153,.28)",
-    "--chip-bg": "rgba(52,211,153,.13)",
-    "--chip-border": "rgba(52,211,153,.30)",
-    "--blob1": "#10b981",
-    "--blob2": "#8b5cf6",
-    "--blob3": "#22d3ee",
-    "--blobOp": ".22",
-    "--blobOp3": ".12",
-    "--cardShadow": "rgba(0,0,0,.5)",
-    "--sel": "rgba(52,211,153,.3)",
-  },
-  light: {
-    "--bg":
-      "radial-gradient(1200px 800px at 15% -5%, #ffffff 0%, #f4f5f2 55%, #eef0ec 100%)",
-    "--text": "#171a20",
-    "--muted": "rgba(23,26,32,.55)",
-    "--onAccent": "#ffffff",
-    "--card-bg": "rgba(255,255,255,.58)",
-    "--card-border": "rgba(20,25,35,.09)",
-    "--seg-bg": "rgba(20,25,35,.05)",
-    "--doc-bg": "rgba(255,255,255,.7)",
-    "--accent": "#0d9488",
-    "--accent2": "#4f46e5",
-    "--accentGlow": "rgba(13,148,136,.22)",
-    "--chip-bg": "rgba(13,148,136,.11)",
-    "--chip-border": "rgba(13,148,136,.28)",
-    "--blob1": "#2dd4bf",
-    "--blob2": "#6366f1",
-    "--blob3": "#5eead4",
-    "--blobOp": ".30",
-    "--blobOp3": ".20",
-    "--cardShadow": "rgba(30,40,60,.12)",
-    "--sel": "rgba(13,148,136,.2)",
-  },
-};
-
 const SUGGESTIONS = [
   "Summarize the Q3 revenue report",
   "What are the key risks in the vendor contract?",
@@ -262,9 +215,11 @@ export default function Home() {
   }, [ready, isAuthenticated, router]);
 
   const authed = ready ? isAuthenticated : null;
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [theme, setTheme] = useTheme();
   const [mode, setMode] = useState<QueryMode>("rag");
   const [query, setQuery] = useState("");
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const queryInputRef = useRef<HTMLInputElement>(null);
 
   const [result, setResult] = useState<QueryResponse | null>(null);
   const [answerMode, setAnswerMode] = useState<QueryMode>("rag");
@@ -304,6 +259,27 @@ export default function Home() {
       cancelAnimationFrame(raf);
     };
   }, []);
+
+  useKeyboardShortcuts({
+    focusQuery: () => queryInputRef.current?.focus(),
+    escape: () => { setPaletteOpen(false); setDocsOpen(false); setHistoryOpen(false); },
+    commandPalette: () => setPaletteOpen((v) => !v),
+    upload: () => fileRef.current?.click(),
+    history: () => setHistoryOpen((v) => !v),
+    shortcutsHelp: () => showToast("ok", "/ focus · Ctrl+K palette · Ctrl+U upload · Ctrl+H history"),
+  });
+
+  // First-login onboarding hint (dismissed permanently in localStorage).
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  useEffect(() => {
+    if (authed === true && !window.localStorage.getItem("papertrail_onboarded")) {
+      setShowOnboarding(true);
+    }
+  }, [authed]);
+  function dismissOnboarding() {
+    window.localStorage.setItem("papertrail_onboarded", "1");
+    setShowOnboarding(false);
+  }
 
   const isDark = theme === "dark";
   const t = THEMES[theme];
@@ -449,8 +425,17 @@ export default function Home() {
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto", flexWrap: "wrap" }}>
+                <HeaderButton label="Library" onClick={() => router.push("/library")} />
+                <HeaderButton label="Analytics" onClick={() => router.push("/analytics")} />
                 <HeaderButton label="Documents" onClick={() => setDocsOpen(true)} />
                 <HeaderButton label="History" onClick={() => setHistoryOpen(true)} />
+                <HeaderButton
+                  label="Export"
+                  onClick={async () => {
+                    try { await exportMyData(); showToast("ok", "Your data export is ready"); }
+                    catch (e) { showToast("err", e instanceof ApiError && e.status === 429 ? "Export limit reached — try again later." : "Export failed"); }
+                  }}
+                />
                 {/* Theme switch */}
                 <button
                   onClick={() => setTheme(isDark ? "light" : "dark")}
@@ -478,6 +463,7 @@ export default function Home() {
               <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px 9px 16px", borderRadius: 20, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px) saturate(150%)", WebkitBackdropFilter: "blur(22px) saturate(150%)", boxShadow: "0 14px 40px var(--cardShadow)" }}>
                 <MagnifierIcon />
                 <input
+                  ref={queryInputRef}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") runQuery(query || SUGGESTIONS[0]); }}
@@ -643,6 +629,36 @@ export default function Home() {
             onUnauthorized={handleUnauthorized}
           />
         </>
+      )}
+
+      {/* Command palette */}
+      {authed === true && (
+        <CommandPalette
+          open={paletteOpen}
+          onClose={() => setPaletteOpen(false)}
+          onPickQuery={(q) => { setQuery(q); setPaletteOpen(false); runQuery(q); }}
+        />
+      )}
+
+      {/* First-login onboarding hint */}
+      {authed === true && showOnboarding && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ maxWidth: 440, padding: "28px 30px", borderRadius: 20, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px) saturate(150%)", boxShadow: "0 24px 60px var(--cardShadow)" }}>
+            <h2 style={{ margin: "0 0 10px", fontSize: 20, fontWeight: 800, color: "var(--text)" }}>Welcome to PaperTrail</h2>
+            <ol style={{ margin: "0 0 18px", paddingLeft: 20, color: "var(--muted)", fontSize: 14, lineHeight: 1.9 }}>
+              <li><strong style={{ color: "var(--text)" }}>Upload</strong> a document (top-right, or Ctrl+U).</li>
+              <li>Ask a question in the <strong style={{ color: "var(--text)" }}>search bar</strong> (press /).</li>
+              <li>Switch <strong style={{ color: "var(--text)" }}>RAG / Multi-hop / Direct</strong> modes.</li>
+              <li>Trace answers to their <strong style={{ color: "var(--text)" }}>source cards</strong>.</li>
+              <li>Browse everything in the <strong style={{ color: "var(--text)" }}>Library</strong>.</li>
+            </ol>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button onClick={dismissOnboarding} style={{ padding: "10px 18px", borderRadius: 12, border: "none", cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 14, color: "var(--onAccent)", background: ACCENT_GRADIENT }}>
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* TOAST */}

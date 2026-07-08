@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .. import llm
@@ -489,43 +489,63 @@ def document_coverage(
     ]
 
 
+@router.get("/trash", response_model=list[DocumentOut])
+def list_trash(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Soft-deleted documents still within the retention window."""
+    rows = db.execute(
+        select(Document)
+        .where(Document.user_id == current_user.id, Document.deleted_at.is_not(None))
+        .order_by(Document.deleted_at.desc())
+    ).scalars().all()
+    return [DocumentOut.model_validate(d) for d in rows]
+
+
 @router.delete("/{document_id}", response_model=DeleteResult)
 def delete_document(
     document_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Delete a document and all of its chunks in one transaction.
+    """Soft-delete a document: mark ``deleted_at`` so it is excluded from every
+    read (list, retrieval, analytics) but can be restored within 30 days. The
+    on-disk file and chunks are retained until the cleanup job hard-deletes it.
 
-    Chunks are removed explicitly in application code so retrieval can never
-    surface a deleted document's chunks, even if the DB-level ON DELETE
-    CASCADE were missing or disabled. The FK cascade remains as
-    defense-in-depth, but correctness does not depend on it.
-
-    Ownership rule (consistent across the API): a document that exists but
-    belongs to another user returns 403; a document id that does not exist
+    Ownership rule: a document owned by another user returns 403; a missing id
     returns 404.
     """
-    document = db.get(Document, document_id)
-    if document is None:
-        raise HTTPException(status_code=404, detail="Document not found.")
-    if document.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized for this document.")
-
-    stored_path = document.file_path
-    db.execute(delete(Chunk).where(Chunk.document_id == document_id))
-    db.delete(document)
+    document = _owned_doc(db, document_id, current_user)  # 404/403 + not already deleted
+    document.deleted_at = datetime.now(timezone.utc)
     db.commit()
-
-    # Remove the original file from disk (best-effort; the DB is source of truth).
-    if stored_path and os.path.exists(stored_path):
-        try:
-            os.remove(stored_path)
-        except OSError as exc:  # noqa: BLE001
-            logger.warning("Could not delete file %s: %s", stored_path, exc)
 
     # The user's document set changed -> drop their cached query answers so a
     # deleted document can never resurface via a cached RAG response.
     cache.invalidate_prefix(user_prefix(current_user.id))
 
     return DeleteResult(id=document_id, deleted=True)
+
+
+@router.post("/{document_id}/restore", response_model=DeleteResult)
+def restore_document(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Restore a soft-deleted document if within the 30-day retention window."""
+    doc = db.get(Document, document_id)
+    if doc is None or doc.deleted_at is None:
+        raise HTTPException(status_code=404, detail="No deleted document to restore.")
+    if doc.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized for this document.")
+    if (datetime.now(timezone.utc) - _aware(doc.deleted_at)).days >= 30:
+        raise HTTPException(status_code=410, detail="Retention window has passed.")
+    doc.deleted_at = None
+    db.commit()
+    cache.invalidate_prefix(user_prefix(current_user.id))
+    return DeleteResult(id=document_id, deleted=False)
+
+
+def _aware(dt: datetime) -> datetime:
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)

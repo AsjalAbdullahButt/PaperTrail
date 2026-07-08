@@ -79,3 +79,39 @@ def init_db() -> None:
 
     create_database_if_missing()
     Base.metadata.create_all(bind=engine)
+
+
+def purge_soft_deleted(retention_days: int = 30) -> int:
+    """Hard-delete rows soft-deleted longer than ``retention_days`` ago and
+    remove their on-disk files. Returns the number of documents purged.
+
+    Runs on startup (see the app lifespan). Chunks/coverage cascade via FK when
+    a document row is deleted.
+    """
+    import os
+    from datetime import datetime, timedelta, timezone
+
+    from .models import ChatHistory, Collection, Document
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+    purged = 0
+    with SessionLocal() as db:
+        docs = (
+            db.query(Document)
+            .filter(Document.deleted_at.isnot(None), Document.deleted_at < cutoff)
+            .all()
+        )
+        for doc in docs:
+            if doc.file_path and os.path.exists(doc.file_path):
+                try:
+                    os.remove(doc.file_path)
+                except OSError:
+                    pass
+            db.delete(doc)
+            purged += 1
+        for model in (Collection, ChatHistory):
+            db.query(model).filter(
+                model.deleted_at.isnot(None), model.deleted_at < cutoff
+            ).delete(synchronize_session=False)
+        db.commit()
+    return purged

@@ -69,6 +69,30 @@ def test_collection_cross_user_forbidden(client, anon_client):
     assert res.status_code == 403
 
 
+def test_update_missing_collection_returns_404(client):
+    assert client.put("/api/collections/nope", json={"name": "x"}).status_code == 404
+
+
+def test_list_collections_reports_counts(client):
+    coll = _create_collection(client, "Counted")
+    doc = upload_text_doc(client, "c.txt", "counted content " * 10)
+    client.post(f"/api/collections/{coll['id']}/documents", json={"document_ids": [doc["id"]]})
+    listing = client.get("/api/collections").json()
+    match = next(c for c in listing if c["id"] == coll["id"])
+    assert match["document_count"] == 1
+
+
+def test_remove_document_from_collection(client):
+    coll = _create_collection(client)
+    doc = upload_text_doc(client, "rm.txt", "removable content " * 10)
+    client.post(f"/api/collections/{coll['id']}/documents", json={"document_ids": [doc["id"]]})
+    res = client.delete(f"/api/collections/{coll['id']}/documents/{doc['id']}")
+    assert res.status_code == 200
+    assert client.get(f"/api/collections/{coll['id']}/documents").json() == []
+    # Removing again -> 404 (not a member).
+    assert client.delete(f"/api/collections/{coll['id']}/documents/{doc['id']}").status_code == 404
+
+
 # --------------------------------- tags --------------------------------- #
 def test_add_and_remove_tags(client):
     doc = upload_text_doc(client, "tagged.txt", "some content " * 10)

@@ -3,16 +3,36 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+
+
+def _strip_null_bytes(value: str) -> str:
+    """Remove NUL bytes from free text before it is stored (defense-in-depth)."""
+    return value.replace("\x00", "")
 
 
 # --- Auth ---
 class UserCreate(BaseModel):
     """Login/registration credentials. ``display_name`` is optional (register)."""
 
-    email: EmailStr
+    email: EmailStr = Field(..., max_length=255)
     password: str = Field(..., min_length=8, max_length=128)
     display_name: str | None = Field(default=None, max_length=100)
+
+    @field_validator("password")
+    @classmethod
+    def _password_complexity(cls, v: str) -> str:
+        if not any(c.isalpha() for c in v) or not any(c.isdigit() for c in v):
+            raise ValueError("Password must contain at least one letter and one number.")
+        return v
+
+    @field_validator("display_name")
+    @classmethod
+    def _clean_display_name(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        v = _strip_null_bytes(v).strip()
+        return v or None
 
 
 class LoginRequest(BaseModel):
@@ -235,6 +255,14 @@ class QueryRequest(BaseModel):
     mode: str = Field("rag", pattern="^(rag|direct|multihop)$")
     document_ids: list[str] = Field(default_factory=list)
     collection_id: str | None = None
+
+    @field_validator("question")
+    @classmethod
+    def _clean_question(cls, v: str) -> str:
+        v = _strip_null_bytes(v).strip()
+        if not v:
+            raise ValueError("Question cannot be empty or whitespace only.")
+        return v
 
 
 class SourceOut(BaseModel):

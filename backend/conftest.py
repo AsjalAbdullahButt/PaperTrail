@@ -66,10 +66,17 @@ def db_session():
 
 @pytest.fixture(autouse=True)
 def _no_disk_writes(monkeypatch):
-    """Tests exercise the upload pipeline but must not leave files on disk."""
+    """Tests exercise the upload pipeline but must not leave files on disk, and
+    default rate limits are relaxed so ordinary tests don't trip them. Tests
+    that specifically exercise a limit set their own (later, so it wins)."""
     from app.config import settings
 
     monkeypatch.setattr(settings, "store_originals", False, raising=False)
+    for attr in (
+        "rate_limit_query", "rate_limit_upload", "rate_limit_login",
+        "rate_limit_register", "rate_limit_export", "rate_limit_default",
+    ):
+        monkeypatch.setattr(settings, attr, "10000/minute", raising=False)
     yield
 
 

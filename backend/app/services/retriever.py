@@ -120,7 +120,7 @@ def hybrid_retrieve(
             Chunk.section_heading, Document.filename,
         )
         .join(Document, Document.id == Chunk.document_id)
-        .where(Document.user_id == user_id)
+        .where(Document.user_id == user_id, Document.deleted_at.is_(None))
         .order_by(Chunk.document_id.desc(), Chunk.id.desc())
         .limit(settings.max_query_chunks)
     )

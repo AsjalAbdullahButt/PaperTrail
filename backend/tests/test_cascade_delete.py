@@ -63,26 +63,28 @@ def test_deleted_document_chunks_are_not_returned_in_rag_query(client, db_sessio
     assert listing.status_code == 200
     assert doc_id not in {d["id"] for d in listing.json()}
 
-    # (c) The chunks table has zero rows for that document_id.
-    assert _chunk_count(db_session, doc_id) == 0
+    # (c) Soft delete retains the chunks (for restore); correctness comes from
+    #     excluding the soft-deleted document from retrieval, not from physical
+    #     row removal. The chunks still exist but are unreachable.
+    assert _chunk_count(db_session, doc_id) >= 1
 
 
-def test_delete_removes_chunks_even_without_db_cascade(client, db_session):
-    """The application deletes chunks explicitly, not only via the FK cascade.
-
-    We assert the chunk rows are gone in the same transaction as the delete,
-    proving correctness does not depend on ON DELETE CASCADE firing.
-    """
+def test_soft_delete_retains_chunks_and_supports_restore(client, db_session):
+    """Deletion is soft: chunks are retained so the document can be restored,
+    but it is invisible to retrieval and listing until then."""
     doc = upload_text_doc(client, "ephemeral.txt", SECRET_TEXT)
     doc_id = doc["id"]
     assert _chunk_count(db_session, doc_id) >= 1
 
-    res = client.delete(f"/api/documents/{doc_id}")
-    assert res.status_code == 200
-    assert _chunk_count(db_session, doc_id) == 0
+    assert client.delete(f"/api/documents/{doc_id}").status_code == 200
+    # Chunks retained under soft delete.
+    assert _chunk_count(db_session, doc_id) >= 1
+    # Restorable, after which it lists again.
+    assert client.post(f"/api/documents/{doc_id}/restore").status_code == 200
+    assert doc_id in {d["id"] for d in client.get("/api/documents").json()}
 
 
 def test_delete_missing_document_returns_404(client):
-    res = client.delete("/api/documents/99999999")
+    res = client.delete("/api/documents/nonexistent-uuid")
     assert res.status_code == 404
     assert res.json()["error"]["status_code"] == 404

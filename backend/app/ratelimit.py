@@ -51,3 +51,15 @@ def query_limit() -> str:
 
 def upload_limit() -> str:
     return settings.rate_limit_upload
+
+
+def login_limit() -> str:
+    return settings.rate_limit_login
+
+
+def register_limit() -> str:
+    return settings.rate_limit_register
+
+
+def export_limit() -> str:
+    return settings.rate_limit_export

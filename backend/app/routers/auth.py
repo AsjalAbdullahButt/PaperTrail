@@ -18,6 +18,7 @@ from ..auth import get_current_user
 from ..config import settings
 from ..database import get_db
 from ..models import TokenBlacklist, User
+from ..ratelimit import limiter, login_limit, register_limit
 from ..schemas import LoginRequest, TokenOut, UserCreate, UserOut
 from ..security import (
     create_access_token,
@@ -60,7 +61,11 @@ def _issue_tokens(response: Response, db: Session, user: User) -> TokenOut:
 
 
 @router.post("/register", response_model=TokenOut, status_code=201)
-def register(payload: UserCreate, response: Response, db: Session = Depends(get_db)):
+@limiter.limit(register_limit)
+def register(
+    request: Request, payload: UserCreate, response: Response,
+    db: Session = Depends(get_db),
+):
     existing = db.execute(
         select(User).where(User.email == payload.email)
     ).scalar_one_or_none()
@@ -80,7 +85,11 @@ def register(payload: UserCreate, response: Response, db: Session = Depends(get_
 
 
 @router.post("/login", response_model=TokenOut)
-def login(payload: LoginRequest, response: Response, db: Session = Depends(get_db)):
+@limiter.limit(login_limit)
+def login(
+    request: Request, payload: LoginRequest, response: Response,
+    db: Session = Depends(get_db),
+):
     user = db.execute(
         select(User).where(User.email == payload.email)
     ).scalar_one_or_none()

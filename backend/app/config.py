@@ -71,8 +71,12 @@ class Settings(BaseSettings):
     # fall back to in-process storage (fine for a single worker / local dev).
     redis_url: str = ""
     rate_limit_enabled: bool = True
-    rate_limit_query: str = "60/minute"
-    rate_limit_upload: str = "20/minute"
+    rate_limit_query: str = "20/minute"
+    rate_limit_upload: str = "10/hour"
+    rate_limit_login: str = "5/minute"
+    rate_limit_register: str = "3/minute"
+    rate_limit_export: str = "1/hour"
+    rate_limit_default: str = "100/minute"
     # Query-response cache TTL in seconds (0 disables caching).
     query_cache_ttl_seconds: int = 300
 

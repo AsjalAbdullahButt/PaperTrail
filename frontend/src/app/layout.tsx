@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
+import AppChrome from "@/components/AppChrome";
 
 const jakarta = Plus_Jakarta_Sans({
   variable: "--font-jakarta",
@@ -21,7 +22,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={jakarta.variable}>
-      <body>{children}</body>
+      <body>
+        <AppChrome />
+        {children}
+      </body>
     </html>
   );
 }
