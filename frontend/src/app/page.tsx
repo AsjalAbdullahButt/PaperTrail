@@ -21,6 +21,8 @@ import { useAuthStore } from "@/stores/authStore";
 import DocumentManager from "@/components/DocumentManager";
 import ChatHistoryPanel from "@/components/ChatHistoryPanel";
 import UploadReadyCard from "@/components/UploadReadyCard";
+import MindMap from "@/components/MindMap";
+import ConfidenceGauge from "@/components/ConfidenceGauge";
 import { renderAnswerWithCitations } from "@/components/Citations";
 
 /* ----------------------------- Theme tokens ------------------------------ */
@@ -595,6 +597,11 @@ export default function Home() {
 
                 {result.sources.length > 0 && (
                   <div style={{ flex: "1 1 300px", minWidth: 270, maxWidth: 380 }}>
+                    {answerMode !== "direct" && (
+                      <div style={{ display: "flex", justifyContent: "center", marginBottom: 12, padding: "12px 0", borderRadius: 16, background: "var(--card-bg)", border: "1px solid var(--card-border)" }}>
+                        <ConfidenceGauge value={result.confidence_score} />
+                      </div>
+                    )}
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "2px 4px 14px" }}>
                       <span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)" }}>Sources</span>
                       <span style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)" }}>
@@ -609,6 +616,11 @@ export default function Home() {
                   </div>
                 )}
               </div>
+            )}
+
+            {/* Concept map (RAG / multi-hop only) */}
+            {result && answerMode !== "direct" && result.query_id && (
+              <MindMap queryId={result.query_id} />
             )}
           </>
         )}

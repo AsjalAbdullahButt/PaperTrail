@@ -150,11 +150,48 @@ export type ChatHistoryPage = {
   offset: number;
 };
 
+export type MindMapNode = {
+  id: string;
+  label: string;
+  type: "query" | "chunk";
+  document?: string | null;
+  importance?: number | null;
+};
+export type MindMapEdge = { source: string; target: string; weight: number };
+export type MindMapData = { nodes: MindMapNode[]; edges: MindMapEdge[] };
+
+export type TimelineEvent = { date: string; event: string; chunk_index: number };
+
 export type User = {
   id: string;
   email: string;
   display_name: string | null;
   created_at: string;
+};
+
+export type DayCount = { date: string; count: number };
+export type AnalyticsOverview = {
+  total_documents: number;
+  total_queries: number;
+  total_chunks: number;
+  avg_confidence: number;
+  most_queried_document: { name: string; query_count: number } | null;
+  queries_this_week: DayCount[];
+};
+export type TopQuery = { query: string; count: number };
+export type DocumentUsage = {
+  document_id: string;
+  name: string;
+  total_retrievals: number;
+  avg_similarity: number;
+  last_queried: string | null;
+};
+export type CoverageGap = {
+  document_id: string;
+  name: string;
+  total_chunks: number;
+  unexplored_chunks: number;
+  unexplored_pct: number;
 };
 
 /** Thrown for non-2xx responses; carries the HTTP status for callers. */
@@ -399,12 +436,40 @@ export async function toggleBookmark(id: string, note?: string): Promise<QueryHi
   return handle<QueryHistoryItem>(res);
 }
 
+export async function getMindMap(queryId: string): Promise<MindMapData> {
+  const res = await fetch(`${API_URL}/api/queries/${queryId}/mindmap`, { headers: authHeaders() });
+  return handle<MindMapData>(res);
+}
+
+export async function getDocumentTimeline(id: string): Promise<TimelineEvent[]> {
+  const res = await fetch(`${API_URL}/api/documents/${id}/timeline`, { headers: authHeaders() });
+  return handle<TimelineEvent[]>(res);
+}
+
 export async function deleteQuery(id: string): Promise<void> {
   const res = await fetch(`${API_URL}/api/queries/${id}`, {
     method: "DELETE",
     headers: authHeaders(),
   });
   await handle<{ id: string; deleted: boolean }>(res);
+}
+
+/* ------------------------------ analytics ------------------------------- */
+export async function getAnalyticsOverview(): Promise<AnalyticsOverview> {
+  const res = await fetch(`${API_URL}/api/analytics/overview`, { headers: authHeaders() });
+  return handle<AnalyticsOverview>(res);
+}
+export async function getTopQueries(limit = 10): Promise<TopQuery[]> {
+  const res = await fetch(`${API_URL}/api/analytics/top-queries?limit=${limit}`, { headers: authHeaders() });
+  return handle<TopQuery[]>(res);
+}
+export async function getDocumentUsage(): Promise<DocumentUsage[]> {
+  const res = await fetch(`${API_URL}/api/analytics/document-usage`, { headers: authHeaders() });
+  return handle<DocumentUsage[]>(res);
+}
+export async function getCoverageGaps(): Promise<CoverageGap[]> {
+  const res = await fetch(`${API_URL}/api/analytics/coverage-gaps`, { headers: authHeaders() });
+  return handle<CoverageGap[]>(res);
 }
 
 /* ----------------------------- chat history ----------------------------- */

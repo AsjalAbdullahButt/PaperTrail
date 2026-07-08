@@ -4,6 +4,7 @@ These operate on the same ChatHistory rows the query endpoint records, exposing
 them as a user's searchable, bookmarkable query history."""
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -13,7 +14,14 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user
 from ..database import get_db
 from ..models import ChatHistory, User
-from ..schemas import BookmarkIn, DeleteResult, QueryHistoryOut, QueryHistoryPage
+from ..schemas import (
+    BookmarkIn,
+    DeleteResult,
+    MindMap,
+    QueryHistoryOut,
+    QueryHistoryPage,
+)
+from ..services.visuals import build_mindmap
 
 router = APIRouter(prefix="/api/queries", tags=["queries"])
 
@@ -81,6 +89,18 @@ def toggle_bookmark(
     db.commit()
     db.refresh(row)
     return QueryHistoryOut.model_validate(row)
+
+
+@router.get("/{query_id}/mindmap", response_model=MindMap)
+def query_mindmap(
+    query_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Node/edge graph of the query and the chunks it retrieved."""
+    row = _owned_query(db, query_id, current_user)
+    sources = json.loads(row.sources_json) if row.sources_json else []
+    return MindMap(**build_mindmap(db, row.question, sources))
 
 
 @router.delete("/{query_id}", response_model=DeleteResult)

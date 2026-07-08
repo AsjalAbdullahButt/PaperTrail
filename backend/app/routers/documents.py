@@ -24,6 +24,7 @@ from ..models import (
     Document,
     DocumentCollection,
     DocumentTag,
+    DocumentTimeline,
     DocumentVersion,
     User,
 )
@@ -36,12 +37,14 @@ from ..schemas import (
     Highlight,
     OutlineEntry,
     TagsIn,
+    TimelineEvent,
     UploadResult,
     VersionOut,
 )
 from ..services import extractor
 from ..services.importance import extract_highlights, score_chunks
 from ..services.outliner import extract_outline
+from ..services.visuals import extract_timeline
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 logger = logging.getLogger("papertrail.documents")
@@ -445,6 +448,26 @@ def list_versions(
         .order_by(DocumentVersion.version_number.desc())
     ).scalars().all()
     return [VersionOut.model_validate(v) for v in rows]
+
+
+@router.get("/{document_id}/timeline", response_model=list[TimelineEvent])
+def document_timeline(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Dated events extracted from the document (cached after first request)."""
+    doc = _owned_doc(db, document_id, current_user)
+    cached = db.get(DocumentTimeline, document_id)
+    if cached is not None:
+        return [TimelineEvent(**e) for e in json.loads(cached.events_json)]
+
+    highlights = json.loads(doc.highlights_json) if doc.highlights_json else []
+    events = extract_timeline(highlights)
+    # Cache even an empty result so a second view never re-calls the model.
+    db.add(DocumentTimeline(document_id=document_id, events_json=json.dumps(events)))
+    db.commit()
+    return [TimelineEvent(**e) for e in events]
 
 
 @router.get("/{document_id}/coverage", response_model=list[CoverageCell])

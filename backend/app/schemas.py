@@ -162,6 +162,73 @@ class BookmarkIn(BaseModel):
     note: str | None = Field(default=None, max_length=2000)
 
 
+# --- Visual intelligence (Phase 5) ---
+class MindMapNode(BaseModel):
+    id: str
+    label: str
+    type: str  # "query" | "chunk"
+    document: str | None = None
+    importance: float | None = None
+
+
+class MindMapEdge(BaseModel):
+    source: str
+    target: str
+    weight: float
+
+
+class MindMap(BaseModel):
+    nodes: list[MindMapNode]
+    edges: list[MindMapEdge]
+
+
+class TimelineEvent(BaseModel):
+    date: str
+    event: str
+    chunk_index: int = 0
+
+
+# --- Analytics (Phase 6) ---
+class DayCount(BaseModel):
+    date: str
+    count: int
+
+
+class MostQueriedDocument(BaseModel):
+    name: str
+    query_count: int
+
+
+class AnalyticsOverview(BaseModel):
+    total_documents: int
+    total_queries: int
+    total_chunks: int
+    avg_confidence: float
+    most_queried_document: MostQueriedDocument | None = None
+    queries_this_week: list[DayCount]
+
+
+class TopQuery(BaseModel):
+    query: str
+    count: int
+
+
+class DocumentUsage(BaseModel):
+    document_id: str
+    name: str
+    total_retrievals: int
+    avg_similarity: float
+    last_queried: datetime | None = None
+
+
+class CoverageGap(BaseModel):
+    document_id: str
+    name: str
+    total_chunks: int
+    unexplored_chunks: int
+    unexplored_pct: int
+
+
 # --- Query ---
 class QueryRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=2000)
