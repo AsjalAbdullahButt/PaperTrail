@@ -26,7 +26,7 @@ from .observability import (
     request_id_ctx,
 )
 from .ratelimit import limiter
-from .routers import auth, chat_history, documents, query
+from .routers import auth, chat_history, collections, documents, queries, query
 
 configure_logging()
 logger = logging.getLogger("papertrail")
@@ -156,6 +156,8 @@ app.include_router(auth.router)
 app.include_router(documents.router)
 app.include_router(query.router)
 app.include_router(chat_history.router)
+app.include_router(collections.router)
+app.include_router(queries.router)
 
 
 @app.get("/api/health")

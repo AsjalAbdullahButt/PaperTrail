@@ -12,6 +12,7 @@ import {
   ApiError,
   askQuery,
   uploadDocument,
+  type QueryMode,
   type QueryResponse,
   type Source,
   type UploadResult,
@@ -137,12 +138,14 @@ function SuggestionChip({ q, onPick }: { q: string; onPick: () => void }) {
 
 function SourceCard({ src }: { src: Source }) {
   const [hover, setHover] = useState(false);
-  const typeLabel = `${src.title.split(".").pop()?.toUpperCase() || "DOC"} · chunk ${
-    src.chunk_index + 1
-  }`;
+  const typeLabel = `${src.title.split(".").pop()?.toUpperCase() || "DOC"} · p.${src.page_number}`;
+  const whyRetrieved =
+    `Relevance ${src.relevance_pct}% · similarity ${Math.round(src.similarity_score * 100)}%` +
+    ` · importance ${Math.round(src.importance_score * 100)}%`;
   return (
     <div
       id={`src-${src.n}`}
+      title={whyRetrieved}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
@@ -183,13 +186,23 @@ function SourceCard({ src }: { src: Source }) {
               {src.score}%
             </span>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: "var(--accent2)" }}>[{src.n}]</span>
             <span style={{ fontSize: 11.5, color: "var(--muted)" }}>{typeLabel}</span>
+            {src.section_heading && (
+              <span style={{ fontSize: 11.5, color: "var(--muted)", fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 160 }}>
+                · {src.section_heading}
+              </span>
+            )}
           </div>
           <p style={{ margin: "9px 0 0", fontSize: 12.5, lineHeight: 1.5, color: "var(--muted)" }}>{src.snippet}</p>
-          <div style={{ marginTop: 11, height: 4, borderRadius: 3, background: "var(--seg-bg)", overflow: "hidden" }}>
+          {/* Relevance meter */}
+          <div title={`Relevance ${src.relevance_pct}%`} style={{ marginTop: 11, height: 4, borderRadius: 3, background: "var(--seg-bg)", overflow: "hidden" }}>
             <div style={{ height: "100%", width: `${src.score}%`, borderRadius: 3, background: "linear-gradient(90deg,var(--accent),var(--accent2))" }} />
+          </div>
+          {/* Importance meter (second bar) */}
+          <div title={`Importance ${Math.round(src.importance_score * 100)}%`} style={{ marginTop: 5, height: 3, borderRadius: 3, background: "var(--seg-bg)", overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${Math.round(src.importance_score * 100)}%`, borderRadius: 3, background: "var(--accent2)", opacity: 0.7 }} />
           </div>
         </div>
       </div>
@@ -248,11 +261,11 @@ export default function Home() {
 
   const authed = ready ? isAuthenticated : null;
   const [theme, setTheme] = useState<"dark" | "light">("dark");
-  const [mode, setMode] = useState<"rag" | "direct">("rag");
+  const [mode, setMode] = useState<QueryMode>("rag");
   const [query, setQuery] = useState("");
 
   const [result, setResult] = useState<QueryResponse | null>(null);
-  const [answerMode, setAnswerMode] = useState<"rag" | "direct">("rag");
+  const [answerMode, setAnswerMode] = useState<QueryMode>("rag");
   const [timing, setTiming] = useState(0);
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -383,8 +396,8 @@ export default function Home() {
     boxShadow: "0 4px 14px var(--accentGlow)",
   };
 
-  const topScore = result?.sources?.[0]?.score ?? 0;
-  const confidence = topScore >= 50 ? "High confidence" : topScore >= 25 ? "Medium confidence" : "Low confidence";
+  const confPct = result ? Math.round(result.confidence_score * 100) : 0;
+  const confidence = confPct >= 75 ? "High confidence" : confPct >= 50 ? "Moderate" : "Low confidence";
 
   return (
     <div
@@ -428,8 +441,9 @@ export default function Home() {
 
               {/* Segmented mode toggle */}
               <div role="group" aria-label="Answer mode" style={{ display: "flex", gap: 3, padding: 4, borderRadius: 13, background: "var(--seg-bg)", border: "1px solid var(--card-border)" }}>
-                <button onClick={() => setMode("rag")} aria-pressed={mode === "rag"} style={mode === "rag" ? segActive : segIdle}>RAG mode</button>
-                <button onClick={() => setMode("direct")} aria-pressed={mode === "direct"} style={mode === "direct" ? segActive : segIdle}>Direct mode</button>
+                <button onClick={() => setMode("rag")} aria-pressed={mode === "rag"} style={mode === "rag" ? segActive : segIdle}>RAG</button>
+                <button onClick={() => setMode("multihop")} aria-pressed={mode === "multihop"} style={mode === "multihop" ? segActive : segIdle}>Multi-hop</button>
+                <button onClick={() => setMode("direct")} aria-pressed={mode === "direct"} style={mode === "direct" ? segActive : segIdle}>Direct</button>
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto", flexWrap: "wrap" }}>
@@ -524,8 +538,13 @@ export default function Home() {
                   <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 18 }}>
                     <div style={{ width: 22, height: 22, borderRadius: 7, background: ACCENT_GRADIENT, flex: "none" }} />
                     <span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--muted)" }}>
-                      {answerMode === "rag" ? "Retrieved answer" : "Direct answer"}
+                      {answerMode === "direct" ? "Direct answer" : answerMode === "multihop" ? "Multi-hop answer" : "Retrieved answer"}
                     </span>
+                    {answerMode !== "direct" && (
+                      <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 700, color: "var(--accent)", background: "var(--chip-bg)", border: "1px solid var(--chip-border)" }}>
+                        {confPct}% confidence
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontSize: 19, lineHeight: 1.62, letterSpacing: "-.01em", color: "var(--text)", fontWeight: 400, whiteSpace: "pre-wrap" }}>
                     {renderAnswerWithCitations(result.answer, result.sources.length)}
@@ -533,17 +552,45 @@ export default function Home() {
                   <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 26, paddingTop: 18, borderTop: "1px solid var(--card-border)", flexWrap: "wrap" }}>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
                       <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--accent)", boxShadow: "0 0 8px var(--accent)" }} />
-                      {answerMode === "rag" ? confidence : "Direct answer"}
+                      {answerMode === "direct" ? "Direct answer" : confidence}
                     </span>
                     <span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--muted)", opacity: 0.5 }} />
                     <span style={{ fontSize: 13, color: "var(--muted)" }}>
-                      {answerMode === "rag"
-                        ? `Grounded in ${result.sources.length} source${result.sources.length === 1 ? "" : "s"}`
-                        : "No retrieval"}
+                      {answerMode === "direct"
+                        ? "No retrieval"
+                        : `Grounded in ${result.sources.length} source${result.sources.length === 1 ? "" : "s"}`}
                     </span>
                     <span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--muted)", opacity: 0.5 }} />
                     <span style={{ fontSize: 13, color: "var(--muted)" }}>answered in {timing.toFixed(1)}s</span>
                   </div>
+
+                  {/* Hallucination guard: claims without a direct source */}
+                  {result.unsupported_sentences.length > 0 && (
+                    <div style={{ marginTop: 16, padding: "10px 13px", borderRadius: 12, fontSize: 12.5, color: "#e0a53a", background: "rgba(224,165,58,.10)", border: "1px solid rgba(224,165,58,.35)" }}>
+                      ⚠ {result.unsupported_sentences.length} claim
+                      {result.unsupported_sentences.length === 1 ? "" : "s"} without a direct source in your documents.
+                    </div>
+                  )}
+
+                  {/* Follow-up questions */}
+                  {result.followup_questions.length > 0 && (
+                    <div style={{ marginTop: 20 }}>
+                      <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)", marginBottom: 10 }}>
+                        Follow-up questions
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                        {result.followup_questions.map((q, i) => (
+                          <button
+                            key={i}
+                            onClick={() => { setQuery(q); runQuery(q); }}
+                            style={{ padding: "8px 13px", borderRadius: 12, cursor: "pointer", fontFamily: "inherit", fontSize: 13, color: "var(--text)", background: "var(--seg-bg)", border: "1px solid var(--card-border)" }}
+                          >
+                            {q}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {result.sources.length > 0 && (

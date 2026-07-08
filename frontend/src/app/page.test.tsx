@@ -42,8 +42,8 @@ describe("Home (authenticated)", () => {
 
   it("toggles the answer mode and reflects it via aria-pressed", async () => {
     render(<Home />);
-    const rag = screen.getByRole("button", { name: /rag mode/i });
-    const direct = screen.getByRole("button", { name: /direct mode/i });
+    const rag = screen.getByRole("button", { name: /^rag$/i });
+    const direct = screen.getByRole("button", { name: /^direct$/i });
     expect(rag).toHaveAttribute("aria-pressed", "true");
     expect(direct).toHaveAttribute("aria-pressed", "false");
 

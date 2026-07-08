@@ -42,8 +42,13 @@ class DocumentOut(BaseModel):
     filename: str
     file_type: str
     page_count: int | None = None
+    word_count: int = 0
+    version_number: int = 1
     created_at: datetime
     chunk_count: int | None = None
+    tags: list[str] = Field(default_factory=list)
+    is_duplicate: bool = False
+    duplicate_of_name: str | None = None
 
 
 class Highlight(BaseModel):
@@ -67,6 +72,8 @@ class UploadResult(BaseModel):
     chunks_created: int
     highlights: list[Highlight] = []
     outline: list[OutlineEntry] = []
+    is_duplicate: bool = False
+    duplicate_of_name: str | None = None
 
 
 class DocumentStatus(BaseModel):
@@ -82,25 +89,115 @@ class DeleteResult(BaseModel):
     deleted: bool
 
 
+# --- Collections / tags / versions (Phase 4) ---
+class CollectionCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
+
+
+class CollectionUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
+
+
+class CollectionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    description: str | None = None
+    created_at: datetime
+    document_count: int | None = None
+
+
+class CollectionDocumentsIn(BaseModel):
+    document_ids: list[str] = Field(..., min_length=1)
+
+
+class TagsIn(BaseModel):
+    tags: list[str] = Field(..., min_length=1, max_length=10)
+
+
+class DocumentTagsOut(BaseModel):
+    document_id: str
+    tags: list[str]
+
+
+class VersionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    version_number: int
+    uploaded_at: datetime
+
+
+class CoverageCell(BaseModel):
+    chunk_id: str
+    chunk_index: int
+    retrieved_count: int
+
+
+# --- Query history / bookmarks (Phase 4) ---
+class QueryHistoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    question: str
+    answer: str
+    mode: str
+    confidence_score: float | None = None
+    bookmarked: bool = False
+    bookmark_note: str | None = None
+    created_at: datetime
+
+
+class QueryHistoryPage(BaseModel):
+    items: list[QueryHistoryOut]
+    total: int
+    limit: int
+    offset: int
+
+
+class BookmarkIn(BaseModel):
+    note: str | None = Field(default=None, max_length=2000)
+
+
 # --- Query ---
 class QueryRequest(BaseModel):
-    question: str = Field(..., min_length=1)
-    mode: str = Field("rag", pattern="^(rag|direct)$")
+    question: str = Field(..., min_length=1, max_length=2000)
+    mode: str = Field("rag", pattern="^(rag|direct|multihop)$")
+    document_ids: list[str] = Field(default_factory=list)
+    collection_id: str | None = None
 
 
 class SourceOut(BaseModel):
     n: int  # citation number [1], [2], ...
-    title: str  # filename
+    title: str  # filename (document_name)
     snippet: str
-    score: float  # similarity as a percentage (0-100)
+    score: float  # relevance as a percentage (0-100) — kept for the UI meter
     document_id: str
-    chunk_index: int
+    chunk_id: str
+    chunk_index: int = 0
+    page_number: int = 1
+    section_heading: str | None = None
+    similarity_score: float = 0.0
+    importance_score: float = 0.0
+    relevance_pct: int = 0
+
+
+class UnsupportedSentence(BaseModel):
+    sentence: str
+    source_chunk_id: str | None = None
 
 
 class QueryResponse(BaseModel):
     answer: str
     mode: str
     sources: list[SourceOut]
+    confidence_score: float = 0.0
+    followup_questions: list[str] = Field(default_factory=list)
+    unsupported_sentences: list[UnsupportedSentence] = Field(default_factory=list)
+    query_id: str | None = None
 
 
 # --- Chat history ---

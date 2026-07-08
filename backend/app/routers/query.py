@@ -1,11 +1,17 @@
-"""Query routes: the core RAG loop plus direct (no-retrieval) mode."""
+"""Query routes: RAG, multi-hop, and direct (no-retrieval) modes.
+
+RAG/multi-hop retrieve with the hybrid engine (dense + BM25 + importance),
+generate a grounded answer, then annotate it: a confidence score, follow-up
+questions, and a hallucination check flagging unsupported sentences. Every
+query is persisted (with its sources) so it can be revisited, bookmarked, and
+visualized as a mind map.
+"""
 from __future__ import annotations
 
 import json
 import logging
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import llm
@@ -13,16 +19,24 @@ from ..auth import get_current_user
 from ..cache import cache, make_query_key
 from ..config import settings
 from ..database import get_db
-from ..models import ChatHistory, Chunk, Document, User
+from ..models import ChatHistory, User
 from ..ratelimit import limiter, query_limit
-from ..schemas import QueryRequest, QueryResponse, SourceOut
-from ..similarity import top_k_by_similarity
+from ..schemas import (
+    QueryRequest,
+    QueryResponse,
+    SourceOut,
+    UnsupportedSentence,
+)
+from ..services.followup import generate_followup_questions
+from ..services.hallucination_guard import check_answer
+from ..services.multihop import multihop_retrieve
+from ..services.retriever import hybrid_retrieve
 
 router = APIRouter(prefix="/api", tags=["query"])
 logger = logging.getLogger("papertrail.query")
 
-TOP_K = 4  # retrieve top 3-5 chunks; 4 is a good default
 SNIPPET_CHARS = 240
+TOP_K = 8
 
 
 @router.post("/query", response_model=QueryResponse)
@@ -36,125 +50,127 @@ def query(
     question = payload.question.strip()
     mode = payload.mode
 
-    # Cache: identical (user, normalized question, mode) served without
-    # re-invoking the LLM. Invalidated when the user's document set changes.
-    cache_key = make_query_key(current_user.id, question, mode)
-    if settings.query_cache_ttl_seconds > 0:
+    # Cache identical (user, question, mode). Retrieval scoping makes the cache
+    # unsafe to reuse across different document_ids/collection, so only the
+    # unscoped ("all documents") case is cached.
+    scoped = bool(payload.document_ids) or bool(payload.collection_id)
+    cache_key = make_query_key(current_user.id, question, mode) if not scoped else None
+    if cache_key and settings.query_cache_ttl_seconds > 0:
         cached = cache.get(cache_key)
         if cached is not None:
             response = QueryResponse.model_validate_json(cached)
-            _save_history(db, current_user.id, question, response.answer, mode)
+            row = _save_history(db, current_user, question, response, mode)
+            response.query_id = row.id
             return response
 
-    response = _compute_query(db, current_user, question, mode)
-    _save_history(db, current_user.id, question, response.answer, mode)
-    if settings.query_cache_ttl_seconds > 0:
+    response = _compute_query(db, current_user, payload, question, mode)
+    row = _save_history(db, current_user, question, response, mode)
+    response.query_id = row.id
+    if cache_key and settings.query_cache_ttl_seconds > 0:
         cache.set(cache_key, response.model_dump_json(), settings.query_cache_ttl_seconds)
     return response
 
 
 def _compute_query(
-    db: Session, current_user: User, question: str, mode: str
+    db: Session, current_user: User, payload: QueryRequest, question: str, mode: str
 ) -> QueryResponse:
     if mode == "direct":
         answer = llm.generate_answer(question, [], "direct")
-        return QueryResponse(answer=answer, mode=mode, sources=[])
+        return QueryResponse(answer=answer, mode=mode, sources=[], confidence_score=0.0)
 
-    # --- RAG mode ---
-    # 1) Embed the question.
-    query_vec = llm.embed_texts([question])[0]
+    document_ids = payload.document_ids or None
+    collection_id = payload.collection_id
 
-    # 2) Load chunk embeddings and rank by cosine similarity.
-    # Scoped to the current user's own documents (row-level isolation enforced
-    # in application code — MySQL has no native RLS). Capped at
-    # settings.max_query_chunks: brute-force NumPy cosine similarity scans every
-    # loaded chunk on every query, which does not scale. Past a few thousand
-    # chunks a real ANN/vector index (pgvector, Qdrant, ...) is required.
-    rows = db.execute(
-        select(
-            Chunk.id, Chunk.document_id, Chunk.chunk_index, Chunk.content, Chunk.embedding
+    if mode == "multihop":
+        retrieved = multihop_retrieve(
+            db, current_user.id, question,
+            document_ids=document_ids, collection_id=collection_id,
         )
-        .join(Document, Document.id == Chunk.document_id)
-        .where(Document.user_id == current_user.id)
-        # Deterministic truncation when a corpus exceeds the in-memory cap:
-        # newest documents (and newest chunks) win, so the truncated set — and
-        # therefore the answer — doesn't vary run-to-run right at the boundary.
-        .order_by(Chunk.document_id.desc(), Chunk.id.desc())
-        .limit(settings.max_query_chunks)
-    ).all()
+    else:
+        retrieved = hybrid_retrieve(
+            db, current_user.id, question,
+            document_ids=document_ids, collection_id=collection_id, top_k=TOP_K,
+        )
 
-    if not rows:
+    if not retrieved:
         answer = (
-            "No documents have been uploaded yet, so there's nothing to search. "
-            "Upload a document first, then ask again."
+            "There are no documents (or no relevant passages) to answer that yet. "
+            "Upload a document, or widen your selection, and ask again."
         )
-        return QueryResponse(answer=answer, mode=mode, sources=[])
+        return QueryResponse(answer=answer, mode=mode, sources=[], confidence_score=0.0)
 
-    # Only rank chunks whose stored embedding matches the question embedding's
-    # dimensionality. A vector of a different length (e.g. a corpus embedded
-    # offline at 512 dims before an OpenAI key was added, now queried at 1536)
-    # would otherwise raise inside NumPy and turn the whole query into a 500.
-    # Skip the mismatched chunks and log, so retrieval degrades gracefully.
-    query_dim = len(query_vec)
-    candidates: list[tuple[int, list[float]]] = []
-    skipped = 0
-    for r in rows:
-        embedding = json.loads(r.embedding)
-        if len(embedding) != query_dim:
-            skipped += 1
-            continue
-        candidates.append((r.id, embedding))
-    if skipped:
-        logger.warning(
-            "Skipped %d chunk(s) with embedding dim != %d for user %s "
-            "(mixed embedding providers?); re-ingest those documents to include them.",
-            skipped,
-            query_dim,
-            current_user.id,
-        )
-
-    ranked = top_k_by_similarity(query_vec, candidates, TOP_K)
-
-    # 3) Assemble the ranked context + source metadata (this user's docs only).
-    by_id = {r.id: r for r in rows}
-    doc_titles = {
-        d.id: d.filename
-        for d in db.execute(
-            select(Document.id, Document.filename).where(
-                Document.user_id == current_user.id
-            )
-        ).all()
-    }
-
-    context_chunks: list[str] = []
-    sources: list[SourceOut] = []
-    for citation_n, (chunk_id, score) in enumerate(ranked, start=1):
-        r = by_id[chunk_id]
-        context_chunks.append(r.content)
-        snippet = r.content.strip().replace("\n", " ")
-        if len(snippet) > SNIPPET_CHARS:
-            snippet = snippet[:SNIPPET_CHARS].rsplit(" ", 1)[0] + "…"
-        sources.append(
-            SourceOut(
-                n=citation_n,
-                title=doc_titles.get(r.document_id, "unknown"),
-                snippet=snippet,
-                score=round(max(0.0, score) * 100, 1),
-                document_id=r.document_id,
-                chunk_index=r.chunk_index,
-            )
-        )
-
-    # 4) Generate the grounded answer.
+    context_chunks = [c["text"] for c in retrieved]
     answer = llm.generate_answer(question, context_chunks, "rag")
 
-    return QueryResponse(answer=answer, mode=mode, sources=sources)
+    # Confidence = mean of the top-3 ranked scores, clamped to [0, 1].
+    top3 = [c["ranked_score"] for c in retrieved[:3]]
+    confidence = min(1.0, sum(top3) / len(top3)) if top3 else 0.0
+
+    sources: list[SourceOut] = []
+    for i, c in enumerate(retrieved, start=1):
+        snippet = c["text"].strip().replace("\n", " ")
+        if len(snippet) > SNIPPET_CHARS:
+            snippet = snippet[:SNIPPET_CHARS].rsplit(" ", 1)[0] + "…"
+        relevance = int(round(min(1.0, c["ranked_score"]) * 100))
+        sources.append(
+            SourceOut(
+                n=i,
+                title=c["document_name"],
+                snippet=snippet,
+                score=float(relevance),
+                document_id=c["document_id"],
+                chunk_id=c["chunk_id"],
+                chunk_index=c.get("chunk_index", 0),
+                page_number=c.get("page_number", 1),
+                section_heading=c.get("section_heading"),
+                similarity_score=round(c.get("similarity_score", 0.0), 4),
+                importance_score=round(c.get("importance_score", 0.0), 4),
+                relevance_pct=relevance,
+            )
+        )
+
+    followups = generate_followup_questions(question, answer, retrieved)
+    unsupported = [
+        UnsupportedSentence(sentence=s["sentence"], source_chunk_id=s["source_chunk_id"])
+        for s in check_answer(answer, retrieved)
+        if not s["supported"]
+    ]
+
+    return QueryResponse(
+        answer=answer,
+        mode=mode,
+        sources=sources,
+        confidence_score=round(confidence, 4),
+        followup_questions=followups,
+        unsupported_sentences=unsupported,
+    )
 
 
 def _save_history(
-    db: Session, user_id: str, question: str, answer: str, mode: str
-) -> None:
-    db.add(
-        ChatHistory(user_id=user_id, question=question, answer=answer, mode=mode)
+    db: Session, user: User, question: str, response: QueryResponse, mode: str
+) -> ChatHistory:
+    """Persist the exchange plus a compact source snapshot (for the mind map)."""
+    sources_snapshot = [
+        {
+            "chunk_id": s.chunk_id,
+            "document_id": s.document_id,
+            "document_name": s.title,
+            "page_number": s.page_number,
+            "section_heading": s.section_heading,
+            "ranked_score": s.relevance_pct / 100.0,
+            "importance_score": s.importance_score,
+        }
+        for s in response.sources
+    ]
+    row = ChatHistory(
+        user_id=user.id,
+        question=question,
+        answer=response.answer,
+        mode=mode,
+        sources_json=json.dumps(sources_snapshot) if sources_snapshot else None,
+        confidence_score=response.confidence_score,
     )
+    db.add(row)
     db.commit()
+    db.refresh(row)
+    return row

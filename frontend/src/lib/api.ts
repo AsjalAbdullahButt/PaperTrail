@@ -38,19 +38,33 @@ export function isAuthenticated(): boolean {
 }
 
 /* ------------------------------- types ---------------------------------- */
+export type QueryMode = "rag" | "direct" | "multihop";
+
 export type Source = {
   n: number;
   title: string;
   snippet: string;
-  score: number; // percentage 0-100
+  score: number; // relevance percentage 0-100 (meter)
   document_id: string;
+  chunk_id: string;
   chunk_index: number;
+  page_number: number;
+  section_heading: string | null;
+  similarity_score: number;
+  importance_score: number;
+  relevance_pct: number;
 };
+
+export type UnsupportedSentence = { sentence: string; source_chunk_id: string | null };
 
 export type QueryResponse = {
   answer: string;
-  mode: "rag" | "direct";
+  mode: QueryMode;
   sources: Source[];
+  confidence_score: number;
+  followup_questions: string[];
+  unsupported_sentences: UnsupportedSentence[];
+  query_id: string | null;
 };
 
 export type Highlight = { text: string; score: number; chunk_index: number };
@@ -80,8 +94,45 @@ export type DocumentInfo = {
   filename: string;
   file_type: string;
   page_count: number | null;
+  word_count: number;
+  version_number: number;
   created_at: string;
   chunk_count: number | null;
+  tags: string[];
+  is_duplicate: boolean;
+  duplicate_of_name: string | null;
+};
+
+export type Collection = {
+  id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+  document_count: number | null;
+};
+
+export type CoverageCell = {
+  chunk_id: string;
+  chunk_index: number;
+  retrieved_count: number;
+};
+
+export type QueryHistoryItem = {
+  id: string;
+  question: string;
+  answer: string;
+  mode: string;
+  confidence_score: number | null;
+  bookmarked: boolean;
+  bookmark_note: string | null;
+  created_at: string;
+};
+
+export type QueryHistoryPage = {
+  items: QueryHistoryItem[];
+  total: number;
+  limit: number;
+  offset: number;
 };
 
 export type ChatHistoryItem = {
@@ -210,12 +261,18 @@ export async function getMe(): Promise<User> {
 /* ------------------------------- query ---------------------------------- */
 export async function askQuery(
   question: string,
-  mode: "rag" | "direct",
+  mode: QueryMode,
+  opts: { document_ids?: string[]; collection_id?: string } = {},
 ): Promise<QueryResponse> {
   const res = await fetch(`${API_URL}/api/query`, {
     method: "POST",
     headers: authHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify({ question, mode }),
+    body: JSON.stringify({
+      question,
+      mode,
+      document_ids: opts.document_ids ?? [],
+      collection_id: opts.collection_id ?? null,
+    }),
   });
   return handle<QueryResponse>(res);
 }
@@ -248,6 +305,102 @@ export async function listDocuments(limit = 50, offset = 0): Promise<DocumentInf
 
 export async function deleteDocument(id: string): Promise<void> {
   const res = await fetch(`${API_URL}/api/documents/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  await handle<{ id: string; deleted: boolean }>(res);
+}
+
+export async function listDocumentsFiltered(params: {
+  tag?: string;
+  collection_id?: string;
+  type?: string;
+  search?: string;
+} = {}): Promise<DocumentInfo[]> {
+  const qs = new URLSearchParams();
+  if (params.tag) qs.set("tag", params.tag);
+  if (params.collection_id) qs.set("collection_id", params.collection_id);
+  if (params.type) qs.set("type", params.type);
+  if (params.search) qs.set("search", params.search);
+  const res = await fetch(`${API_URL}/api/documents?${qs.toString()}`, {
+    headers: authHeaders(),
+  });
+  return handle<DocumentInfo[]>(res);
+}
+
+export async function getDocumentCoverage(id: string): Promise<CoverageCell[]> {
+  const res = await fetch(`${API_URL}/api/documents/${id}/coverage`, { headers: authHeaders() });
+  return handle<CoverageCell[]>(res);
+}
+
+export async function addTags(id: string, tags: string[]): Promise<{ tags: string[] }> {
+  const res = await fetch(`${API_URL}/api/documents/${id}/tags`, {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ tags }),
+  });
+  return handle<{ document_id: string; tags: string[] }>(res);
+}
+
+export async function removeTag(id: string, tag: string): Promise<{ tags: string[] }> {
+  const res = await fetch(`${API_URL}/api/documents/${id}/tags/${encodeURIComponent(tag)}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handle<{ document_id: string; tags: string[] }>(res);
+}
+
+/* ----------------------------- collections ------------------------------ */
+export async function listCollections(): Promise<Collection[]> {
+  const res = await fetch(`${API_URL}/api/collections`, { headers: authHeaders() });
+  return handle<Collection[]>(res);
+}
+
+export async function createCollection(name: string, description?: string): Promise<Collection> {
+  const res = await fetch(`${API_URL}/api/collections`, {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ name, description: description ?? null }),
+  });
+  return handle<Collection>(res);
+}
+
+export async function addToCollection(collectionId: string, documentIds: string[]): Promise<Collection> {
+  const res = await fetch(`${API_URL}/api/collections/${collectionId}/documents`, {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ document_ids: documentIds }),
+  });
+  return handle<Collection>(res);
+}
+
+export async function deleteCollection(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/collections/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  await handle<{ id: string; deleted: boolean }>(res);
+}
+
+/* -------------------------- query history ------------------------------- */
+export async function listQueries(limit = 20, offset = 0): Promise<QueryHistoryPage> {
+  const res = await fetch(`${API_URL}/api/queries?limit=${limit}&offset=${offset}`, {
+    headers: authHeaders(),
+  });
+  return handle<QueryHistoryPage>(res);
+}
+
+export async function toggleBookmark(id: string, note?: string): Promise<QueryHistoryItem> {
+  const res = await fetch(`${API_URL}/api/queries/${id}/bookmark`, {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ note: note ?? null }),
+  });
+  return handle<QueryHistoryItem>(res);
+}
+
+export async function deleteQuery(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/queries/${id}`, {
     method: "DELETE",
     headers: authHeaders(),
   });
