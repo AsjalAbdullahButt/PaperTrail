@@ -59,12 +59,34 @@ def _install_fake_openai(monkeypatch, *, embed=None, chat=None):
 
 def test_openai_embed_path(monkeypatch):
     def fake_embed(model, input):
-        data = [types.SimpleNamespace(embedding=[float(len(t)), 1.0]) for t in input]
+        data = [
+            types.SimpleNamespace(embedding=[float(len(t)), 1.0], index=i)
+            for i, t in enumerate(input)
+        ]
         return types.SimpleNamespace(data=data)
 
     _install_fake_openai(monkeypatch, embed=fake_embed)
     out = llm.embed_texts(["ab", "cde"])
     assert out == [[2.0, 1.0], [3.0, 1.0]]
+
+
+def test_openai_embed_realigns_out_of_order_response(monkeypatch):
+    """Chunk<->embedding alignment must not depend on API response ordering.
+
+    The API returns each item with an `index`; if items come back shuffled we
+    must reorder by index, otherwise embeddings get paired with the wrong text.
+    """
+    def fake_embed(model, input):
+        data = [
+            types.SimpleNamespace(embedding=[float(i)], index=i)
+            for i, _ in enumerate(input)
+        ]
+        # Return them in reverse order to simulate an out-of-order response.
+        return types.SimpleNamespace(data=list(reversed(data)))
+
+    _install_fake_openai(monkeypatch, embed=fake_embed)
+    out = llm.embed_texts(["a", "b", "c"])
+    assert out == [[0.0], [1.0], [2.0]]
 
 
 def test_openai_generate_path(monkeypatch):

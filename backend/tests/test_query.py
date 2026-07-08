@@ -1,7 +1,12 @@
 """Router coverage for POST /api/query (RAG + direct) and edge cases."""
 from __future__ import annotations
 
+import json
+
+from sqlalchemy import select
+
 import app.routers.documents as documents_router
+from app.models import Chunk
 from ._helpers import upload_text_doc
 
 from conftest import requires_db
@@ -51,6 +56,44 @@ def test_query_malformed_mode_rejected(client):
 def test_query_missing_question_rejected(client):
     res = client.post("/api/query", json={"mode": "rag"})
     assert res.status_code == 422
+
+
+def test_query_survives_mismatched_embedding_dimensions(client, db_session):
+    """Regression: a chunk stored with a different embedding dimensionality
+    (e.g. a corpus embedded offline at 512 dims, later queried after an OpenAI
+    key is added at 1536 dims) must be skipped, not 500 the whole query.
+    """
+    doc = upload_text_doc(
+        client,
+        "mixed.txt",
+        "The capital of the fictional country Zubrowka is Lutz. " * 60,
+    )
+    chunks = (
+        db_session.execute(
+            select(Chunk)
+            .where(Chunk.document_id == doc["id"])
+            .order_by(Chunk.chunk_index)
+        )
+        .scalars()
+        .all()
+    )
+    assert len(chunks) >= 1
+    # Corrupt the first chunk's embedding to a wrong (3-dim) vector.
+    bad_index = chunks[0].chunk_index
+    chunks[0].embedding = json.dumps([0.1, 0.2, 0.3])
+    db_session.commit()
+
+    res = client.post(
+        "/api/query",
+        json={"question": "What is the capital of Zubrowka?", "mode": "rag"},
+    )
+    # The query completes instead of raising a 500 inside NumPy.
+    assert res.status_code == 200, res.text
+    # The dimensionally-broken chunk never appears as a citation.
+    assert not any(
+        s["document_id"] == doc["id"] and s["chunk_index"] == bad_index
+        for s in res.json()["sources"]
+    )
 
 
 def test_upload_embedding_count_mismatch_returns_500(client, monkeypatch):

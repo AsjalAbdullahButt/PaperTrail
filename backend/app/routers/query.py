@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
@@ -18,6 +19,7 @@ from ..schemas import QueryRequest, QueryResponse, SourceOut
 from ..similarity import top_k_by_similarity
 
 router = APIRouter(prefix="/api", tags=["query"])
+logger = logging.getLogger("papertrail.query")
 
 TOP_K = 4  # retrieve top 3-5 chunks; 4 is a good default
 SNIPPET_CHARS = 240
@@ -74,6 +76,10 @@ def _compute_query(
         )
         .join(Document, Document.id == Chunk.document_id)
         .where(Document.user_id == current_user.id)
+        # Deterministic truncation when a corpus exceeds the in-memory cap:
+        # newest documents (and newest chunks) win, so the truncated set — and
+        # therefore the answer — doesn't vary run-to-run right at the boundary.
+        .order_by(Chunk.document_id.desc(), Chunk.id.desc())
         .limit(settings.max_query_chunks)
     ).all()
 
@@ -84,7 +90,29 @@ def _compute_query(
         )
         return QueryResponse(answer=answer, mode=mode, sources=[])
 
-    candidates = [(r.id, json.loads(r.embedding)) for r in rows]
+    # Only rank chunks whose stored embedding matches the question embedding's
+    # dimensionality. A vector of a different length (e.g. a corpus embedded
+    # offline at 512 dims before an OpenAI key was added, now queried at 1536)
+    # would otherwise raise inside NumPy and turn the whole query into a 500.
+    # Skip the mismatched chunks and log, so retrieval degrades gracefully.
+    query_dim = len(query_vec)
+    candidates: list[tuple[int, list[float]]] = []
+    skipped = 0
+    for r in rows:
+        embedding = json.loads(r.embedding)
+        if len(embedding) != query_dim:
+            skipped += 1
+            continue
+        candidates.append((r.id, embedding))
+    if skipped:
+        logger.warning(
+            "Skipped %d chunk(s) with embedding dim != %d for user %s "
+            "(mixed embedding providers?); re-ingest those documents to include them.",
+            skipped,
+            query_dim,
+            current_user.id,
+        )
+
     ranked = top_k_by_similarity(query_vec, candidates, TOP_K)
 
     # 3) Assemble the ranked context + source metadata (this user's docs only).

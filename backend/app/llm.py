@@ -57,7 +57,10 @@ def _openai_embed(texts: list[str]) -> list[list[float]]:
     for i in range(0, len(texts), batch_size):
         batch = texts[i : i + batch_size]
         resp = client.embeddings.create(model=settings.openai_embedding_model, input=batch)
-        out.extend(item.embedding for item in resp.data)
+        # Order by `index` so chunk<->embedding alignment never depends on the
+        # order the API returns items in; a misalignment would silently corrupt
+        # retrieval (wrong snippets cited) with no error.
+        out.extend(item.embedding for item in sorted(resp.data, key=lambda d: d.index))
     return out
 
 
