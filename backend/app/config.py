@@ -17,6 +17,14 @@ class Settings(BaseSettings):
     openai_embedding_model: str = "text-embedding-3-small"
     openai_chat_model: str = "gpt-4o-mini"
 
+    # --- Groq (OpenAI-compatible chat API; no embeddings endpoint) ---
+    # When set, chat generation (RAG + direct answers) uses Groq via the
+    # OpenAI-compatible client. Groq has no embeddings API, so embeddings still
+    # come from the offline hasher unless a real OpenAI key is also configured.
+    groq_api_key: str = ""
+    groq_chat_model: str = "llama-3.3-70b-versatile"
+    groq_base_url: str = "https://api.groq.com/openai/v1"
+
     # --- MySQL ---
     db_host: str = "localhost"
     db_port: int = 3306
@@ -113,6 +121,11 @@ class Settings(BaseSettings):
         """True when a real-looking OpenAI key is configured."""
         key = self.openai_api_key.strip()
         return key.startswith("sk-") and "your-openai-key" not in key
+
+    @property
+    def groq_ready(self) -> bool:
+        """True when a real-looking Groq key is configured."""
+        return self.groq_api_key.strip().startswith("gsk_")
 
 
 @lru_cache

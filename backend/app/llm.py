@@ -97,14 +97,17 @@ def generate_answer(question: str, context_chunks: list[str], mode: str) -> str:
         except Exception as exc:  # noqa: BLE001
             logger.warning("OpenAI generation failed (%s); using offline fallback.", exc)
 
+    if settings.groq_ready:
+        try:
+            return _groq_generate(question, context_chunks, mode)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Groq generation failed (%s); using offline fallback.", exc)
+
     return _offline_generate(question, context_chunks, mode)
 
 
-def _openai_generate(question: str, context_chunks: list[str], mode: str) -> str:
-    from openai import OpenAI
-
-    client = OpenAI(api_key=settings.openai_api_key)
-
+def _build_messages(question: str, context_chunks: list[str], mode: str) -> list[dict]:
+    """Assemble the chat messages shared by every hosted-model provider."""
     if mode == "rag":
         context = "\n\n".join(f"[{i + 1}] {c}" for i, c in enumerate(context_chunks))
         system = (
@@ -117,10 +120,32 @@ def _openai_generate(question: str, context_chunks: list[str], mode: str) -> str
     else:
         system = "You are PaperTrail, a helpful and concise assistant."
         user = question
+    return [
+        {"role": "system", "content": system},
+        {"role": "user", "content": user},
+    ]
 
+
+def _openai_generate(question: str, context_chunks: list[str], mode: str) -> str:
+    from openai import OpenAI
+
+    client = OpenAI(api_key=settings.openai_api_key)
     resp = client.chat.completions.create(
         model=settings.openai_chat_model,
-        messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+        messages=_build_messages(question, context_chunks, mode),
+        temperature=0.2,
+    )
+    return (resp.choices[0].message.content or "").strip()
+
+
+def _groq_generate(question: str, context_chunks: list[str], mode: str) -> str:
+    """Generate via Groq's OpenAI-compatible chat endpoint (custom base_url)."""
+    from openai import OpenAI
+
+    client = OpenAI(api_key=settings.groq_api_key, base_url=settings.groq_base_url)
+    resp = client.chat.completions.create(
+        model=settings.groq_chat_model,
+        messages=_build_messages(question, context_chunks, mode),
         temperature=0.2,
     )
     return (resp.choices[0].message.content or "").strip()
@@ -130,9 +155,9 @@ def _offline_generate(question: str, context_chunks: list[str], mode: str) -> st
     """Extractive, clearly-labeled offline answer."""
     if mode == "direct":
         return (
-            "[offline mode] No OpenAI key is configured, so PaperTrail cannot "
-            "generate a free-form direct answer. Add OPENAI_API_KEY to backend/.env "
-            "to enable real generation. Your question was: "
+            "[offline mode] No chat model is configured, so PaperTrail cannot "
+            "generate a free-form direct answer. Add OPENAI_API_KEY or GROQ_API_KEY "
+            "to backend/.env to enable real generation. Your question was: "
             f"“{question.strip()}”"
         )
 
