@@ -27,8 +27,8 @@ export default function DocumentManager({
 }: Props) {
   const [docs, setDocs] = useState<DocumentInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [confirmId, setConfirmId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -52,7 +52,7 @@ export default function DocumentManager({
     };
   }, [open, refreshKey, onUnauthorized]);
 
-  async function handleDelete(id: number) {
+  async function handleDelete(id: string) {
     setDeletingId(id);
     setError(null);
     try {

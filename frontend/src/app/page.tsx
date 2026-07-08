@@ -7,16 +7,15 @@ import {
   type ChangeEvent,
   type CSSProperties,
 } from "react";
+import { useRouter } from "next/navigation";
 import {
   ApiError,
   askQuery,
-  logout,
   uploadDocument,
   type QueryResponse,
   type Source,
 } from "@/lib/api";
-import { useAuthState } from "@/lib/useAuth";
-import AuthScreen from "@/components/AuthScreen";
+import { useAuthStore } from "@/stores/authStore";
 import DocumentManager from "@/components/DocumentManager";
 import ChatHistoryPanel from "@/components/ChatHistoryPanel";
 import { renderAnswerWithCitations } from "@/components/Citations";
@@ -229,7 +228,23 @@ function HeaderButton({
 
 /* -------------------------------- Page ----------------------------------- */
 export default function Home() {
-  const authed = useAuthState();
+  const router = useRouter();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const ready = useAuthStore((s) => s.ready);
+  const restoreSession = useAuthStore((s) => s.restoreSession);
+  const storeLogout = useAuthStore((s) => s.logout);
+
+  // On mount, silently exchange the httpOnly refresh cookie for an access
+  // token so a reload keeps the session. Once ready, unauthenticated users are
+  // routed to /login (the real gate; middleware only handles redirect UX).
+  useEffect(() => {
+    restoreSession();
+  }, [restoreSession]);
+  useEffect(() => {
+    if (ready && !isAuthenticated) router.replace("/login");
+  }, [ready, isAuthenticated, router]);
+
+  const authed = ready ? isAuthenticated : null;
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [mode, setMode] = useState<"rag" | "direct">("rag");
   const [query, setQuery] = useState("");
@@ -282,17 +297,19 @@ export default function Home() {
   }
 
   function handleUnauthorized() {
-    logout(); // clears the token and notifies the auth store -> AuthScreen shows
+    void storeLogout(); // clear token/session, then route to sign-in
     setResult(null);
     setDocsOpen(false);
     setHistoryOpen(false);
     showToast("err", "Your session expired. Please sign in again.");
+    router.replace("/login");
   }
 
   function signOut() {
-    logout();
+    void storeLogout();
     setResult(null);
     setQuery("");
+    router.replace("/login");
   }
 
   async function runQuery(q: string) {
@@ -394,8 +411,6 @@ export default function Home() {
       </div>
 
       <div style={{ position: "relative", zIndex: 1, maxWidth: 1200, margin: "0 auto", padding: "22px 28px 80px" }}>
-        {authed === false && <AuthScreen />}
-
         {authed === true && (
           <>
             {/* TOP BAR */}

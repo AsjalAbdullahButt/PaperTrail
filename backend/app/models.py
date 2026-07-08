@@ -22,6 +22,7 @@ from sqlalchemy import (
     Text,
     func,
 )
+from sqlalchemy.dialects.mysql import DATETIME as MYSQL_DATETIME
 from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -40,6 +41,13 @@ def _uuid() -> str:
 # column definition consistent and dialect-portable.
 UUID_COL = String(36)
 
+# Microsecond-precision timestamps. With UUID primary keys there is no
+# monotonic integer id to break "same-second" ties, so newest-first ordering
+# relies on fractional-second precision. Plain MySQL DATETIME truncates to
+# whole seconds; DATETIME(6) preserves microseconds. SQLite keeps full
+# precision natively, so the base DateTime is used there.
+TIMESTAMP_COL = DateTime().with_variant(MYSQL_DATETIME(fsp=6), "mysql")
+
 
 class User(Base):
     __tablename__ = "users"
@@ -51,9 +59,9 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     display_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    last_login: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_login: Mapped[datetime | None] = mapped_column(TIMESTAMP_COL, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=_utcnow, server_default=func.now()
+        TIMESTAMP_COL, nullable=False, default=_utcnow, server_default=func.now()
     )
 
 
@@ -72,9 +80,9 @@ class TokenBlacklist(Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     revoked_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=_utcnow, server_default=func.now()
+        TIMESTAMP_COL, nullable=False, default=_utcnow, server_default=func.now()
     )
-    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(TIMESTAMP_COL, nullable=False)
 
 
 class Document(Base):
@@ -88,7 +96,7 @@ class Document(Base):
     file_type: Mapped[str] = mapped_column(String(32), nullable=False)
     page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=_utcnow, server_default=func.now()
+        TIMESTAMP_COL, nullable=False, default=_utcnow, server_default=func.now()
     )
 
     chunks: Mapped[list["Chunk"]] = relationship(
@@ -117,7 +125,7 @@ class Chunk(Base):
         Float, nullable=False, default=0.0, server_default="0"
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=_utcnow, server_default=func.now()
+        TIMESTAMP_COL, nullable=False, default=_utcnow, server_default=func.now()
     )
 
     document: Mapped["Document"] = relationship(back_populates="chunks")
@@ -134,5 +142,5 @@ class ChatHistory(Base):
     answer: Mapped[str] = mapped_column(Text, nullable=False)
     mode: Mapped[str] = mapped_column(String(16), nullable=False)  # 'rag' | 'direct'
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=_utcnow, server_default=func.now()
+        TIMESTAMP_COL, nullable=False, default=_utcnow, server_default=func.now()
     )

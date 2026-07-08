@@ -2,8 +2,26 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-// Force the authenticated view.
-vi.mock("@/lib/useAuth", () => ({ useAuthState: () => true }));
+// Force the authenticated view via the auth store, and stub the router.
+type AuthSlice = {
+  isAuthenticated: boolean;
+  ready: boolean;
+  restoreSession: () => void;
+  logout: () => Promise<void>;
+};
+vi.mock("@/stores/authStore", () => ({
+  useAuthStore: (selector: (s: AuthSlice) => unknown) =>
+    selector({
+      isAuthenticated: true,
+      ready: true,
+      restoreSession: () => {},
+      logout: async () => {},
+    }),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+}));
 
 vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
@@ -11,7 +29,6 @@ vi.mock("@/lib/api", async () => {
     ...actual,
     askQuery: vi.fn(),
     uploadDocument: vi.fn(),
-    logout: vi.fn(),
   };
 });
 

@@ -1,15 +1,40 @@
 // API client for the PaperTrail backend (auth, documents, query, history).
+//
+// Access tokens live in memory only (never localStorage) — set via
+// setAccessToken() by the auth store. Refresh tokens are an httpOnly cookie the
+// browser sends automatically to /api/auth/* (credentials: "include"); JS never
+// sees them. A same-origin, non-secret "session hint" cookie is mirrored so the
+// Next.js middleware can drive redirect UX cross-origin.
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:8000";
 
-const TOKEN_KEY = "papertrail_token";
 export const AUTH_EVENT = "papertrail-auth";
+export const SESSION_HINT_COOKIE = "pt_session";
 
-function broadcastAuthChange(): void {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new Event(AUTH_EVENT));
+/* --------------------------- in-memory token ---------------------------- */
+let accessToken: string | null = null;
+
+export function setAccessToken(token: string | null): void {
+  accessToken = token;
+  if (typeof document !== "undefined") {
+    if (token) {
+      // Non-secret hint (no token value) so middleware can gate routes on
+      // :3000 even though the real refresh cookie lives on the API origin.
+      document.cookie = `${SESSION_HINT_COOKIE}=1; path=/; samesite=lax`;
+    } else {
+      document.cookie = `${SESSION_HINT_COOKIE}=; path=/; max-age=0; samesite=lax`;
+    }
   }
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(AUTH_EVENT));
+}
+
+export function getAccessToken(): string | null {
+  return accessToken;
+}
+
+export function isAuthenticated(): boolean {
+  return accessToken !== null;
 }
 
 /* ------------------------------- types ---------------------------------- */
@@ -18,7 +43,7 @@ export type Source = {
   title: string;
   snippet: string;
   score: number; // percentage 0-100
-  document_id: number;
+  document_id: string;
   chunk_index: number;
 };
 
@@ -28,14 +53,10 @@ export type QueryResponse = {
   sources: Source[];
 };
 
-export type UploadResult = {
-  id: number;
-  filename: string;
-  chunks_created: number;
-};
+export type UploadResult = { id: string; filename: string; chunks_created: number };
 
 export type DocumentInfo = {
-  id: number;
+  id: string;
   filename: string;
   file_type: string;
   page_count: number | null;
@@ -44,7 +65,7 @@ export type DocumentInfo = {
 };
 
 export type ChatHistoryItem = {
-  id: number;
+  id: string;
   question: string;
   answer: string;
   mode: string;
@@ -58,6 +79,13 @@ export type ChatHistoryPage = {
   offset: number;
 };
 
+export type User = {
+  id: string;
+  email: string;
+  display_name: string | null;
+  created_at: string;
+};
+
 /** Thrown for non-2xx responses; carries the HTTP status for callers. */
 export class ApiError extends Error {
   status: number;
@@ -68,34 +96,9 @@ export class ApiError extends Error {
   }
 }
 
-/* --------------------------- token storage ------------------------------ */
-export function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(TOKEN_KEY);
-}
-
-function setToken(token: string): void {
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(TOKEN_KEY, token);
-    broadcastAuthChange();
-  }
-}
-
-export function clearToken(): void {
-  if (typeof window !== "undefined") {
-    window.localStorage.removeItem(TOKEN_KEY);
-    broadcastAuthChange();
-  }
-}
-
-export function isAuthenticated(): boolean {
-  return getToken() !== null;
-}
-
 /* ----------------------------- internals -------------------------------- */
 function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
-  const token = getToken();
-  return token ? { ...extra, Authorization: `Bearer ${token}` } : extra;
+  return accessToken ? { ...extra, Authorization: `Bearer ${accessToken}` } : extra;
 }
 
 async function parseError(res: Response): Promise<string> {
@@ -111,43 +114,83 @@ async function parseError(res: Response): Promise<string> {
 }
 
 async function handle<T>(res: Response): Promise<T> {
-  if (res.status === 401) {
-    // Token invalid/expired: drop it so the UI can send the user to sign-in.
-    clearToken();
-  }
   if (!res.ok) throw new ApiError(await parseError(res), res.status);
   return res.json() as Promise<T>;
 }
 
 /* -------------------------------- auth ---------------------------------- */
-export async function register(email: string, password: string): Promise<void> {
+type TokenResponse = { access_token: string };
+
+export async function register(
+  email: string,
+  password: string,
+  displayName?: string,
+): Promise<string> {
   const res = await fetch(`${API_URL}/api/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    credentials: "include", // accept the httpOnly refresh cookie
+    body: JSON.stringify({ email, password, display_name: displayName || null }),
   });
-  const data = await handle<{ access_token: string }>(res);
-  setToken(data.access_token);
+  const data = await handle<TokenResponse>(res);
+  setAccessToken(data.access_token);
+  return data.access_token;
 }
 
-export async function login(email: string, password: string): Promise<void> {
+export async function login(email: string, password: string): Promise<string> {
   const res = await fetch(`${API_URL}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({ email, password }),
   });
-  const data = await handle<{ access_token: string }>(res);
-  setToken(data.access_token);
+  const data = await handle<TokenResponse>(res);
+  setAccessToken(data.access_token);
+  return data.access_token;
 }
 
-export function logout(): void {
-  clearToken();
+/** Exchange the httpOnly refresh cookie for a new access token. Returns null
+ *  (without throwing) when there is no valid session to restore. */
+export async function refresh(): Promise<string | null> {
+  try {
+    const res = await fetch(`${API_URL}/api/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!res.ok) {
+      setAccessToken(null);
+      return null;
+    }
+    const data = (await res.json()) as TokenResponse;
+    setAccessToken(data.access_token);
+    return data.access_token;
+  } catch {
+    setAccessToken(null);
+    return null;
+  }
+}
+
+export async function logout(): Promise<void> {
+  try {
+    await fetch(`${API_URL}/api/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+    });
+  } catch {
+    /* best-effort; clear client state regardless */
+  }
+  setAccessToken(null);
+}
+
+export async function getMe(): Promise<User> {
+  const res = await fetch(`${API_URL}/api/auth/me`, { headers: authHeaders() });
+  return handle<User>(res);
 }
 
 /* ------------------------------- query ---------------------------------- */
 export async function askQuery(
   question: string,
-  mode: "rag" | "direct"
+  mode: "rag" | "direct",
 ): Promise<QueryResponse> {
   const res = await fetch(`${API_URL}/api/query`, {
     method: "POST",
@@ -169,33 +212,25 @@ export async function uploadDocument(file: File): Promise<UploadResult> {
   return handle<UploadResult>(res);
 }
 
-export async function listDocuments(
-  limit = 50,
-  offset = 0
-): Promise<DocumentInfo[]> {
-  const res = await fetch(
-    `${API_URL}/api/documents?limit=${limit}&offset=${offset}`,
-    { headers: authHeaders() }
-  );
+export async function listDocuments(limit = 50, offset = 0): Promise<DocumentInfo[]> {
+  const res = await fetch(`${API_URL}/api/documents?limit=${limit}&offset=${offset}`, {
+    headers: authHeaders(),
+  });
   return handle<DocumentInfo[]>(res);
 }
 
-export async function deleteDocument(id: number): Promise<void> {
+export async function deleteDocument(id: string): Promise<void> {
   const res = await fetch(`${API_URL}/api/documents/${id}`, {
     method: "DELETE",
     headers: authHeaders(),
   });
-  await handle<{ id: number; deleted: boolean }>(res);
+  await handle<{ id: string; deleted: boolean }>(res);
 }
 
 /* ----------------------------- chat history ----------------------------- */
-export async function getChatHistory(
-  limit = 20,
-  offset = 0
-): Promise<ChatHistoryPage> {
-  const res = await fetch(
-    `${API_URL}/api/chat-history?limit=${limit}&offset=${offset}`,
-    { headers: authHeaders() }
-  );
+export async function getChatHistory(limit = 20, offset = 0): Promise<ChatHistoryPage> {
+  const res = await fetch(`${API_URL}/api/chat-history?limit=${limit}&offset=${offset}`, {
+    headers: authHeaders(),
+  });
   return handle<ChatHistoryPage>(res);
 }
