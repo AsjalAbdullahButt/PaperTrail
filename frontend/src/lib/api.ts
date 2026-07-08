@@ -53,7 +53,27 @@ export type QueryResponse = {
   sources: Source[];
 };
 
-export type UploadResult = { id: string; filename: string; chunks_created: number };
+export type Highlight = { text: string; score: number; chunk_index: number };
+export type OutlineEntry = { heading: string; level: number; chunk_index: number };
+
+export type UploadResult = {
+  id: string;
+  filename: string;
+  file_type: string;
+  page_count: number | null;
+  word_count: number;
+  chunks_created: number;
+  highlights: Highlight[];
+  outline: OutlineEntry[];
+};
+
+export type DocumentStatus = {
+  id: string;
+  filename: string;
+  processed: boolean;
+  processed_at: string | null;
+  chunk_count: number;
+};
 
 export type DocumentInfo = {
   id: string;
@@ -210,6 +230,13 @@ export async function uploadDocument(file: File): Promise<UploadResult> {
     body: form,
   });
   return handle<UploadResult>(res);
+}
+
+export async function getDocumentStatus(id: string): Promise<DocumentStatus> {
+  const res = await fetch(`${API_URL}/api/documents/${id}/status`, {
+    headers: authHeaders(),
+  });
+  return handle<DocumentStatus>(res);
 }
 
 export async function listDocuments(limit = 50, offset = 0): Promise<DocumentInfo[]> {

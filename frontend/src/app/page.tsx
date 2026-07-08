@@ -14,10 +14,12 @@ import {
   uploadDocument,
   type QueryResponse,
   type Source,
+  type UploadResult,
 } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import DocumentManager from "@/components/DocumentManager";
 import ChatHistoryPanel from "@/components/ChatHistoryPanel";
+import UploadReadyCard from "@/components/UploadReadyCard";
 import { renderAnswerWithCitations } from "@/components/Citations";
 
 /* ----------------------------- Theme tokens ------------------------------ */
@@ -256,6 +258,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
 
   const [uploading, setUploading] = useState(false);
+  const [lastUpload, setLastUpload] = useState<UploadResult | null>(null);
   const [toast, setToast] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -339,6 +342,7 @@ export default function Home() {
     setUploading(true);
     try {
       const res = await uploadDocument(file);
+      setLastUpload(res);
       showToast("ok", `Uploaded ${res.filename} · ${res.chunks_created} chunks`);
       setDocRefreshKey((k) => k + 1); // refresh the document manager
     } catch (err) {
@@ -448,7 +452,7 @@ export default function Home() {
                   {uploading ? <Spinner /> : <span style={{ fontSize: 15, lineHeight: 1, marginTop: -1 }}>+</span>}
                   {uploading ? "Uploading…" : "Upload document"}
                 </button>
-                <input ref={fileRef} type="file" accept=".pdf,.txt,.md" onChange={handleFile} style={{ display: "none" }} />
+                <input ref={fileRef} type="file" accept=".pdf,.docx,.txt,.md,.xlsx,.csv" onChange={handleFile} style={{ display: "none" }} />
                 <HeaderButton label="Sign out" onClick={signOut} />
               </div>
             </div>
@@ -479,6 +483,9 @@ export default function Home() {
                 <div role="alert" style={{ marginTop: 12, padding: "10px 14px", borderRadius: 12, fontSize: 13.5, color: "#ff8a80", background: "rgba(255,80,80,.10)", border: "1px solid rgba(255,120,120,.35)" }}>
                   {error}
                 </div>
+              )}
+              {lastUpload && !answered && (
+                <UploadReadyCard result={lastUpload} onDismiss={() => setLastUpload(null)} />
               )}
             </div>
 

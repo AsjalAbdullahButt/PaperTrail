@@ -151,6 +151,48 @@ def _groq_generate(question: str, context_chunks: list[str], mode: str) -> str:
     return (resp.choices[0].message.content or "").strip()
 
 
+def complete_text(prompt: str, system: str = "You are a helpful assistant.",
+                  temperature: float = 0.3) -> str:
+    """Single-turn completion for auxiliary tasks (refined queries, follow-up
+    questions, timeline/event extraction).
+
+    Returns the model's text, or ``""`` in offline mode (no generative model
+    configured). Callers must treat ``""`` as "feature unavailable" and degrade
+    gracefully — never raise.
+    """
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": prompt},
+    ]
+    if settings.openai_ready:
+        try:
+            from openai import OpenAI
+
+            client = OpenAI(api_key=settings.openai_api_key)
+            resp = client.chat.completions.create(
+                model=settings.openai_chat_model, messages=messages,
+                temperature=temperature,
+            )
+            return (resp.choices[0].message.content or "").strip()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("OpenAI completion failed (%s).", exc)
+
+    if settings.groq_ready:
+        try:
+            from openai import OpenAI
+
+            client = OpenAI(api_key=settings.groq_api_key, base_url=settings.groq_base_url)
+            resp = client.chat.completions.create(
+                model=settings.groq_chat_model, messages=messages,
+                temperature=temperature,
+            )
+            return (resp.choices[0].message.content or "").strip()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Groq completion failed (%s).", exc)
+
+    return ""
+
+
 def _offline_generate(question: str, context_chunks: list[str], mode: str) -> str:
     """Extractive, clearly-labeled offline answer."""
     if mode == "direct":

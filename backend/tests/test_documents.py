@@ -87,3 +87,87 @@ def test_list_documents_pagination(client):
     # Invalid pagination params are rejected by validation.
     assert client.get("/api/documents?limit=0").status_code == 422
     assert client.get("/api/documents?limit=999").status_code == 422
+
+
+# --------------------- Phase 2: enriched ingestion ---------------------- #
+def _docx_bytes(paras):
+    import io
+
+    import docx
+
+    d = docx.Document()
+    for text, style in paras:
+        d.add_paragraph(text, style=style) if style else d.add_paragraph(text)
+    buf = io.BytesIO()
+    d.save(buf)
+    return buf.getvalue()
+
+
+def _xlsx_bytes(rows):
+    import io
+
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    for row in rows:
+        ws.append(row)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def test_upload_returns_highlights_and_importance(client):
+    body = upload_text_doc(
+        client,
+        "report.txt",
+        "Quarterly revenue rose sharply. "
+        "Machine learning adoption accelerated across teams. "
+        "Legal boilerplate and standard disclaimers appear here. " * 20,
+    )
+    assert 1 <= len(body["highlights"]) <= 8
+    for h in body["highlights"]:
+        assert 0.0 <= h["score"] <= 1.0 and "text" in h
+    assert body["word_count"] > 0
+
+
+def test_upload_docx_extracts_outline(client):
+    data = _docx_bytes(
+        [
+            ("PROJECT OVERVIEW", "Heading 1"),
+            ("This document describes the overall project scope and goals.", None),
+            ("Milestones", "Heading 2"),
+            ("Key milestones are tracked on a quarterly cadence here.", None),
+        ]
+    )
+    res = upload_bytes(client, "plan.docx", data)
+    assert res.status_code == 200, res.text
+    outline = res.json()["outline"]
+    assert any(o["heading"] == "PROJECT OVERVIEW" for o in outline)
+
+
+def test_upload_xlsx_creates_queryable_chunks(client):
+    data = _xlsx_bytes([["Product", "Price"], ["Alpha", 10], ["Beta", 20]])
+    res = upload_bytes(client, "prices.xlsx", data)
+    assert res.status_code == 200, res.text
+    assert res.json()["chunks_created"] >= 1
+    assert res.json()["file_type"] == "xlsx"
+
+
+def test_document_status_reports_processed(client):
+    body = upload_text_doc(client, "s.txt", "some content to process here " * 10)
+    res = client.get(f"/api/documents/{body['id']}/status")
+    assert res.status_code == 200
+    payload = res.json()
+    assert payload["processed"] is True
+    assert payload["chunk_count"] >= 1
+    assert payload["processed_at"] is not None
+
+
+def test_document_status_cross_user_forbidden(client, anon_client):
+    from conftest import auth_headers
+
+    body = upload_text_doc(client, "mine.txt", "private content here " * 10)
+    other = auth_headers(anon_client, "intruder@papertrail.io")
+    res = anon_client.get(f"/api/documents/{body['id']}/status", headers=other)
+    assert res.status_code == 403

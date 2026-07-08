@@ -65,6 +65,15 @@ def db_session():
 
 
 @pytest.fixture(autouse=True)
+def _no_disk_writes(monkeypatch):
+    """Tests exercise the upload pipeline but must not leave files on disk."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "store_originals", False, raising=False)
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _reset_cache_and_limiter():
     """Keep the in-process cache and rate-limiter storage isolated per test."""
     from app.cache import cache
