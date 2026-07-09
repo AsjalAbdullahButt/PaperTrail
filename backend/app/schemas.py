@@ -102,6 +102,10 @@ class DocumentStatus(BaseModel):
     processed: bool
     processed_at: datetime | None = None
     chunk_count: int = 0
+    # "queued" | "processing" | "done" | "failed"; ``error`` is set on failure
+    # so the frontend can show a real failure state instead of polling forever.
+    processing_status: str = "done"
+    error: str | None = None
 
 
 class DeleteResult(BaseModel):

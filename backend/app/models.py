@@ -59,6 +59,13 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     display_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Refresh tokens issued (``iat``) before this instant are rejected. Set when
+    # a rotated-away refresh token is replayed — the theft signal — so every
+    # outstanding refresh token for the account dies at once, not just the
+    # replayed one.
+    revoked_before: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP_COL, nullable=True
+    )
     last_login: Mapped[datetime | None] = mapped_column(TIMESTAMP_COL, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP_COL, nullable=False, default=_utcnow, server_default=func.now()
@@ -109,6 +116,16 @@ class Document(Base):
         LONGTEXT().with_variant(Text(), "sqlite"), nullable=True
     )
     processed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP_COL, nullable=True)
+    # Ingestion pipeline state: "queued" | "processing" | "done" | "failed".
+    # Rows predating this column were all fully processed, hence the "done"
+    # server default; the upload route sets the value explicitly for new rows.
+    # ``processed_at`` is kept for backward compatibility with older clients
+    # of /status.
+    processing_status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="queued", server_default="done"
+    )
+    # Populated when processing_status == "failed"; user-safe message only.
+    processing_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     version_number: Mapped[int] = mapped_column(
         Integer, nullable=False, default=1, server_default="1"
     )

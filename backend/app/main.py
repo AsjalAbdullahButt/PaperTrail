@@ -20,7 +20,7 @@ from slowapi.errors import RateLimitExceeded
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from .config import settings
+from .config import settings, validate_production_settings
 from .database import check_db, init_db, purge_soft_deleted
 from .observability import (
     configure_logging,
@@ -50,8 +50,15 @@ _START_TIME = time.monotonic()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """On startup: ensure schema exists and purge documents/collections/queries
+    """On startup: refuse to run with production-looking config on the dev JWT
+    secret, then ensure schema exists and purge documents/collections/queries
     whose soft-delete retention window (30 days) has elapsed."""
+    try:
+        validate_production_settings(settings)
+    except RuntimeError as exc:
+        # One clear, actionable line — the operator needs the fix, not a trace.
+        logger.critical("Startup refused: %s", exc)
+        raise
     try:
         init_db()
         logger.info("Database initialized (tables ensured).")
@@ -94,8 +101,12 @@ SECURITY_HEADERS = {
     "X-XSS-Protection": "1; mode=block",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Content-Security-Policy": (
-        "default-src 'self'; script-src 'self' 'unsafe-inline'; "
-        "style-src 'self' 'unsafe-inline'"
+        # The API serves JSON only — the Next.js frontend is a separate origin
+        # and never receives this header, so no inline scripts or styles need
+        # allowing here. (Verified: no HTMLResponse/StaticFiles anywhere; the
+        # auto-generated /docs page was already non-functional under
+        # script-src 'self' because its assets come from a CDN.)
+        "default-src 'self'; script-src 'self'; style-src 'self'"
     ),
 }
 

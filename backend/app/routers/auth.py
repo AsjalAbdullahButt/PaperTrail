@@ -4,9 +4,15 @@ Access tokens are returned in the JSON body (the frontend keeps them in memory
 only). Refresh tokens are set as an httpOnly, SameSite=Strict cookie so they are
 never readable by JavaScript and are sent automatically only to the auth routes.
 Logout revokes the refresh token by blacklisting its ``jti``.
+
+Refresh tokens are single-use: /refresh blacklists the presented token's
+``jti`` before minting a replacement. A blacklisted jti coming back therefore
+means two parties hold the same token (theft), so every outstanding refresh
+token for that account is revoked via ``users.revoked_before``.
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
 import jwt
@@ -29,6 +35,14 @@ from ..security import (
 )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+logger = logging.getLogger("papertrail.auth")
+
+
+def _as_utc(dt: datetime) -> datetime:
+    """Timestamps read back from MySQL DATETIME columns are naive; they were
+    written as UTC wall-clock, so attach UTC for comparisons."""
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
 
 
 def _set_refresh_cookie(response: Response, token: str) -> None:
@@ -124,17 +138,40 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db))
         payload = decode_refresh_token(token)
         user_id = str(payload["sub"])
         jti = str(payload["jti"])
+        issued_at = datetime.fromtimestamp(int(payload["iat"]), tz=timezone.utc)
+        expires_at = datetime.fromtimestamp(int(payload["exp"]), tz=timezone.utc)
     except (jwt.PyJWTError, KeyError, ValueError):
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token.")
 
     if db.get(TokenBlacklist, jti) is not None:
+        # Rotation blacklists every used token, so a blacklisted jti coming
+        # back is not a stale client — someone else holds a copy. Revoke every
+        # outstanding refresh token for the account, not just this one.
+        user = db.get(User, user_id)
+        if user is not None:
+            user.revoked_before = datetime.now(timezone.utc)
+            db.commit()
+        logger.warning(
+            "Refresh-token reuse detected; all refresh tokens revoked "
+            "(user_id=%s, request_id=%s)",
+            user_id,
+            getattr(request.state, "request_id", "-"),
+        )
         raise HTTPException(status_code=401, detail="Refresh token has been revoked.")
 
     user = db.get(User, user_id)
     if user is None or not user.is_active:
         raise HTTPException(status_code=401, detail="User no longer exists.")
 
-    # Rotate the refresh token on every use so a leaked cookie has a bounded life.
+    # ``iat`` has whole-second precision, so a token minted within the same
+    # second as a theft-response revocation is also rejected — fail closed.
+    if user.revoked_before is not None and issued_at < _as_utc(user.revoked_before):
+        raise HTTPException(status_code=401, detail="Refresh token has been revoked.")
+
+    # Rotate: blacklist the token being exchanged so it is single-use. A later
+    # replay of it lands in the reuse-detection branch above.
+    db.add(TokenBlacklist(jti=jti, user_id=user_id, expires_at=expires_at))
+    db.commit()
     return _issue_tokens(response, db, user)
 
 

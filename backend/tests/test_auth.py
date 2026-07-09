@@ -133,6 +133,75 @@ def test_logout_revokes_refresh_token(anon_client):
     assert res.status_code == 401
 
 
+# ----------------- refresh rotation / reuse detection ------------------ #
+def _register_with_refresh(client, email: str) -> str:
+    """Register a user and return their initial refresh token. The client's
+    cookie jar is cleared so tests present refresh tokens explicitly (via the
+    Bearer fallback) instead of whatever the jar last stored."""
+    from app.config import settings
+
+    res = client.post(
+        "/api/auth/register", json={"email": email, "password": "password123"}
+    )
+    assert res.status_code == 201, res.text
+    refresh = res.cookies.get(settings.refresh_cookie_name)
+    assert refresh
+    client.cookies.clear()
+    return refresh
+
+
+def _refresh_with(client, token: str):
+    """Exchange a specific refresh token; returns (response, new_refresh|None)."""
+    from app.config import settings
+
+    res = client.post(
+        "/api/auth/refresh", headers={"Authorization": f"Bearer {token}"}
+    )
+    new_refresh = (
+        res.cookies.get(settings.refresh_cookie_name)
+        if res.status_code == 200
+        else None
+    )
+    client.cookies.clear()
+    return res, new_refresh
+
+
+def test_rotated_refresh_token_is_single_use(anon_client):
+    a = _register_with_refresh(anon_client, "rotate@papertrail.io")
+    ok, b = _refresh_with(anon_client, a)
+    assert ok.status_code == 200 and b
+    # The token that was just exchanged is rotated away: replay -> 401.
+    replay, _ = _refresh_with(anon_client, a)
+    assert replay.status_code == 401
+
+
+def test_refresh_token_replay_revokes_all_sessions(anon_client, caplog):
+    import logging
+
+    a = _register_with_refresh(anon_client, "theft@papertrail.io")
+    ok, b = _refresh_with(anon_client, a)
+    assert ok.status_code == 200 and b
+
+    # Simulated theft: A is replayed after it was already exchanged for B.
+    with caplog.at_level(logging.WARNING, logger="papertrail.auth"):
+        replay, _ = _refresh_with(anon_client, a)
+    assert replay.status_code == 401
+    assert "reuse detected" in caplog.text
+
+    # Reuse revokes the whole family: the still-unused B is now dead too.
+    res_b, _ = _refresh_with(anon_client, b)
+    assert res_b.status_code == 401
+
+
+def test_single_use_refresh_chain_still_works(anon_client):
+    a = _register_with_refresh(anon_client, "chain@papertrail.io")
+    r1, b = _refresh_with(anon_client, a)
+    r2, c = _refresh_with(anon_client, b)
+    r3, d = _refresh_with(anon_client, c)
+    assert (r1.status_code, r2.status_code, r3.status_code) == (200, 200, 200)
+    assert d
+
+
 def test_me_requires_token(anon_client):
     assert anon_client.get("/api/auth/me").status_code == 401
 

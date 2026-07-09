@@ -145,6 +145,23 @@ class Settings(BaseSettings):
         return self.groq_api_key.strip().startswith("gsk_")
 
 
+def validate_production_settings(s: "Settings") -> None:
+    """Refuse to run a production-looking configuration on the dev JWT secret.
+
+    ``cookie_secure=True`` is the "this is production" signal (it makes the
+    refresh cookie https-only); combined with the default signing secret it
+    would mean the deployment signs tokens with a publicly known key, so any
+    visitor could forge them. Called from the app lifespan so the process
+    never starts in that state.
+    """
+    if s.cookie_secure and s.jwt_secret_is_default:
+        raise RuntimeError(
+            "COOKIE_SECURE=true but JWT_SECRET is still the insecure dev "
+            "default. Set a unique JWT_SECRET environment variable "
+            "(e.g. `openssl rand -hex 32`) before starting in production."
+        )
+
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()

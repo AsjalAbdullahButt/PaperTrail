@@ -1,6 +1,10 @@
 """Router coverage for /api/documents: upload validation, listing, pagination."""
 from __future__ import annotations
 
+import time
+
+import pytest
+
 import app.routers.documents as documents_router
 from ._helpers import make_encrypted_pdf, make_text_pdf, upload_bytes, upload_text_doc
 
@@ -171,3 +175,96 @@ def test_document_status_cross_user_forbidden(client, anon_client):
     other = auth_headers(anon_client, "intruder@papertrail.io")
     res = anon_client.get(f"/api/documents/{body['id']}/status", headers=other)
     assert res.status_code == 403
+
+
+# ----------------- off-loop processing (event-loop safety) --------------- #
+def test_document_status_reports_processing_status_done(client):
+    body = upload_text_doc(client, "ok.txt", "perfectly fine content " * 20)
+    status = client.get(f"/api/documents/{body['id']}/status").json()
+    assert status["processing_status"] == "done"
+    assert status["error"] is None
+
+
+def test_extract_failure_surfaces_failed_status(client, db_session, monkeypatch):
+    from sqlalchemy import select
+
+    from app.models import Document
+
+    def boom(data, file_type):
+        raise RuntimeError("simulated extractor crash")
+
+    monkeypatch.setattr(documents_router.extractor, "extract_blocks", boom)
+    res = upload_bytes(client, "bad.txt", b"plain text content", "text/plain")
+    assert res.status_code == 422
+
+    # The row created before processing records the failure for the frontend.
+    doc_id = db_session.execute(
+        select(Document.id).where(Document.filename == "bad.txt")
+    ).scalar_one()
+    status = client.get(f"/api/documents/{doc_id}/status").json()
+    assert status["processing_status"] == "failed"
+    assert status["error"]
+    assert status["processed"] is False
+
+    # A failed ingestion never becomes part of the library listing.
+    assert doc_id not in {d["id"] for d in client.get("/api/documents").json()}
+
+
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
+
+
+@pytest.mark.anyio
+async def test_concurrent_request_not_blocked_by_upload(db_session, monkeypatch):
+    """Prove the heavy pipeline runs off the event loop: /api/health completes
+    while an upload is stuck inside a slow, fully blocking embed call."""
+    import asyncio
+
+    import httpx
+
+    from app import llm
+    from app.database import get_db
+    from app.main import app
+
+    def slow_embed(texts):
+        time.sleep(0.5)  # blocking, like the real network/CPU-bound call
+        return [[0.1, 0.2, 0.3] for _ in texts]
+
+    monkeypatch.setattr(llm, "embed_texts", slow_embed)
+
+    def _override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = _override_get_db
+    try:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+            reg = await ac.post(
+                "/api/auth/register",
+                json={"email": "loop@papertrail.io", "password": "password123"},
+            )
+            headers = {"Authorization": f"Bearer {reg.json()['access_token']}"}
+
+            upload = asyncio.create_task(
+                ac.post(
+                    "/api/documents/upload",
+                    files={"file": ("t.txt", b"hello world " * 100, "text/plain")},
+                    headers=headers,
+                )
+            )
+            await asyncio.sleep(0.1)  # let the upload reach the blocking embed
+
+            start = time.perf_counter()
+            health = await ac.get("/api/health")
+            elapsed = time.perf_counter() - start
+
+            res = await upload
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert res.status_code == 200, res.text
+    assert health.status_code == 200
+    # On the event loop this would wait out the 0.5s embed sleep; off-loop it
+    # completes effectively instantly.
+    assert elapsed < 0.2, f"/api/health was blocked for {elapsed:.3f}s"

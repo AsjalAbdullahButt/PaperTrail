@@ -97,6 +97,16 @@ def test_security_headers_present(anon_client):
     assert res.headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
 
 
+def test_csp_script_src_has_no_unsafe_inline(anon_client):
+    res = anon_client.get("/api/health")
+    csp = res.headers.get("Content-Security-Policy", "")
+    assert "script-src" in csp
+    script_src = next(
+        d for d in csp.split(";") if d.strip().startswith("script-src")
+    )
+    assert "'unsafe-inline'" not in script_src
+
+
 # ------------------------------ secrets --------------------------------- #
 def test_settings_load_without_hardcoded_secrets():
     from app.config import settings
@@ -105,3 +115,29 @@ def test_settings_load_without_hardcoded_secrets():
     # exposes whether the insecure dev default is in use.
     assert hasattr(settings, "jwt_secret")
     assert isinstance(settings.jwt_secret_is_default, bool)
+
+
+def test_app_refuses_to_start_with_default_secret_in_production(monkeypatch):
+    import pytest
+    from fastapi.testclient import TestClient
+
+    from app.config import settings
+    from app.main import app
+
+    monkeypatch.setattr(settings, "cookie_secure", True)
+    monkeypatch.setattr(
+        settings, "jwt_secret", "dev-only-insecure-change-me-in-production-please"
+    )
+    with pytest.raises(RuntimeError, match="JWT_SECRET"):
+        # Entering the client context runs the lifespan, where the guard fires
+        # before any database work.
+        with TestClient(app):
+            pass
+
+
+def test_validate_production_settings_passes_with_real_secret(monkeypatch):
+    from app.config import settings, validate_production_settings
+
+    monkeypatch.setattr(settings, "cookie_secure", True)
+    monkeypatch.setattr(settings, "jwt_secret", "a-genuinely-configured-secret")
+    validate_production_settings(settings)  # must not raise

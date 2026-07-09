@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from .. import llm
 from ..auth import get_current_user
@@ -127,6 +128,99 @@ def _detect_duplicate(
     return None
 
 
+def _process_upload(
+    db: Session, document: Document, data: bytes, file_type: str
+) -> UploadResult:
+    """Heavy half of ingestion: extract -> chunk -> score -> embed ->
+    duplicate-detect -> persist chunks.
+
+    Entirely synchronous and CPU/network-bound, so it MUST run on a worker
+    thread (``run_in_threadpool``) — never on the event loop, where one large
+    PDF would stall every concurrent request on this worker.
+    """
+    try:
+        blocks = extractor.extract_blocks(data, file_type)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=422, detail=f"Could not read file: {exc}")
+
+    chunk_dicts = chunk_blocks(blocks)
+    if not chunk_dicts:
+        raise HTTPException(
+            status_code=422, detail="No extractable text found in the document."
+        )
+
+    chunk_texts = [c["text"] for c in chunk_dicts]
+    scores = score_chunks(chunk_texts)
+    highlights = extract_highlights(chunk_texts, scores, n=8)
+    outline = extract_outline(blocks, chunk_texts)
+    full_text = extractor.blocks_to_text(blocks)
+
+    # Embeddings, batched (llm.embed_texts already batches internally).
+    embeddings = llm.embed_texts(chunk_texts)
+    if len(embeddings) != len(chunk_texts):
+        raise HTTPException(status_code=500, detail="Embedding count mismatch.")
+
+    # Duplicate detection: flag (do not block) near-identical prior uploads.
+    # The in-flight document has no chunks yet, so it never matches itself.
+    dup = _detect_duplicate(db, document.user_id, embeddings)
+
+    # Store the original first so a DB failure below can clean it up.
+    file_path = _store_original(data, document.user_id, file_type)
+    try:
+        document.page_count = extractor.page_count(blocks) or None
+        document.word_count = extractor.count_words(full_text)
+        document.file_path = file_path
+        document.outline_json = json.dumps(outline)
+        document.highlights_json = json.dumps(highlights)
+        document.processed_at = datetime.now(timezone.utc)
+        document.duplicate_of = dup[0] if dup else None
+        document.processing_status = "done"
+
+        for idx, (cd, embedding) in enumerate(zip(chunk_dicts, embeddings)):
+            db.add(
+                Chunk(
+                    document_id=document.id,
+                    chunk_index=idx,
+                    content=cd["text"],
+                    embedding=json.dumps(embedding),
+                    importance_score=float(scores[idx]) if idx < len(scores) else 0.0,
+                    page_number=int(cd.get("page_number", 1)),
+                    section_heading=(cd.get("section_heading") or None),
+                )
+            )
+        db.commit()
+        db.refresh(document)
+    except Exception:
+        db.rollback()
+        if file_path and os.path.exists(file_path):
+            os.remove(file_path)
+        raise
+
+    return UploadResult(
+        id=document.id,
+        filename=document.filename,
+        file_type=document.file_type,
+        page_count=document.page_count,
+        word_count=document.word_count,
+        chunks_created=len(chunk_dicts),
+        highlights=[Highlight(**h) for h in highlights],
+        outline=[OutlineEntry(**o) for o in outline],
+        is_duplicate=dup is not None,
+        duplicate_of_name=(dup[1] if dup else None),
+    )
+
+
+def _mark_failed(db: Session, document: Document, message: str) -> None:
+    """Record a processing failure on the document row so /status can show a
+    real failure state instead of the frontend polling forever."""
+    db.rollback()
+    document.processing_status = "failed"
+    document.processing_error = message[:1000]
+    db.commit()
+
+
 @router.post("/upload", response_model=UploadResult)
 @limiter.limit(upload_limit)
 async def upload_document(
@@ -139,6 +233,11 @@ async def upload_document(
 
     Produces per-chunk importance scores, document highlights, and an outline,
     and stores the original upload under the user's private uploads directory.
+
+    Only the cheap validation happens on the event loop; the Document row is
+    created up-front (processing_status="processing") and the blocking
+    pipeline runs on a threadpool worker, so concurrent requests keep being
+    served while a large file is processed.
     """
     filename = file.filename or "untitled"
     file_type = file_type_from_name(filename)
@@ -167,86 +266,29 @@ async def upload_document(
             detail=f"File content does not match a valid .{file_type} file.",
         )
 
+    document = Document(
+        user_id=current_user.id,
+        filename=filename,
+        file_type=file_type,
+        processing_status="processing",
+    )
+    db.add(document)
+    db.commit()
+    db.refresh(document)
+
     try:
-        blocks = extractor.extract_blocks(data, file_type)
-    except HTTPException:
+        result = await run_in_threadpool(_process_upload, db, document, data, file_type)
+    except HTTPException as exc:
+        _mark_failed(db, document, str(exc.detail))
         raise
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=422, detail=f"Could not read file: {exc}")
-
-    chunk_dicts = chunk_blocks(blocks)
-    if not chunk_dicts:
-        raise HTTPException(
-            status_code=422, detail="No extractable text found in the document."
-        )
-
-    chunk_texts = [c["text"] for c in chunk_dicts]
-    scores = score_chunks(chunk_texts)
-    highlights = extract_highlights(chunk_texts, scores, n=8)
-    outline = extract_outline(blocks, chunk_texts)
-    full_text = extractor.blocks_to_text(blocks)
-
-    # Embeddings, batched (llm.embed_texts already batches internally).
-    embeddings = llm.embed_texts(chunk_texts)
-    if len(embeddings) != len(chunk_texts):
-        raise HTTPException(status_code=500, detail="Embedding count mismatch.")
-
-    # Duplicate detection: flag (do not block) near-identical prior uploads.
-    dup = _detect_duplicate(db, current_user.id, embeddings)
-
-    # Store the original first so a DB failure below can clean it up.
-    file_path = _store_original(data, current_user.id, file_type)
-    try:
-        document = Document(
-            user_id=current_user.id,
-            filename=filename,
-            file_type=file_type,
-            page_count=extractor.page_count(blocks) or None,
-            word_count=extractor.count_words(full_text),
-            file_path=file_path,
-            outline_json=json.dumps(outline),
-            highlights_json=json.dumps(highlights),
-            processed_at=datetime.now(timezone.utc),
-            duplicate_of=(dup[0] if dup else None),
-        )
-        db.add(document)
-        db.flush()  # assign document.id before creating chunk rows
-
-        for idx, (cd, embedding) in enumerate(zip(chunk_dicts, embeddings)):
-            db.add(
-                Chunk(
-                    document_id=document.id,
-                    chunk_index=idx,
-                    content=cd["text"],
-                    embedding=json.dumps(embedding),
-                    importance_score=float(scores[idx]) if idx < len(scores) else 0.0,
-                    page_number=int(cd.get("page_number", 1)),
-                    section_heading=(cd.get("section_heading") or None),
-                )
-            )
-        db.commit()
-        db.refresh(document)
-    except Exception:
-        db.rollback()
-        if file_path and os.path.exists(file_path):
-            os.remove(file_path)
+        _mark_failed(db, document, str(exc))
         raise
 
     # The user's document set changed -> drop their cached query answers.
     cache.invalidate_prefix(user_prefix(current_user.id))
 
-    return UploadResult(
-        id=document.id,
-        filename=document.filename,
-        file_type=document.file_type,
-        page_count=document.page_count,
-        word_count=document.word_count,
-        chunks_created=len(chunk_dicts),
-        highlights=[Highlight(**h) for h in highlights],
-        outline=[OutlineEntry(**o) for o in outline],
-        is_duplicate=dup is not None,
-        duplicate_of_name=(dup[1] if dup else None),
-    )
+    return result
 
 
 @router.get("/{document_id}/status", response_model=DocumentStatus)
@@ -270,6 +312,8 @@ def document_status(
         processed=document.processed_at is not None,
         processed_at=document.processed_at,
         chunk_count=int(chunk_count),
+        processing_status=document.processing_status,
+        error=document.processing_error,
     )
 
 
@@ -289,7 +333,13 @@ def list_documents(
     stmt = (
         select(Document, func.count(Chunk.id))
         .outerjoin(Chunk, Chunk.document_id == Document.id)
-        .where(Document.user_id == current_user.id, Document.deleted_at.is_(None))
+        .where(
+            Document.user_id == current_user.id,
+            Document.deleted_at.is_(None),
+            # Failed ingestions never become part of the library; their state
+            # remains visible via /status (by id) for the upload flow only.
+            Document.processing_status != "failed",
+        )
         .group_by(Document.id)
         .order_by(Document.created_at.desc(), Document.id.desc())
     )
@@ -426,7 +476,8 @@ async def upload_version(
             file_path=doc.file_path,
         )
     )
-    new_path = _store_original(data, current_user.id, file_type)
+    # Blocking file I/O — keep it off the event loop.
+    new_path = await run_in_threadpool(_store_original, data, current_user.id, file_type)
     doc.version_number += 1
     doc.file_path = new_path
     db.commit()

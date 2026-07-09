@@ -230,9 +230,51 @@ async function handle<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/* --------------------------- low-level fetch ----------------------------- */
+// One in-flight refresh shared by every concurrent 401, so a burst of
+// expired-token requests triggers exactly one /api/auth/refresh round trip.
+let refreshInFlight: Promise<string | null> | null = null;
+
+function refreshOnce(): Promise<string | null> {
+  if (!refreshInFlight) {
+    refreshInFlight = refresh().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+export type ApiFetchInit = RequestInit & {
+  /** Skip the silent refresh-and-retry. Used by the auth routes themselves,
+   * where a 401 is a real answer (bad credentials / no session), not an
+   * expired access token. */
+  skipAuthRetry?: boolean;
+};
+
+/** The low-level fetch every API call routes through: attaches the in-memory
+ * access token, and on a 401 silently refreshes once and retries the request
+ * once with the new token. If the refresh also fails, the original 401
+ * propagates so the caller / auth store can log the user out. */
+export async function apiFetch(path: string, init: ApiFetchInit = {}): Promise<Response> {
+  const { skipAuthRetry, headers, ...rest } = init;
+  const doFetch = () =>
+    fetch(`${API_URL}${path}`, {
+      ...rest,
+      // Recomputed per attempt so the retry picks up the refreshed token.
+      headers: authHeaders((headers as Record<string, string>) ?? {}),
+    });
+
+  let res = await doFetch();
+  if (res.status === 401 && !skipAuthRetry) {
+    const token = await refreshOnce();
+    if (token !== null) res = await doFetch(); // exactly one retry
+  }
+  return res;
+}
+
 /** Download the current user's data export ZIP (triggers a browser download). */
 export async function exportMyData(): Promise<void> {
-  const res = await fetch(`${API_URL}/api/export/my-data`, { headers: authHeaders() });
+  const res = await apiFetch("/api/export/my-data");
   if (!res.ok) throw new ApiError(await parseError(res), res.status);
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
@@ -253,11 +295,12 @@ export async function register(
   password: string,
   displayName?: string,
 ): Promise<string> {
-  const res = await fetch(`${API_URL}/api/auth/register`, {
+  const res = await apiFetch("/api/auth/register", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include", // accept the httpOnly refresh cookie
     body: JSON.stringify({ email, password, display_name: displayName || null }),
+    skipAuthRetry: true,
   });
   const data = await handle<TokenResponse>(res);
   setAccessToken(data.access_token);
@@ -265,11 +308,12 @@ export async function register(
 }
 
 export async function login(email: string, password: string): Promise<string> {
-  const res = await fetch(`${API_URL}/api/auth/login`, {
+  const res = await apiFetch("/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
     body: JSON.stringify({ email, password }),
+    skipAuthRetry: true,
   });
   const data = await handle<TokenResponse>(res);
   setAccessToken(data.access_token);
@@ -280,9 +324,10 @@ export async function login(email: string, password: string): Promise<string> {
  *  (without throwing) when there is no valid session to restore. */
 export async function refresh(): Promise<string | null> {
   try {
-    const res = await fetch(`${API_URL}/api/auth/refresh`, {
+    const res = await apiFetch("/api/auth/refresh", {
       method: "POST",
       credentials: "include",
+      skipAuthRetry: true, // a failed refresh must not recurse into itself
     });
     if (!res.ok) {
       setAccessToken(null);
@@ -299,9 +344,10 @@ export async function refresh(): Promise<string | null> {
 
 export async function logout(): Promise<void> {
   try {
-    await fetch(`${API_URL}/api/auth/logout`, {
+    await apiFetch("/api/auth/logout", {
       method: "POST",
       credentials: "include",
+      skipAuthRetry: true,
     });
   } catch {
     /* best-effort; clear client state regardless */
@@ -310,7 +356,7 @@ export async function logout(): Promise<void> {
 }
 
 export async function getMe(): Promise<User> {
-  const res = await fetch(`${API_URL}/api/auth/me`, { headers: authHeaders() });
+  const res = await apiFetch("/api/auth/me");
   return handle<User>(res);
 }
 
@@ -320,9 +366,9 @@ export async function askQuery(
   mode: QueryMode,
   opts: { document_ids?: string[]; collection_id?: string } = {},
 ): Promise<QueryResponse> {
-  const res = await fetch(`${API_URL}/api/query`, {
+  const res = await apiFetch("/api/query", {
     method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       question,
       mode,
@@ -337,33 +383,25 @@ export async function askQuery(
 export async function uploadDocument(file: File): Promise<UploadResult> {
   const form = new FormData();
   form.append("file", file);
-  const res = await fetch(`${API_URL}/api/documents/upload`, {
+  const res = await apiFetch("/api/documents/upload", {
     method: "POST",
-    headers: authHeaders(),
     body: form,
   });
   return handle<UploadResult>(res);
 }
 
 export async function getDocumentStatus(id: string): Promise<DocumentStatus> {
-  const res = await fetch(`${API_URL}/api/documents/${id}/status`, {
-    headers: authHeaders(),
-  });
+  const res = await apiFetch(`/api/documents/${id}/status`);
   return handle<DocumentStatus>(res);
 }
 
 export async function listDocuments(limit = 50, offset = 0): Promise<DocumentInfo[]> {
-  const res = await fetch(`${API_URL}/api/documents?limit=${limit}&offset=${offset}`, {
-    headers: authHeaders(),
-  });
+  const res = await apiFetch(`/api/documents?limit=${limit}&offset=${offset}`);
   return handle<DocumentInfo[]>(res);
 }
 
 export async function deleteDocument(id: string): Promise<void> {
-  const res = await fetch(`${API_URL}/api/documents/${id}`, {
-    method: "DELETE",
-    headers: authHeaders(),
-  });
+  const res = await apiFetch(`/api/documents/${id}`, { method: "DELETE" });
   await handle<{ id: string; deleted: boolean }>(res);
 }
 
@@ -378,123 +416,110 @@ export async function listDocumentsFiltered(params: {
   if (params.collection_id) qs.set("collection_id", params.collection_id);
   if (params.type) qs.set("type", params.type);
   if (params.search) qs.set("search", params.search);
-  const res = await fetch(`${API_URL}/api/documents?${qs.toString()}`, {
-    headers: authHeaders(),
-  });
+  const res = await apiFetch(`/api/documents?${qs.toString()}`);
   return handle<DocumentInfo[]>(res);
 }
 
 export async function getDocumentCoverage(id: string): Promise<CoverageCell[]> {
-  const res = await fetch(`${API_URL}/api/documents/${id}/coverage`, { headers: authHeaders() });
+  const res = await apiFetch(`/api/documents/${id}/coverage`);
   return handle<CoverageCell[]>(res);
 }
 
 export async function addTags(id: string, tags: string[]): Promise<{ tags: string[] }> {
-  const res = await fetch(`${API_URL}/api/documents/${id}/tags`, {
+  const res = await apiFetch(`/api/documents/${id}/tags`, {
     method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ tags }),
   });
   return handle<{ document_id: string; tags: string[] }>(res);
 }
 
 export async function removeTag(id: string, tag: string): Promise<{ tags: string[] }> {
-  const res = await fetch(`${API_URL}/api/documents/${id}/tags/${encodeURIComponent(tag)}`, {
+  const res = await apiFetch(`/api/documents/${id}/tags/${encodeURIComponent(tag)}`, {
     method: "DELETE",
-    headers: authHeaders(),
   });
   return handle<{ document_id: string; tags: string[] }>(res);
 }
 
 /* ----------------------------- collections ------------------------------ */
 export async function listCollections(): Promise<Collection[]> {
-  const res = await fetch(`${API_URL}/api/collections`, { headers: authHeaders() });
+  const res = await apiFetch("/api/collections");
   return handle<Collection[]>(res);
 }
 
 export async function createCollection(name: string, description?: string): Promise<Collection> {
-  const res = await fetch(`${API_URL}/api/collections`, {
+  const res = await apiFetch("/api/collections", {
     method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, description: description ?? null }),
   });
   return handle<Collection>(res);
 }
 
 export async function addToCollection(collectionId: string, documentIds: string[]): Promise<Collection> {
-  const res = await fetch(`${API_URL}/api/collections/${collectionId}/documents`, {
+  const res = await apiFetch(`/api/collections/${collectionId}/documents`, {
     method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ document_ids: documentIds }),
   });
   return handle<Collection>(res);
 }
 
 export async function deleteCollection(id: string): Promise<void> {
-  const res = await fetch(`${API_URL}/api/collections/${id}`, {
-    method: "DELETE",
-    headers: authHeaders(),
-  });
+  const res = await apiFetch(`/api/collections/${id}`, { method: "DELETE" });
   await handle<{ id: string; deleted: boolean }>(res);
 }
 
 /* -------------------------- query history ------------------------------- */
 export async function listQueries(limit = 20, offset = 0): Promise<QueryHistoryPage> {
-  const res = await fetch(`${API_URL}/api/queries?limit=${limit}&offset=${offset}`, {
-    headers: authHeaders(),
-  });
+  const res = await apiFetch(`/api/queries?limit=${limit}&offset=${offset}`);
   return handle<QueryHistoryPage>(res);
 }
 
 export async function toggleBookmark(id: string, note?: string): Promise<QueryHistoryItem> {
-  const res = await fetch(`${API_URL}/api/queries/${id}/bookmark`, {
+  const res = await apiFetch(`/api/queries/${id}/bookmark`, {
     method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ note: note ?? null }),
   });
   return handle<QueryHistoryItem>(res);
 }
 
 export async function getMindMap(queryId: string): Promise<MindMapData> {
-  const res = await fetch(`${API_URL}/api/queries/${queryId}/mindmap`, { headers: authHeaders() });
+  const res = await apiFetch(`/api/queries/${queryId}/mindmap`);
   return handle<MindMapData>(res);
 }
 
 export async function getDocumentTimeline(id: string): Promise<TimelineEvent[]> {
-  const res = await fetch(`${API_URL}/api/documents/${id}/timeline`, { headers: authHeaders() });
+  const res = await apiFetch(`/api/documents/${id}/timeline`);
   return handle<TimelineEvent[]>(res);
 }
 
 export async function deleteQuery(id: string): Promise<void> {
-  const res = await fetch(`${API_URL}/api/queries/${id}`, {
-    method: "DELETE",
-    headers: authHeaders(),
-  });
+  const res = await apiFetch(`/api/queries/${id}`, { method: "DELETE" });
   await handle<{ id: string; deleted: boolean }>(res);
 }
 
 /* ------------------------------ analytics ------------------------------- */
 export async function getAnalyticsOverview(): Promise<AnalyticsOverview> {
-  const res = await fetch(`${API_URL}/api/analytics/overview`, { headers: authHeaders() });
+  const res = await apiFetch("/api/analytics/overview");
   return handle<AnalyticsOverview>(res);
 }
 export async function getTopQueries(limit = 10): Promise<TopQuery[]> {
-  const res = await fetch(`${API_URL}/api/analytics/top-queries?limit=${limit}`, { headers: authHeaders() });
+  const res = await apiFetch(`/api/analytics/top-queries?limit=${limit}`);
   return handle<TopQuery[]>(res);
 }
 export async function getDocumentUsage(): Promise<DocumentUsage[]> {
-  const res = await fetch(`${API_URL}/api/analytics/document-usage`, { headers: authHeaders() });
+  const res = await apiFetch("/api/analytics/document-usage");
   return handle<DocumentUsage[]>(res);
 }
 export async function getCoverageGaps(): Promise<CoverageGap[]> {
-  const res = await fetch(`${API_URL}/api/analytics/coverage-gaps`, { headers: authHeaders() });
+  const res = await apiFetch("/api/analytics/coverage-gaps");
   return handle<CoverageGap[]>(res);
 }
 
 /* ----------------------------- chat history ----------------------------- */
 export async function getChatHistory(limit = 20, offset = 0): Promise<ChatHistoryPage> {
-  const res = await fetch(`${API_URL}/api/chat-history?limit=${limit}&offset=${offset}`, {
-    headers: authHeaders(),
-  });
+  const res = await apiFetch(`/api/chat-history?limit=${limit}&offset=${offset}`);
   return handle<ChatHistoryPage>(res);
 }
