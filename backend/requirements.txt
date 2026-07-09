@@ -26,3 +26,4 @@ limits==5.8.0
 redis==8.0.1
 prometheus-client==0.25.0
 gunicorn==23.0.0
+usearch==2.21.0

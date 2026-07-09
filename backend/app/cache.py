@@ -15,6 +15,8 @@ from __future__ import annotations
 import hashlib
 import re
 import time
+from collections.abc import Callable
+from threading import RLock
 from typing import Protocol
 
 from .config import settings
@@ -31,6 +33,11 @@ def make_query_key(user_id: str, question: str, mode: str) -> str:
 
 def user_prefix(user_id: str) -> str:
     return f"qcache:{user_id}:"
+
+
+def retrieval_index_key(user_id: str) -> str:
+    """Stable cache key for per-user retrieval indexes (BM25 + ANN metadata)."""
+    return f"{user_prefix(user_id)}retrieval:index"
 
 
 class CacheBackend(Protocol):
@@ -63,9 +70,11 @@ class InMemoryCache:
     def invalidate_prefix(self, prefix: str) -> None:
         for key in [k for k in self._store if k.startswith(prefix)]:
             self._store.pop(key, None)
+        invalidate_object_prefix(prefix)
 
     def clear(self) -> None:
         self._store.clear()
+        clear_object_cache()
 
 
 class RedisCache:
@@ -88,6 +97,7 @@ class RedisCache:
         # SCAN avoids blocking Redis on large keyspaces.
         for key in self._redis.scan_iter(match=f"{prefix}*"):
             self._redis.delete(key)
+        invalidate_object_prefix(prefix)
 
 
 def _build_cache() -> CacheBackend:
@@ -101,3 +111,31 @@ def _build_cache() -> CacheBackend:
 
 # Module-level singleton used by the query router.
 cache: CacheBackend = _build_cache()
+
+
+# Process-local object cache for heavy, non-JSON data structures (e.g. retrieval
+# indexes). We keep it in this module so it is invalidated by the same
+# cache.invalidate_prefix(user_prefix(...)) hooks used for query-response cache.
+_object_cache: dict[str, object] = {}
+_object_cache_lock = RLock()
+
+
+def get_or_build_object(key: str, factory: Callable[[], object]) -> object:
+    with _object_cache_lock:
+        cached = _object_cache.get(key)
+        if cached is not None:
+            return cached
+        built = factory()
+        _object_cache[key] = built
+        return built
+
+
+def invalidate_object_prefix(prefix: str) -> None:
+    with _object_cache_lock:
+        for key in [k for k in _object_cache if k.startswith(prefix)]:
+            _object_cache.pop(key, None)
+
+
+def clear_object_cache() -> None:
+    with _object_cache_lock:
+        _object_cache.clear()

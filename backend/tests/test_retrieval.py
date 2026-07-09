@@ -9,6 +9,7 @@ from app.services.bm25_index import BM25Index
 from app.services.followup import _parse_questions, generate_followup_questions
 from app.services.hallucination_guard import check_answer
 from app.services.retriever import hybrid_retrieve
+import app.services.retriever as retriever_mod
 from ._helpers import upload_text_doc
 
 from conftest import auth_headers, requires_db
@@ -144,3 +145,67 @@ def test_document_ids_scope_excludes_other_docs(client):
     body = res.json()
     assert body["sources"]
     assert all(s["document_id"] == a["id"] for s in body["sources"])
+
+
+@requires_db_mark
+def test_retrieval_index_cache_invalidated_on_add_and_delete(client, db_session, monkeypatch):
+    """Adding/removing docs must invalidate cached retrieval indexes so queries
+    see the new corpus immediately."""
+    calls = {"build": 0}
+    real_build = retriever_mod._build_user_index
+
+    def counting_build(db, user_id):
+        calls["build"] += 1
+        return real_build(db, user_id)
+
+    monkeypatch.setattr(retriever_mod, "_build_user_index", counting_build)
+
+    first = upload_text_doc(client, "first.txt", "alpha-only content " * 30)
+    user_id = client.get("/api/auth/me").json()["id"]
+
+    # First query builds and caches the index.
+    hybrid_retrieve(db_session, user_id, "alpha-only", top_k=5, record=False)
+    hybrid_retrieve(db_session, user_id, "alpha-only", top_k=5, record=False)
+    assert calls["build"] == 1
+
+    # Upload invalidates cache -> index rebuild and new document is retrievable.
+    second = upload_text_doc(client, "second.txt", "beta-needle phrase unique " * 30)
+    added = hybrid_retrieve(db_session, user_id, "beta-needle phrase", top_k=5, record=False)
+    assert calls["build"] == 2
+    assert second["id"] in {r["document_id"] for r in added}
+
+    # Delete invalidates cache again -> index rebuild and deleted doc disappears.
+    assert client.delete(f"/api/documents/{second['id']}").status_code == 200
+    after_delete = hybrid_retrieve(db_session, user_id, "beta-needle phrase", top_k=5, record=False)
+    assert calls["build"] == 3
+    assert second["id"] not in {r["document_id"] for r in after_delete}
+    assert first["id"] in {r["document_id"] for r in hybrid_retrieve(
+        db_session, user_id, "alpha-only", top_k=5, record=False
+    )}
+
+
+@requires_db_mark
+def test_ann_and_bruteforce_agree_on_top_k_for_small_fixture(client, db_session, monkeypatch):
+    docs = [
+        ("d1.txt", "quantum sensors improve signal resolution in medical imaging " * 20),
+        ("d2.txt", "marine biology field notes describe coral reef bleaching " * 20),
+        ("d3.txt", "financial outlook mentions quarterly revenue and operating margin " * 20),
+        ("d4.txt", "astronomy briefing covers exoplanet transit observations " * 20),
+    ]
+    for name, text in docs:
+        upload_text_doc(client, name, text)
+
+    user_id = client.get("/api/auth/me").json()["id"]
+    query = "quarterly revenue operating margin outlook"
+
+    ann = hybrid_retrieve(db_session, user_id, query, top_k=4, record=False)
+
+    real_search = retriever_mod._DenseAnnIndex.search
+
+    def force_exact(self, query_vec, limit, *, approximate):
+        return real_search(self, query_vec, limit, approximate=False)
+
+    monkeypatch.setattr(retriever_mod._DenseAnnIndex, "search", force_exact)
+    brute = hybrid_retrieve(db_session, user_id, query, top_k=4, record=False)
+
+    assert [r["chunk_id"] for r in ann] == [r["chunk_id"] for r in brute]
