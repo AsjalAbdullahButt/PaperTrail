@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ApiError } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
+import { THEMES, useTheme } from "@/lib/theme";
 
 const ACCENT_GRADIENT = "linear-gradient(135deg,var(--accent),var(--accent2))";
 
@@ -121,16 +122,53 @@ export function AuthShell({
   footer: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const [theme, setTheme] = useTheme();
+  const t = THEMES[theme];
+  const isDark = theme === "dark";
+
   return (
     <div
       style={{
+        position: "relative",
         minHeight: "100vh",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         padding: 20,
-      }}
+        background: "var(--bg)",
+        ...t,
+      } as CSSProperties}
     >
+      <button
+        onClick={() => setTheme(isDark ? "light" : "dark")}
+        aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
+        style={{
+          position: "absolute",
+          top: 20,
+          right: 20,
+          width: 60,
+          height: 30,
+          borderRadius: 16,
+          border: "1px solid var(--card-border)",
+          background: "var(--seg-bg)",
+          cursor: "pointer",
+          padding: 0,
+        }}
+      >
+        <span
+          style={{
+            position: "absolute",
+            top: 3,
+            left: isDark ? 33 : 3,
+            width: 24,
+            height: 24,
+            borderRadius: "50%",
+            background: ACCENT_GRADIENT,
+            boxShadow: "0 2px 8px var(--accentGlow)",
+            transition: "left .28s cubic-bezier(.4,0,.2,1)",
+          }}
+        />
+      </button>
       <form
         onSubmit={onSubmit}
         aria-label={title}

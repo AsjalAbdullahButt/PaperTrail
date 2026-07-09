@@ -8,6 +8,7 @@ vi.mock("@/lib/api", () => ({
   getMe: vi.fn(),
   logout: vi.fn(),
   refresh: vi.fn(),
+  refreshOnce: vi.fn(),
 }));
 
 function tokenWithExp(secondsFromNow: number): string {
@@ -75,7 +76,7 @@ describe("authStore", () => {
       isAuthenticated: true,
       ready: true,
     });
-    vi.mocked(api.refresh).mockResolvedValueOnce(null);
+    vi.mocked(api.refreshOnce).mockResolvedValueOnce(null);
 
     const ok = await useAuthStore.getState().refreshToken();
     expect(ok).toBe(false);
@@ -84,7 +85,7 @@ describe("authStore", () => {
   });
 
   it("restoreSession marks ready even when profile fetch fails", async () => {
-    vi.mocked(api.refresh).mockResolvedValueOnce(tokenWithExp(3600));
+    vi.mocked(api.refreshOnce).mockResolvedValueOnce(tokenWithExp(3600));
     vi.mocked(api.getMe).mockRejectedValueOnce(new Error("profile down"));
 
     await useAuthStore.getState().restoreSession();

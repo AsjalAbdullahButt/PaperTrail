@@ -231,11 +231,15 @@ async function handle<T>(res: Response): Promise<T> {
 }
 
 /* --------------------------- low-level fetch ----------------------------- */
-// One in-flight refresh shared by every concurrent 401, so a burst of
-// expired-token requests triggers exactly one /api/auth/refresh round trip.
+// One in-flight refresh shared by every concurrent caller (401 retries here,
+// and restoreSession()/refreshToken() in the auth store), so any burst of
+// concurrent callers triggers exactly one /api/auth/refresh round trip. This
+// matters because refresh tokens are single-use: two independent calls to
+// refresh() at once would send the same cookie twice, and the backend would
+// treat the second as replay/theft and revoke the whole session.
 let refreshInFlight: Promise<string | null> | null = null;
 
-function refreshOnce(): Promise<string | null> {
+export function refreshOnce(): Promise<string | null> {
   if (!refreshInFlight) {
     refreshInFlight = refresh().finally(() => {
       refreshInFlight = null;
