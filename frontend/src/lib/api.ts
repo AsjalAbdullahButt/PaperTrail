@@ -166,6 +166,8 @@ export type User = {
   id: string;
   email: string;
   display_name: string | null;
+  bio: string | null;
+  avatar_url: string | null;
   created_at: string;
 };
 
@@ -371,6 +373,59 @@ export async function logout(): Promise<void> {
 export async function getMe(): Promise<User> {
   const res = await apiFetch("/api/auth/me");
   return handle<User>(res);
+}
+
+export async function updateProfile(profile: {
+  display_name?: string | null;
+  bio?: string | null;
+  avatar_url?: string | null;
+}): Promise<User> {
+  const res = await apiFetch("/api/auth/me", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(profile),
+  });
+  return handle<User>(res);
+}
+
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  const res = await apiFetch("/api/auth/change-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+  await handle<{ detail: string }>(res);
+}
+
+export async function deleteAccount(): Promise<void> {
+  const res = await apiFetch("/api/auth/me", { method: "DELETE" });
+  await handle<{ detail: string }>(res);
+  setAccessToken(null);
+}
+
+export async function forgotPassword(email: string): Promise<void> {
+  const res = await apiFetch("/api/auth/forgot-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ email }),
+    skipAuthRetry: true,
+  });
+  await handle<{ detail: string }>(res);
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
+  const res = await apiFetch("/api/auth/reset-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ token, new_password: newPassword }),
+    skipAuthRetry: true,
+  });
+  await handle<{ detail: string }>(res);
 }
 
 /* ------------------------------- query ---------------------------------- */

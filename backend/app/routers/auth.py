@@ -12,8 +12,11 @@ token for that account is revoked via ``users.revoked_before``.
 """
 from __future__ import annotations
 
+import hashlib
 import logging
-from datetime import datetime, timezone
+import os
+import secrets
+from datetime import datetime, timedelta, timezone
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -23,9 +26,18 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user
 from ..config import settings
 from ..database import get_db
-from ..models import TokenBlacklist, User
+from ..models import Document, PasswordResetToken, TokenBlacklist, User
 from ..ratelimit import limiter, login_limit, register_limit
-from ..schemas import LoginRequest, TokenOut, UserCreate, UserOut
+from ..schemas import (
+    ChangePasswordRequest,
+    ForgotPasswordRequest,
+    LoginRequest,
+    ProfileUpdate,
+    ResetPasswordRequest,
+    TokenOut,
+    UserCreate,
+    UserOut,
+)
 from ..security import (
     create_access_token,
     create_refresh_token,
@@ -33,6 +45,12 @@ from ..security import (
     hash_password,
     verify_password,
 )
+
+# Reset tokens are high-entropy random values (not user-chosen passwords), so a
+# fast SHA-256 hash is appropriate here — unlike account passwords, there is no
+# guessing attack to slow down with bcrypt; only the hash is ever stored.
+def _hash_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -207,3 +225,125 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)):
 @router.get("/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@router.patch("/me", response_model=UserOut)
+def update_profile(
+    payload: ProfileUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    current_user.display_name = payload.display_name
+    current_user.bio = payload.bio
+    current_user.avatar_url = payload.avatar_url
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+
+@router.post("/change-password")
+def change_password(
+    payload: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not verify_password(payload.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=401, detail="Current password is incorrect.")
+
+    current_user.hashed_password = hash_password(payload.new_password)
+    # Same revocation mechanism as refresh-token-reuse detection: every
+    # outstanding refresh token predates this instant, so a password change
+    # signs every other session out.
+    current_user.revoked_before = datetime.now(timezone.utc)
+    db.commit()
+    return {"detail": "Password changed. Other sessions have been signed out."}
+
+
+@router.delete("/me")
+def delete_account(
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Permanently delete the account and everything owned by it.
+
+    Related rows (documents, chunks, chat history, collections, ...) cascade
+    at the database level via the ``ondelete="CASCADE"`` foreign keys already
+    declared on those tables (the same mechanism TokenBlacklist uses) — no
+    per-table cleanup code is needed here beyond removing on-disk files, which
+    the DB cascade can't reach.
+    """
+    file_paths = [
+        d.file_path
+        for d in db.query(Document).filter(Document.user_id == current_user.id).all()
+        if d.file_path
+    ]
+    db.delete(current_user)
+    db.commit()
+    for path in file_paths:
+        if os.path.exists(path):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+    _clear_refresh_cookie(response)
+    return {"detail": "Account deleted."}
+
+
+@router.post("/forgot-password")
+@limiter.limit(login_limit)
+def forgot_password(
+    request: Request, payload: ForgotPasswordRequest, db: Session = Depends(get_db),
+):
+    user = db.execute(
+        select(User).where(User.email == payload.email)
+    ).scalar_one_or_none()
+    if user is not None:
+        raw_token = secrets.token_urlsafe(32)
+        db.add(
+            PasswordResetToken(
+                user_id=user.id,
+                token_hash=_hash_reset_token(raw_token),
+                expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+            )
+        )
+        db.commit()
+        reset_link = f"{settings.frontend_base_url}/reset-password?token={raw_token}"
+        # PLACEHOLDER: no email-sending infrastructure exists yet (see
+        # config.py / observability.py). Log the link server-side so the
+        # endpoint contract is real and testable now; swap this line for an
+        # actual email send once one is wired up.
+        logger.info(
+            "Password reset requested for user_id=%s: %s", user.id, reset_link
+        )
+    # Identical response whether or not the email is registered, so this
+    # endpoint can't be used to enumerate accounts.
+    return {"detail": "If that email is registered, a reset link has been sent."}
+
+
+@router.post("/reset-password")
+@limiter.limit(login_limit)
+def reset_password(
+    request: Request, payload: ResetPasswordRequest, db: Session = Depends(get_db),
+):
+    token_hash = _hash_reset_token(payload.token)
+    record = db.execute(
+        select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash)
+    ).scalar_one_or_none()
+    now = datetime.now(timezone.utc)
+    if (
+        record is None
+        or record.used_at is not None
+        or _as_utc(record.expires_at) < now
+    ):
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token.")
+
+    user = db.get(User, record.user_id)
+    if user is None:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token.")
+
+    user.hashed_password = hash_password(payload.new_password)
+    user.revoked_before = now
+    record.used_at = now
+    db.commit()
+    return {"detail": "Password has been reset. Please sign in again."}

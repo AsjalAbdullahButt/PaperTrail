@@ -58,6 +58,8 @@ class User(Base):
     )
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     display_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    bio: Mapped[str | None] = mapped_column(Text, nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # Refresh tokens issued (``iat``) before this instant are rejected. Set when
     # a rotated-away refresh token is replayed — the theft signal — so every
@@ -90,6 +92,30 @@ class TokenBlacklist(Base):
         TIMESTAMP_COL, nullable=False, default=_utcnow, server_default=func.now()
     )
     expires_at: Mapped[datetime] = mapped_column(TIMESTAMP_COL, nullable=False)
+
+
+class PasswordResetToken(Base):
+    """Password-reset tokens (POST /api/auth/forgot-password).
+
+    Only the SHA-256 hash of the raw token is stored — like TokenBlacklist
+    stores refresh-token jtis, not the tokens themselves — so a leaked
+    database dump can't be used to reset accounts. Single-use via ``used_at``.
+    """
+
+    __tablename__ = "password_reset_tokens"
+
+    id: Mapped[str] = mapped_column(UUID_COL, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token_hash: Mapped[str] = mapped_column(
+        String(64), nullable=False, unique=True, index=True
+    )
+    expires_at: Mapped[datetime] = mapped_column(TIMESTAMP_COL, nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(TIMESTAMP_COL, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP_COL, nullable=False, default=_utcnow, server_default=func.now()
+    )
 
 
 class Document(Base):

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { getMindMap, type MindMapData, type MindMapNode } from "@/lib/api";
 
 const W = 640;
@@ -66,19 +66,110 @@ function layout(data: MindMapData): { nodes: Positioned[]; byId: Record<string, 
   return { nodes, byId };
 }
 
+function truncateLabel(label: string, max = 20): string {
+  return label.length > max ? `${label.slice(0, max)}…` : label;
+}
+
+const cardStyle: CSSProperties = {
+  marginTop: 22,
+  padding: "18px 20px",
+  borderRadius: 20,
+  background: "var(--card-bg)",
+  border: "1px solid var(--card-border)",
+  backdropFilter: "blur(18px) saturate(140%)",
+  boxShadow: "0 12px 34px var(--cardShadow)",
+};
+
+const titleStyle: CSSProperties = {
+  fontSize: 11.5,
+  fontWeight: 700,
+  letterSpacing: ".05em",
+  textTransform: "uppercase",
+  color: "var(--muted)",
+};
+
+const placeholderStyle: CSSProperties = {
+  padding: "26px 10px",
+  textAlign: "center",
+  color: "var(--muted)",
+  fontSize: 13.5,
+};
+
+function LegendItem({ swatch, label }: { swatch: ReactNode; label: string }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+      {swatch}
+      {label}
+    </span>
+  );
+}
+
+function Legend() {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 10.5, color: "var(--muted)", flexWrap: "wrap" }}>
+      <LegendItem
+        swatch={<span style={{ width: 12, height: 12, borderRadius: "50%", display: "inline-block", background: "linear-gradient(135deg,var(--accent),var(--accent2))" }} />}
+        label="Your question"
+      />
+      <LegendItem
+        swatch={<span style={{ width: 8, height: 8, borderRadius: "50%", display: "inline-block", background: "var(--accent)" }} />}
+        label="High-importance source"
+      />
+      <LegendItem
+        swatch={<span style={{ width: 8, height: 8, borderRadius: "50%", display: "inline-block", background: "var(--muted)" }} />}
+        label="Other source"
+      />
+    </div>
+  );
+}
+
 export default function MindMap({ queryId }: { queryId: string }) {
   const [data, setData] = useState<MindMapData | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const [selected, setSelected] = useState<MindMapNode | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
-    getMindMap(queryId).then((d) => { if (active) setData(d); }).catch(() => {});
+    setData(null);
+    setLoadError(false);
+    setSelected(null);
+    getMindMap(queryId)
+      .then((d) => { if (active) setData(d); })
+      .catch(() => { if (active) setLoadError(true); });
     return () => { active = false; };
   }, [queryId]);
 
   const positioned = useMemo(() => (data ? layout(data) : null), [data]);
 
-  if (!data || !positioned || data.nodes.length <= 1) return null;
+  if (loadError) {
+    return (
+      <div style={cardStyle}>
+        <div style={titleStyle}>Concept map</div>
+        <div style={placeholderStyle}>Couldn&rsquo;t load the concept map for this answer.</div>
+      </div>
+    );
+  }
+
+  if (data && (!positioned || data.nodes.length <= 1)) {
+    return (
+      <div style={cardStyle}>
+        <div style={titleStyle}>Concept map</div>
+        <div style={placeholderStyle}>
+          Not enough content to map yet — ask a question that draws on more of your documents.
+        </div>
+      </div>
+    );
+  }
+
+  if (!data || !positioned) {
+    return (
+      <div style={cardStyle}>
+        <div style={titleStyle}>Concept map</div>
+        <div style={placeholderStyle}>Loading concept map…</div>
+      </div>
+    );
+  }
 
   const nodeColor = (nd: MindMapNode) => {
     if (nd.type === "query") return "url(#mm-grad)";
@@ -87,9 +178,10 @@ export default function MindMap({ queryId }: { queryId: string }) {
   };
 
   return (
-    <div style={{ marginTop: 22, padding: "18px 20px", borderRadius: 20, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(18px) saturate(140%)", boxShadow: "0 12px 34px var(--cardShadow)" }}>
-      <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)", marginBottom: 10 }}>
-        Concept map
+    <div style={cardStyle}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
+        <div style={titleStyle}>Concept map</div>
+        <Legend />
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Query concept map" style={{ maxWidth: "100%", animation: "rise .5s ease both" }}>
         <defs>
@@ -109,12 +201,35 @@ export default function MindMap({ queryId }: { queryId: string }) {
         })}
         {positioned.nodes.map((nd) => {
           const r = nd.type === "query" ? 16 : 9;
+          const isHovered = hoveredId === nd.id;
+          const tooltip =
+            nd.type === "query"
+              ? nd.label
+              : `${nd.document || "Source"}${typeof nd.importance === "number" ? ` · importance ${Math.round(nd.importance * 100)}%` : ""}\n${nd.label}`;
           return (
-            <g key={nd.id} onClick={() => setSelected(nd)} style={{ cursor: nd.type === "chunk" ? "pointer" : "default" }}>
+            <g
+              key={nd.id}
+              onClick={() => setSelected(nd)}
+              onMouseEnter={() => setHoveredId(nd.id)}
+              onMouseLeave={() => setHoveredId((h) => (h === nd.id ? null : h))}
+              style={{ cursor: "pointer" }}
+            >
+              <title>{tooltip}</title>
               <circle cx={nd.x} cy={nd.y} r={r} fill={nodeColor(nd)} stroke="var(--card-bg)" strokeWidth={2} />
-              {nd.type === "query" && (
+              {nd.type === "query" ? (
                 <text x={nd.x} y={nd.y - 22} textAnchor="middle" fontSize={11} fill="var(--text)" fontWeight={700}>
                   {nd.label}
+                </text>
+              ) : (
+                <text
+                  x={nd.x + r + 4}
+                  y={nd.y + 3}
+                  fontSize={9}
+                  fill="var(--text)"
+                  opacity={isHovered ? 1 : 0.5}
+                  style={{ transition: "opacity .15s ease" }}
+                >
+                  {truncateLabel(nd.label)}
                 </text>
               )}
             </g>

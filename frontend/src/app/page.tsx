@@ -454,6 +454,7 @@ export default function Home() {
                   {uploading ? "Uploading…" : "Upload document"}
                 </button>
                 <input ref={fileRef} type="file" accept=".pdf,.docx,.txt,.md,.xlsx,.csv" onChange={handleFile} style={{ display: "none" }} />
+                <HeaderButton label="Profile" onClick={() => router.push("/profile")} />
                 <HeaderButton label="Sign out" onClick={signOut} />
               </div>
             </div>
@@ -534,7 +535,7 @@ export default function Home() {
                       </span>
                     )}
                   </div>
-                  <div style={{ fontSize: 19, lineHeight: 1.62, letterSpacing: "-.01em", color: "var(--text)", fontWeight: 400, whiteSpace: "pre-wrap" }}>
+                  <div style={{ fontSize: 19, lineHeight: 1.62, letterSpacing: "-.01em", color: "var(--text)", fontWeight: 400 }}>
                     {renderAnswerWithCitations(result.answer, result.sources.length)}
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 26, paddingTop: 18, borderTop: "1px solid var(--card-border)", flexWrap: "wrap" }}>

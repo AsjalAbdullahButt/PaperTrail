@@ -37,6 +37,8 @@ describe("authStore", () => {
       id: "u1",
       email: "u@x.com",
       display_name: null,
+      bio: null,
+      avatar_url: null,
       created_at: "2026-01-01T00:00:00Z",
     });
 
@@ -61,6 +63,8 @@ describe("authStore", () => {
       id: "u2",
       email: "new@x.com",
       display_name: "New",
+      bio: null,
+      avatar_url: null,
       created_at: "2026-01-01T00:00:00Z",
     });
 
@@ -71,7 +75,7 @@ describe("authStore", () => {
 
   it("refreshToken clears auth state when refresh fails", async () => {
     useAuthStore.setState({
-      user: { id: "u1", email: "u@x.com", display_name: null, created_at: "x" },
+      user: { id: "u1", email: "u@x.com", display_name: null, bio: null, avatar_url: null, created_at: "x" },
       accessToken: tokenWithExp(3600),
       isAuthenticated: true,
       ready: true,
@@ -96,7 +100,7 @@ describe("authStore", () => {
 
   it("logout clears session state", async () => {
     useAuthStore.setState({
-      user: { id: "u1", email: "u@x.com", display_name: null, created_at: "x" },
+      user: { id: "u1", email: "u@x.com", display_name: null, bio: null, avatar_url: null, created_at: "x" },
       accessToken: tokenWithExp(3600),
       isAuthenticated: true,
       ready: true,

@@ -12,6 +12,7 @@ const NAV = [
   { href: "/", label: "Home" },
   { href: "/library", label: "Library" },
   { href: "/analytics", label: "Analytics" },
+  { href: "/profile", label: "Profile" },
 ];
 
 /** Themed page chrome (background + top nav) for secondary pages. Redirects to

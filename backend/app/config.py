@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     # production origins are configured without code changes.
     cors_origins: str = "http://localhost:3000"
 
+    # Base URL of the frontend, used to build links that are emailed/logged to
+    # users (e.g. the password-reset link). Not a CORS setting.
+    frontend_base_url: str = "http://localhost:3000"
+
     # --- Auth (JWT) ---
     # Secret used to sign JWTs. MUST be overridden in production via env;
     # the dev default is deliberately obvious and unsafe.

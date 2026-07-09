@@ -6,10 +6,11 @@ import Link from "next/link";
 import { ApiError } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { THEMES, useTheme } from "@/lib/theme";
+import { PasswordInput } from "@/components/PasswordField";
 
 const ACCENT_GRADIENT = "linear-gradient(135deg,var(--accent),var(--accent2))";
 
-const inputStyle: CSSProperties = {
+export const inputStyle: CSSProperties = {
   width: "100%",
   padding: "12px 14px",
   borderRadius: 12,
@@ -29,12 +30,30 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
-    setBusy(true);
+
     setError(null);
+    let ok = true;
+    if (!email.trim()) {
+      setEmailError("Email is required.");
+      ok = false;
+    } else {
+      setEmailError(null);
+    }
+    if (!password) {
+      setPasswordError("Password is required.");
+      ok = false;
+    } else {
+      setPasswordError(null);
+    }
+    if (!ok) return;
+
+    setBusy(true);
     try {
       await login(email, password);
       router.replace("/");
@@ -66,30 +85,36 @@ export default function LoginPage() {
         Email
         <input
           type="email"
-          required
           autoComplete="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => { setEmail(e.target.value); if (emailError) setEmailError(null); }}
           style={inputStyle}
+          aria-invalid={emailError ? true : undefined}
         />
       </label>
+      {emailError && <div style={fieldErrorStyle}>{emailError}</div>}
       <label style={{ ...labelStyle, marginTop: 14 }}>
         Password
-        <input
-          type="password"
-          required
+        <PasswordInput
           autoComplete="current-password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => { setPassword(e.target.value); if (passwordError) setPasswordError(null); }}
           style={inputStyle}
+          aria-invalid={passwordError ? true : undefined}
         />
       </label>
+      {passwordError && <div style={fieldErrorStyle}>{passwordError}</div>}
+      <div style={{ marginTop: 10, textAlign: "right" }}>
+        <Link href="/forgot-password" style={{ ...linkStyle, fontSize: 13 }}>
+          Forgot password?
+        </Link>
+      </div>
     </AuthShell>
   );
 }
 
-/* ---- shared shell + tokens (kept local so both auth pages match exactly) --- */
-const labelStyle: CSSProperties = {
+/* ---- shared shell + tokens, reused by every auth-styled page --- */
+export const labelStyle: CSSProperties = {
   display: "block",
   fontSize: 13,
   fontWeight: 600,
@@ -97,10 +122,16 @@ const labelStyle: CSSProperties = {
   marginBottom: 6,
 };
 
-const linkStyle: CSSProperties = {
+export const linkStyle: CSSProperties = {
   fontWeight: 700,
   color: "var(--accent)",
   textDecoration: "none",
+};
+
+export const fieldErrorStyle: CSSProperties = {
+  marginTop: 6,
+  fontSize: 12.5,
+  color: "#ff8a80",
 };
 
 export function AuthShell({
@@ -171,6 +202,7 @@ export function AuthShell({
       </button>
       <form
         onSubmit={onSubmit}
+        noValidate
         aria-label={title}
         style={{
           width: "100%",

@@ -1,32 +1,12 @@
 "use client";
 
-import { useState, type CSSProperties, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ApiError } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
-import { AuthShell } from "../login/page";
-
-const labelStyle: CSSProperties = {
-  display: "block",
-  fontSize: 13,
-  fontWeight: 600,
-  color: "var(--muted)",
-  marginBottom: 6,
-};
-
-const inputStyle: CSSProperties = {
-  width: "100%",
-  padding: "12px 14px",
-  borderRadius: 12,
-  background: "var(--seg-bg)",
-  border: "1px solid var(--card-border)",
-  color: "var(--text)",
-  fontFamily: "inherit",
-  fontSize: 15,
-  outline: "none",
-  marginTop: 6,
-};
+import { AuthShell, fieldErrorStyle, inputStyle, labelStyle, linkStyle } from "../login/page";
+import { PasswordInput, PasswordStrengthMeter, passwordComplexityError } from "@/components/PasswordField";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -37,24 +17,42 @@ export default function RegisterPage() {
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
-    if (password !== confirm) {
-      setError("Passwords do not match.");
-      return;
-    }
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
-      return;
-    }
-    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
-      setError("Password must contain at least one letter and one number.");
-      return;
-    }
-    setBusy(true);
+
     setError(null);
+    let ok = true;
+
+    if (!email.trim()) {
+      setEmailError("Email is required.");
+      ok = false;
+    } else {
+      setEmailError(null);
+    }
+
+    const pwError = passwordComplexityError(password);
+    if (pwError) {
+      setPasswordError(pwError);
+      ok = false;
+    } else {
+      setPasswordError(null);
+    }
+
+    if (!pwError && password !== confirm) {
+      setConfirmError("Passwords do not match.");
+      ok = false;
+    } else {
+      setConfirmError(null);
+    }
+
+    if (!ok) return;
+
+    setBusy(true);
     try {
       await register(email, password, displayName.trim() || undefined);
       router.replace("/");
@@ -76,7 +74,7 @@ export default function RegisterPage() {
       footer={
         <>
           Already have an account?{" "}
-          <Link href="/login" style={{ fontWeight: 700, color: "var(--accent)", textDecoration: "none" }}>
+          <Link href="/login" style={linkStyle}>
             Sign in
           </Link>
         </>
@@ -86,13 +84,14 @@ export default function RegisterPage() {
         Email
         <input
           type="email"
-          required
           autoComplete="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => { setEmail(e.target.value); if (emailError) setEmailError(null); }}
           style={inputStyle}
+          aria-invalid={emailError ? true : undefined}
         />
       </label>
+      {emailError && <div style={fieldErrorStyle}>{emailError}</div>}
       <label style={{ ...labelStyle, marginTop: 14 }}>
         Display name <span style={{ fontWeight: 400 }}>(optional)</span>
         <input
@@ -106,28 +105,27 @@ export default function RegisterPage() {
       </label>
       <label style={{ ...labelStyle, marginTop: 14 }}>
         Password
-        <input
-          type="password"
-          required
-          minLength={8}
+        <PasswordInput
           autoComplete="new-password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => { setPassword(e.target.value); if (passwordError) setPasswordError(null); }}
           style={inputStyle}
+          aria-invalid={passwordError ? true : undefined}
         />
       </label>
+      {passwordError && <div style={fieldErrorStyle}>{passwordError}</div>}
+      <PasswordStrengthMeter password={password} />
       <label style={{ ...labelStyle, marginTop: 14 }}>
         Confirm password
-        <input
-          type="password"
-          required
-          minLength={8}
+        <PasswordInput
           autoComplete="new-password"
           value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
+          onChange={(e) => { setConfirm(e.target.value); if (confirmError) setConfirmError(null); }}
           style={inputStyle}
+          aria-invalid={confirmError ? true : undefined}
         />
       </label>
+      {confirmError && <div style={fieldErrorStyle}>{confirmError}</div>}
     </AuthShell>
   );
 }

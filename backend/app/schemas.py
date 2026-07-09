@@ -11,6 +11,19 @@ def _strip_null_bytes(value: str) -> str:
     return value.replace("\x00", "")
 
 
+def _clean_optional_text(v: str | None) -> str | None:
+    if v is None:
+        return None
+    v = _strip_null_bytes(v).strip()
+    return v or None
+
+
+def _check_password_complexity(v: str) -> str:
+    if not any(c.isalpha() for c in v) or not any(c.isdigit() for c in v):
+        raise ValueError("Password must contain at least one letter and one number.")
+    return v
+
+
 # --- Auth ---
 class UserCreate(BaseModel):
     """Login/registration credentials. ``display_name`` is optional (register)."""
@@ -22,17 +35,12 @@ class UserCreate(BaseModel):
     @field_validator("password")
     @classmethod
     def _password_complexity(cls, v: str) -> str:
-        if not any(c.isalpha() for c in v) or not any(c.isdigit() for c in v):
-            raise ValueError("Password must contain at least one letter and one number.")
-        return v
+        return _check_password_complexity(v)
 
     @field_validator("display_name")
     @classmethod
     def _clean_display_name(cls, v: str | None) -> str | None:
-        if v is None:
-            return None
-        v = _strip_null_bytes(v).strip()
-        return v or None
+        return _clean_optional_text(v)
 
 
 class LoginRequest(BaseModel):
@@ -46,12 +54,53 @@ class UserOut(BaseModel):
     id: str
     email: EmailStr
     display_name: str | None = None
+    bio: str | None = None
+    avatar_url: str | None = None
     created_at: datetime
 
 
 class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class ProfileUpdate(BaseModel):
+    """PATCH /api/auth/me body — full replacement of the editable profile
+    fields (a field omitted/``null`` clears it, matching the profile form
+    that always submits its current state)."""
+
+    display_name: str | None = Field(default=None, max_length=100)
+    bio: str | None = Field(default=None, max_length=2000)
+    avatar_url: str | None = Field(default=None, max_length=1024)
+
+    @field_validator("display_name", "bio", "avatar_url")
+    @classmethod
+    def _clean(cls, v: str | None) -> str | None:
+        return _clean_optional_text(v)
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(..., min_length=1, max_length=128)
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def _password_complexity(cls, v: str) -> str:
+        return _check_password_complexity(v)
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(..., min_length=1, max_length=512)
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def _password_complexity(cls, v: str) -> str:
+        return _check_password_complexity(v)
 
 
 # --- Documents ---

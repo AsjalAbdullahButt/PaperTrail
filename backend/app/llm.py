@@ -106,6 +106,20 @@ def generate_answer(question: str, context_chunks: list[str], mode: str) -> str:
     return _offline_generate(question, context_chunks, mode)
 
 
+
+# Shared formatting instructions so multi-part answers render as structure
+# (headings/bold/lists), not a wall of text — the frontend now parses this
+# markdown subset back into real elements (see Citations.tsx).
+_FORMATTING_INSTRUCTIONS = (
+    "Format the answer for readability: if it covers more than one distinct "
+    "point, break it into labeled sections using markdown headings (## "
+    "Section Name). Use **bold** only around key terms, never whole "
+    "sentences. Prefer short paragraphs; only use a \"- \" bullet list when "
+    "the content is genuinely a list (steps, enumerated items), not as a "
+    "default structure."
+)
+
+
 def _build_messages(question: str, context_chunks: list[str], mode: str) -> list[dict]:
     """Assemble the chat messages shared by every hosted-model provider."""
     if mode == "rag":
@@ -114,11 +128,14 @@ def _build_messages(question: str, context_chunks: list[str], mode: str) -> list
             "You are PaperTrail, a careful assistant that answers ONLY from the "
             "provided context. If the answer is not in the context, say you could "
             "not find it in the provided documents. Cite sources inline as [1], [2], "
-            "etc., matching the numbered context passages."
+            "etc., matching the numbered context passages. " + _FORMATTING_INSTRUCTIONS
         )
         user = f"Context:\n{context}\n\nQuestion: {question}"
     else:
-        system = "You are PaperTrail, a helpful and concise assistant."
+        system = (
+            "You are PaperTrail, a helpful and concise assistant. "
+            + _FORMATTING_INSTRUCTIONS
+        )
         user = question
     return [
         {"role": "system", "content": system},
