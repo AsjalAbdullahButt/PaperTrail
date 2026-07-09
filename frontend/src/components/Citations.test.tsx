@@ -24,4 +24,39 @@ describe("renderAnswerWithCitations", () => {
     );
     expect(container.textContent).toBe("Plain answer.");
   });
+
+  it("renders ## headings as real elements, not literal hashes", () => {
+    const { container } = render(
+      <div>{renderAnswerWithCitations("## Section One\nSome body text.", 0)}</div>
+    );
+    expect(screen.getByText("Section One").tagName).toBe("DIV");
+    expect(container.textContent).not.toContain("##");
+    expect(container.textContent).toContain("Some body text.");
+  });
+
+  it("renders **bold** as <strong>, stripping the asterisks", () => {
+    render(<div>{renderAnswerWithCitations("This is **important** text.", 0)}</div>);
+    const strong = screen.getByText("important");
+    expect(strong.tagName).toBe("STRONG");
+  });
+
+  it("renders '- ' lines as a real list", () => {
+    const { container } = render(
+      <div>{renderAnswerWithCitations("- First step\n- Second step", 0)}</div>
+    );
+    const items = container.querySelectorAll("li");
+    expect(items).toHaveLength(2);
+    expect(items[0].textContent).toBe("First step");
+    expect(items[1].textContent).toBe("Second step");
+  });
+
+  it("still resolves citation chips inside bold text and list items", () => {
+    render(
+      <div>
+        {renderAnswerWithCitations("**Key fact** [1]\n- Detail [2]", 2)}
+      </div>
+    );
+    expect(screen.getByRole("link", { name: /citation 1/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /citation 2/i })).toBeInTheDocument();
+  });
 });
