@@ -212,6 +212,15 @@ function authHeaders(extra: Record<string, string> = {}): Record<string, string>
 async function parseError(res: Response): Promise<string> {
   try {
     const data = await res.json();
+    // Field-level validation errors (422) carry the actionable reason in
+    // error.details[0].msg — prefer it over the generic "Request validation
+    // failed." wrapper in error.message. Pydantic prefixes custom
+    // field_validator messages with "Value error, "; strip that, it's an
+    // implementation detail that means nothing to a user.
+    const details = data?.error?.details;
+    if (Array.isArray(details) && typeof details[0]?.msg === "string") {
+      return details[0].msg.replace(/^Value error,\s*/, "");
+    }
     if (typeof data?.error?.message === "string") return data.error.message;
     if (typeof data?.detail === "string") return data.detail;
     if (Array.isArray(data?.detail) && data.detail[0]?.msg) return data.detail[0].msg;

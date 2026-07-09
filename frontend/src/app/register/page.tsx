@@ -49,6 +49,10 @@ export default function RegisterPage() {
       setError("Password must be at least 8 characters.");
       return;
     }
+    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+      setError("Password must contain at least one letter and one number.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
