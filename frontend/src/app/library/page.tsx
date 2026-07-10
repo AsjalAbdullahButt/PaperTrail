@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import toast from "react-hot-toast";
 import PageShell from "@/components/PageShell";
+import Select from "@/components/Select";
 import Timeline from "@/components/Timeline";
 import {
   addToCollection,
@@ -139,10 +140,13 @@ function LibraryInner() {
                 placeholder="Search by name…"
                 style={{ flex: "1 1 200px", padding: "10px 12px", borderRadius: 12, background: "var(--card-bg)", border: "1px solid var(--card-border)", color: "var(--text)", fontFamily: "inherit", fontSize: 14, outline: "none" }}
               />
-              <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} style={selectStyle}>
-                <option value="">All types</option>
-                {["pdf", "docx", "txt", "md", "xlsx", "csv"].map((t) => <option key={t} value={t}>{t.toUpperCase()}</option>)}
-              </select>
+              <Select
+                value={typeFilter}
+                onChange={setTypeFilter}
+                placeholder="All types"
+                ariaLabel="Filter by file type"
+                options={["pdf", "docx", "txt", "md", "xlsx", "csv"].map((t) => ({ value: t, label: t.toUpperCase() }))}
+              />
               <input
                 value={tagFilter}
                 onChange={(e) => setTagFilter(e.target.value)}
@@ -229,14 +233,14 @@ function DocumentCard({ doc, collections, onChanged }: { doc: DocumentInfo; coll
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
         <input value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleAddTag(); }} placeholder="add tag" style={{ flex: "1 1 100px", minWidth: 0, padding: "6px 9px", borderRadius: 9, background: "var(--seg-bg)", border: "1px solid var(--card-border)", color: "var(--text)", fontFamily: "inherit", fontSize: 12, outline: "none" }} />
-        <select
-          onChange={async (e) => { if (e.target.value) { await addToCollection(e.target.value, [doc.id]); e.target.value = ""; } }}
-          defaultValue=""
-          style={{ ...selectStyle, flex: "1 1 110px", minWidth: 0, fontSize: 12, padding: "6px 8px" }}
-        >
-          <option value="">+ collection</option>
-          {collections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        <Select
+          value=""
+          onChange={async (v) => { if (v) await addToCollection(v, [doc.id]); }}
+          placeholder="+ collection"
+          ariaLabel={`Add ${doc.filename} to a collection`}
+          options={collections.map((c) => ({ value: c.id, label: c.name }))}
+          style={{ flex: "1 1 110px", minWidth: 0, fontSize: 12, padding: "6px 8px" }}
+        />
         <button onClick={toggleCoverage} style={{ flex: "0 0 auto", border: "1px solid var(--card-border)", background: "var(--seg-bg)", color: "var(--text)", borderRadius: 9, padding: "0 10px", height: 30, cursor: "pointer", fontSize: 12 }}>
           {coverage ? "Hide" : "Coverage"}
         </button>

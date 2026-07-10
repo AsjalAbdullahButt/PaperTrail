@@ -34,7 +34,7 @@ function layout(data: MindMapData): { nodes: Positioned[]; byId: Record<string, 
         const b = nodes[j];
         let dx = a.x - b.x;
         let dy = a.y - b.y;
-        let dist2 = dx * dx + dy * dy || 0.01;
+        const dist2 = dx * dx + dy * dy || 0.01;
         const force = K_REP / dist2;
         const dist = Math.sqrt(dist2);
         dx /= dist;

@@ -8,6 +8,7 @@ import {
   type CSSProperties,
 } from "react";
 import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import {
   ApiError,
   askQuery,
@@ -27,6 +28,7 @@ import MindMap from "@/components/MindMap";
 import ConfidenceGauge from "@/components/ConfidenceGauge";
 import CommandPalette from "@/components/CommandPalette";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { useFloatingRect } from "@/hooks/useFloatingRect";
 import { THEMES, useTheme } from "@/lib/theme";
 import { renderAnswerWithCitations } from "@/components/Citations";
 import Logo from "@/components/Logo";
@@ -216,9 +218,12 @@ function ModeButton({
   onClick: () => void;
 }) {
   const [hover, setHover] = useState(false);
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const rect = useFloatingRect(anchorRef, hover);
   const info = MODE_INFO[mode];
   return (
     <div
+      ref={anchorRef}
       style={{ position: "relative" }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
@@ -226,25 +231,25 @@ function ModeButton({
       <button onClick={onClick} aria-pressed={active} style={active ? segActive : segIdle}>
         {info.label}
       </button>
-      {hover && (
+      {hover && rect && typeof document !== "undefined" && createPortal(
         <div
           role="tooltip"
           style={{
-            position: "absolute",
-            top: "calc(100% + 10px)",
-            left: "50%",
+            position: "fixed",
+            top: rect.bottom + 10,
+            left: rect.left + rect.width / 2,
             transform: "translateX(-50%)",
             width: 220,
             padding: "10px 13px",
             borderRadius: 12,
-            background: "var(--card-bg)",
+            background: "var(--menu-bg)",
             border: "1px solid var(--card-border)",
             color: "var(--text)",
             fontSize: 12.5,
             lineHeight: 1.5,
             fontWeight: 500,
             textAlign: "center",
-            zIndex: 30,
+            zIndex: 1000,
             boxShadow: "0 12px 30px var(--cardShadow)",
             backdropFilter: "blur(18px) saturate(140%)",
             WebkitBackdropFilter: "blur(18px) saturate(140%)",
@@ -253,7 +258,8 @@ function ModeButton({
           }}
         >
           {info.description}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -354,11 +360,16 @@ function ExportMenu({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const rect = useFloatingRect(ref, open);
 
   useEffect(() => {
     if (!open) return;
     function onDocClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (ref.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      setOpen(false);
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
@@ -396,13 +407,14 @@ function ExportMenu({
           <ChevronDownIcon />
         </span>
       </button>
-      {open && (
+      {open && rect && typeof document !== "undefined" && createPortal(
         <div
+          ref={menuRef}
           role="menu"
           style={{
-            position: "absolute", top: "calc(100% + 8px)", right: 0, minWidth: 250, padding: 6, borderRadius: 14,
-            background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px) saturate(150%)",
-            WebkitBackdropFilter: "blur(22px) saturate(150%)", boxShadow: "0 18px 40px var(--cardShadow)", zIndex: 40,
+            position: "fixed", top: rect.bottom + 8, left: rect.right - 250, width: 250, padding: 6, borderRadius: 14,
+            background: "var(--menu-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px) saturate(150%)",
+            WebkitBackdropFilter: "blur(22px) saturate(150%)", boxShadow: "0 18px 40px var(--cardShadow)", zIndex: 1000,
             animation: "rise .15s ease both",
           }}
         >
@@ -426,7 +438,8 @@ function ExportMenu({
           <button role="menuitem" style={itemStyle} onClick={() => { onExportZip(); setOpen(false); }}>
             <DownloadIcon /> Download account data (.zip)
           </button>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

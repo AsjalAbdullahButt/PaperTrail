@@ -31,6 +31,9 @@ export const THEMES: Record<ThemeName, ThemeVars> = {
     "--blobOp3": ".12",
     "--cardShadow": "rgba(0,0,0,.5)",
     "--sel": "rgba(52,211,153,.3)",
+    // Near-opaque (unlike --card-bg) so floating menus/tooltips stay legible
+    // over whatever they overlap even where backdrop-filter isn't rendered.
+    "--menu-bg": "rgba(17,19,25,.98)",
   },
   light: {
     "--bg": "radial-gradient(1200px 800px at 15% -5%, #ffffff 0%, #f4f5f2 55%, #eef0ec 100%)",
@@ -53,6 +56,7 @@ export const THEMES: Record<ThemeName, ThemeVars> = {
     "--blobOp3": ".20",
     "--cardShadow": "rgba(30,40,60,.12)",
     "--sel": "rgba(13,148,136,.2)",
+    "--menu-bg": "rgba(255,255,255,.98)",
   },
 };
 
