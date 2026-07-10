@@ -16,10 +16,12 @@ import hashlib
 import logging
 import os
 import secrets
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -241,6 +243,84 @@ def update_profile(
     return current_user
 
 
+AVATAR_MAX_BYTES = 2 * 1024 * 1024  # 2 MB
+AVATAR_CONTENT_TYPES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif"}
+
+
+def _avatar_dir() -> str:
+    path = os.path.join(settings.uploads_dir, "avatars")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def _find_avatar_file(avatar_dir: str, user_id: str) -> str | None:
+    prefix = f"{user_id}."
+    for name in os.listdir(avatar_dir):
+        if name.startswith(prefix):
+            return os.path.join(avatar_dir, name)
+    return None
+
+
+def _remove_avatar_file(user_id: str) -> None:
+    existing = _find_avatar_file(_avatar_dir(), user_id)
+    if existing and os.path.exists(existing):
+        try:
+            os.remove(existing)
+        except OSError:
+            pass
+
+
+@router.post("/me/avatar", response_model=UserOut)
+async def upload_avatar(
+    file: UploadFile,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    ext = AVATAR_CONTENT_TYPES.get(file.content_type or "")
+    if ext is None:
+        raise HTTPException(
+            status_code=422, detail="Avatar must be a JPEG, PNG, WebP, or GIF image."
+        )
+    data = await file.read()
+    if len(data) > AVATAR_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="Avatar image must be under 2 MB.")
+
+    _remove_avatar_file(current_user.id)  # drop a previous avatar of a different extension
+    path = os.path.join(_avatar_dir(), f"{current_user.id}.{ext}")
+    with open(path, "wb") as fh:
+        fh.write(data)
+
+    # A fresh query string per upload busts the browser's <img> cache — the
+    # path itself is stable so old links wouldn't otherwise notice a change.
+    current_user.avatar_url = f"/api/auth/me/avatar/{current_user.id}?v={uuid.uuid4().hex[:8]}"
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+
+@router.delete("/me/avatar", response_model=UserOut)
+def delete_avatar(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _remove_avatar_file(current_user.id)
+    current_user.avatar_url = None
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+
+@router.get("/me/avatar/{user_id}")
+def get_avatar(user_id: str):
+    """Serve an uploaded avatar image. Unauthenticated: avatars are meant to be
+    displayable wherever the app shows a user (same trust level as any other
+    public profile picture host)."""
+    path = _find_avatar_file(_avatar_dir(), user_id)
+    if path is None:
+        raise HTTPException(status_code=404, detail="No avatar set.")
+    return FileResponse(path)
+
+
 @router.post("/change-password")
 def change_password(
     payload: ChangePasswordRequest,
@@ -278,6 +358,7 @@ def delete_account(
         for d in db.query(Document).filter(Document.user_id == current_user.id).all()
         if d.file_path
     ]
+    user_id = current_user.id
     db.delete(current_user)
     db.commit()
     for path in file_paths:
@@ -286,6 +367,7 @@ def delete_account(
                 os.remove(path)
             except OSError:
                 pass
+    _remove_avatar_file(user_id)
     _clear_refresh_cookie(response)
     return {"detail": "Account deleted."}
 

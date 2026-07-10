@@ -4,7 +4,9 @@ These operate on the same ChatHistory rows the query endpoint records, exposing
 them as a user's searchable, bookmarkable query history."""
 from __future__ import annotations
 
+import hashlib
 import json
+import secrets
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -20,8 +22,13 @@ from ..schemas import (
     MindMap,
     QueryHistoryOut,
     QueryHistoryPage,
+    ShareOut,
 )
 from ..services.visuals import build_mindmap
+
+
+def _hash_share_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 router = APIRouter(prefix="/api/queries", tags=["queries"])
 
@@ -89,6 +96,34 @@ def toggle_bookmark(
     db.commit()
     db.refresh(row)
     return QueryHistoryOut.model_validate(row)
+
+
+@router.post("/{query_id}/share", response_model=ShareOut)
+def share_query(
+    query_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """(Re)issue a public share link for this query. Only the token's hash is
+    stored, so the raw token can't be recovered later — each call mints a
+    fresh one and any previously issued link for this query stops working."""
+    row = _owned_query(db, query_id, current_user)
+    token = secrets.token_urlsafe(32)
+    row.share_token_hash = _hash_share_token(token)
+    db.commit()
+    return ShareOut(token=token, shared=True)
+
+
+@router.delete("/{query_id}/share", response_model=ShareOut)
+def unshare_query(
+    query_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    row = _owned_query(db, query_id, current_user)
+    row.share_token_hash = None
+    db.commit()
+    return ShareOut(token="", shared=False)
 
 
 @router.get("/{query_id}/mindmap", response_model=MindMap)

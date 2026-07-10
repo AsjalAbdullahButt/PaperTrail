@@ -3,6 +3,12 @@
    removed to eliminate the contradiction and trim the dependency tree. */
 
 /* ---- Reset / base (ported from the reference design) ---- */
+:root {
+  /* Matches useTheme()'s initial state; AppChrome overwrites this once the
+     persisted preference loads, so native controls (selects, checkboxes,
+     scrollbars) never flash light-mode chrome before that effect runs. */
+  color-scheme: dark;
+}
 * {
   box-sizing: border-box;
 }

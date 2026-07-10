@@ -9,6 +9,12 @@
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:8000";
 
+/** Resolves a possibly-relative URL (e.g. an avatar path returned by the API)
+ * against the API origin, so it can be dropped straight into an <img src>. */
+export function resolveApiUrl(url: string): string {
+  return /^https?:\/\//i.test(url) ? url : `${API_URL}${url}`;
+}
+
 export const AUTH_EVENT = "papertrail-auth";
 export const SESSION_HINT_COOKIE = "pt_session";
 
@@ -388,6 +394,18 @@ export async function updateProfile(profile: {
   return handle<User>(res);
 }
 
+export async function uploadAvatar(file: File): Promise<User> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await apiFetch("/api/auth/me/avatar", { method: "POST", body: form });
+  return handle<User>(res);
+}
+
+export async function deleteAvatar(): Promise<User> {
+  const res = await apiFetch("/api/auth/me/avatar", { method: "DELETE" });
+  return handle<User>(res);
+}
+
 export async function changePassword(
   currentPassword: string,
   newPassword: string,
@@ -566,6 +584,33 @@ export async function getDocumentTimeline(id: string): Promise<TimelineEvent[]> 
 export async function deleteQuery(id: string): Promise<void> {
   const res = await apiFetch(`/api/queries/${id}`, { method: "DELETE" });
   await handle<{ id: string; deleted: boolean }>(res);
+}
+
+export type ShareResult = { token: string; shared: boolean };
+export type SharedQuery = {
+  question: string;
+  answer: string;
+  mode: string;
+  confidence_score: number | null;
+  source_count: number;
+  created_at: string;
+};
+
+/** Issues a fresh public share link for a query, invalidating any previous one. */
+export async function shareQuery(id: string): Promise<ShareResult> {
+  const res = await apiFetch(`/api/queries/${id}/share`, { method: "POST" });
+  return handle<ShareResult>(res);
+}
+
+export async function unshareQuery(id: string): Promise<ShareResult> {
+  const res = await apiFetch(`/api/queries/${id}/share`, { method: "DELETE" });
+  return handle<ShareResult>(res);
+}
+
+/** Public, unauthenticated fetch of a shared query by token. */
+export async function getSharedQuery(token: string): Promise<SharedQuery> {
+  const res = await apiFetch(`/api/share/${encodeURIComponent(token)}`, { skipAuthRetry: true });
+  return handle<SharedQuery>(res);
 }
 
 /* ------------------------------ analytics ------------------------------- */

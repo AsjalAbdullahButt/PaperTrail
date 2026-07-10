@@ -12,6 +12,7 @@ import {
   ApiError,
   askQuery,
   exportMyData,
+  shareQuery,
   uploadDocument,
   type QueryMode,
   type QueryResponse,
@@ -28,6 +29,7 @@ import CommandPalette from "@/components/CommandPalette";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { THEMES, useTheme } from "@/lib/theme";
 import { renderAnswerWithCitations } from "@/components/Citations";
+import Logo from "@/components/Logo";
 
 /* ----------------------------- Theme tokens ------------------------------ */
 const SUGGESTIONS = [
@@ -165,6 +167,271 @@ function SourceCard({ src }: { src: Source }) {
   );
 }
 
+const segActive: CSSProperties = {
+  border: "none",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  fontWeight: 700,
+  fontSize: 13,
+  padding: "7px 14px",
+  borderRadius: 10,
+  color: "var(--onAccent)",
+  background: ACCENT_GRADIENT,
+  boxShadow: "0 3px 10px var(--accentGlow)",
+};
+const segIdle: CSSProperties = {
+  border: "none",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  fontWeight: 600,
+  fontSize: 13,
+  padding: "7px 14px",
+  borderRadius: 10,
+  color: "var(--muted)",
+  background: "transparent",
+};
+
+const MODE_INFO: Record<QueryMode, { label: string; description: string }> = {
+  rag: {
+    label: "RAG",
+    description: "Searches your documents for the most relevant passages and grounds the answer in them, with citations.",
+  },
+  multihop: {
+    label: "Multi-hop",
+    description: "Chains several retrieval steps together to connect facts that are spread across multiple documents.",
+  },
+  direct: {
+    label: "Direct",
+    description: "Skips retrieval entirely and answers straight from the model's own knowledge, ungrounded.",
+  },
+};
+
+function ModeButton({
+  mode,
+  active,
+  onClick,
+}: {
+  mode: QueryMode;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const [hover, setHover] = useState(false);
+  const info = MODE_INFO[mode];
+  return (
+    <div
+      style={{ position: "relative" }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      <button onClick={onClick} aria-pressed={active} style={active ? segActive : segIdle}>
+        {info.label}
+      </button>
+      {hover && (
+        <div
+          role="tooltip"
+          style={{
+            position: "absolute",
+            top: "calc(100% + 10px)",
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: 220,
+            padding: "10px 13px",
+            borderRadius: 12,
+            background: "var(--card-bg)",
+            border: "1px solid var(--card-border)",
+            color: "var(--text)",
+            fontSize: 12.5,
+            lineHeight: 1.5,
+            fontWeight: 500,
+            textAlign: "center",
+            zIndex: 30,
+            boxShadow: "0 12px 30px var(--cardShadow)",
+            backdropFilter: "blur(18px) saturate(140%)",
+            WebkitBackdropFilter: "blur(18px) saturate(140%)",
+            pointerEvents: "none",
+            animation: "rise .15s ease both",
+          }}
+        >
+          {info.description}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3v12" />
+      <path d="M7 10l5 5 5-5" />
+      <path d="M5 21h14" />
+    </svg>
+  );
+}
+function LinkIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 17H7a5 5 0 0 1 0-10h2" />
+      <path d="M15 7h2a5 5 0 0 1 0 10h-2" />
+      <line x1="8" y1="12" x2="16" y2="12" />
+    </svg>
+  );
+}
+function FileTextIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+      <path d="M14 2v6h6" />
+      <line x1="8" y1="13" x2="16" y2="13" />
+      <line x1="8" y1="17" x2="13" y2="17" />
+    </svg>
+  );
+}
+function ChevronDownIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** Opens a print-formatted window for the current answer; the browser's own
+ * "Save as PDF" print destination is the export mechanism (no PDF library
+ * dependency needed). */
+function downloadAnswerAsPdf(question: string, result: QueryResponse): void {
+  const win = window.open("", "_blank", "noopener,noreferrer,width=820,height=1000");
+  if (!win) return;
+  const sourcesHtml = result.sources
+    .map(
+      (s) => `<li><strong>[${s.n}] ${escapeHtml(s.title)}</strong> — p.${s.page_number} · ${s.score}% relevance<br><span class="snippet">${escapeHtml(s.snippet)}</span></li>`
+    )
+    .join("");
+  const confPct = Math.round(result.confidence_score * 100);
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>PaperTrail — ${escapeHtml(question).slice(0, 60)}</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #16181d; padding: 48px; max-width: 720px; margin: 0 auto; line-height: 1.6; }
+  .brand { font-weight: 800; font-size: 15px; letter-spacing: -.02em; color: #10b981; margin-bottom: 22px; }
+  h1 { font-size: 19px; margin: 0 0 20px; }
+  .answer { font-size: 15px; white-space: pre-wrap; margin-bottom: 30px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #666; border-top: 1px solid #ddd; padding-top: 18px; margin-top: 6px; }
+  ol { padding-left: 20px; margin: 12px 0 0; }
+  li { margin-bottom: 14px; font-size: 12.5px; }
+  .snippet { color: #555; }
+  .meta { font-size: 12px; color: #888; margin-top: 26px; }
+  @media print { body { padding: 0 32px; } }
+</style></head>
+<body>
+  <div class="brand">PaperTrail</div>
+  <h1>${escapeHtml(question) || "Untitled question"}</h1>
+  <div class="answer">${escapeHtml(result.answer)}</div>
+  ${result.sources.length ? `<h2>Sources</h2><ol>${sourcesHtml}</ol>` : ""}
+  <div class="meta">${result.mode === "direct" ? "Direct answer · no retrieval" : `Confidence ${confPct}% · grounded in ${result.sources.length} source${result.sources.length === 1 ? "" : "s"}`}</div>
+</body></html>`);
+  win.document.close();
+  win.focus();
+  win.onload = () => win.print();
+}
+
+function ExportMenu({
+  hasAnswer,
+  onExportZip,
+  onDownloadPdf,
+  onCopyLink,
+}: {
+  hasAnswer: boolean;
+  onExportZip: () => void;
+  onDownloadPdf: () => void;
+  onCopyLink: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const itemStyle: CSSProperties = {
+    display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 12px",
+    border: "none", background: "none", color: "var(--text)", fontFamily: "inherit",
+    fontSize: 13.5, fontWeight: 600, cursor: "pointer", textAlign: "left", borderRadius: 10,
+  };
+  const disabledItemStyle: CSSProperties = { ...itemStyle, color: "var(--muted)", cursor: "default", opacity: 0.5 };
+
+  return (
+    <div ref={ref} style={{ position: "relative", flex: "none" }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 12,
+          border: `1px solid ${open ? "var(--accent)" : "var(--card-border)"}`, background: "var(--seg-bg)",
+          color: "var(--text)", fontFamily: "inherit", fontWeight: 600, fontSize: 13.5, cursor: "pointer",
+        }}
+      >
+        <DownloadIcon />
+        Export
+        <span style={{ display: "inline-flex", transform: open ? "rotate(180deg)" : "none", transition: "transform .15s ease" }}>
+          <ChevronDownIcon />
+        </span>
+      </button>
+      {open && (
+        <div
+          role="menu"
+          style={{
+            position: "absolute", top: "calc(100% + 8px)", right: 0, minWidth: 250, padding: 6, borderRadius: 14,
+            background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px) saturate(150%)",
+            WebkitBackdropFilter: "blur(22px) saturate(150%)", boxShadow: "0 18px 40px var(--cardShadow)", zIndex: 40,
+            animation: "rise .15s ease both",
+          }}
+        >
+          <button
+            role="menuitem"
+            disabled={!hasAnswer}
+            style={hasAnswer ? itemStyle : disabledItemStyle}
+            onClick={() => { if (hasAnswer) { onDownloadPdf(); setOpen(false); } }}
+          >
+            <FileTextIcon /> Download this answer as PDF
+          </button>
+          <button
+            role="menuitem"
+            disabled={!hasAnswer}
+            style={hasAnswer ? itemStyle : disabledItemStyle}
+            onClick={() => { if (hasAnswer) { onCopyLink(); setOpen(false); } }}
+          >
+            <LinkIcon /> Copy share link
+          </button>
+          <div style={{ height: 1, background: "var(--card-border)", margin: "6px 4px" }} />
+          <button role="menuitem" style={itemStyle} onClick={() => { onExportZip(); setOpen(false); }}>
+            <DownloadIcon /> Download account data (.zip)
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function HeaderButton({
   label,
   onClick,
@@ -222,6 +489,7 @@ export default function Home() {
   const queryInputRef = useRef<HTMLInputElement>(null);
 
   const [result, setResult] = useState<QueryResponse | null>(null);
+  const [askedQuestion, setAskedQuestion] = useState("");
   const [answerMode, setAnswerMode] = useState<QueryMode>("rag");
   const [timing, setTiming] = useState(0);
   const [asking, setAsking] = useState(false);
@@ -315,6 +583,7 @@ export default function Home() {
     try {
       const data = await askQuery(question, mode);
       setResult(data);
+      setAskedQuestion(question);
       setAnswerMode(mode);
       setTiming((performance.now() - start) / 1000);
     } catch (e) {
@@ -343,30 +612,6 @@ export default function Home() {
       setUploading(false);
     }
   }
-
-  const segActive: CSSProperties = {
-    border: "none",
-    cursor: "pointer",
-    fontFamily: "inherit",
-    fontWeight: 700,
-    fontSize: 13,
-    padding: "7px 14px",
-    borderRadius: 10,
-    color: "var(--onAccent)",
-    background: ACCENT_GRADIENT,
-    boxShadow: "0 3px 10px var(--accentGlow)",
-  };
-  const segIdle: CSSProperties = {
-    border: "none",
-    cursor: "pointer",
-    fontFamily: "inherit",
-    fontWeight: 600,
-    fontSize: 13,
-    padding: "7px 14px",
-    borderRadius: 10,
-    color: "var(--muted)",
-    background: "transparent",
-  };
 
   const accentBtn: CSSProperties = {
     color: "var(--onAccent)",
@@ -411,17 +656,15 @@ export default function Home() {
             {/* TOP BAR */}
             <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 16px", borderRadius: 18, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(18px) saturate(140%)", WebkitBackdropFilter: "blur(18px) saturate(140%)", flexWrap: "wrap" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0 }}>
-                <div style={{ width: 30, height: 30, borderRadius: 9, background: ACCENT_GRADIENT, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 14px var(--accentGlow)" }}>
-                  <div style={{ width: 11, height: 11, borderRadius: 3, background: "#fff", opacity: 0.95 }} />
-                </div>
+                <Logo />
                 <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: "-.02em", color: "var(--text)" }}>PaperTrail</span>
               </div>
 
               {/* Segmented mode toggle */}
               <div role="group" aria-label="Answer mode" style={{ display: "flex", gap: 3, padding: 4, borderRadius: 13, background: "var(--seg-bg)", border: "1px solid var(--card-border)" }}>
-                <button onClick={() => setMode("rag")} aria-pressed={mode === "rag"} style={mode === "rag" ? segActive : segIdle}>RAG</button>
-                <button onClick={() => setMode("multihop")} aria-pressed={mode === "multihop"} style={mode === "multihop" ? segActive : segIdle}>Multi-hop</button>
-                <button onClick={() => setMode("direct")} aria-pressed={mode === "direct"} style={mode === "direct" ? segActive : segIdle}>Direct</button>
+                <ModeButton mode="rag" active={mode === "rag"} onClick={() => setMode("rag")} />
+                <ModeButton mode="multihop" active={mode === "multihop"} onClick={() => setMode("multihop")} />
+                <ModeButton mode="direct" active={mode === "direct"} onClick={() => setMode("direct")} />
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto", flexWrap: "wrap" }}>
@@ -429,11 +672,26 @@ export default function Home() {
                 <HeaderButton label="Analytics" onClick={() => router.push("/analytics")} />
                 <HeaderButton label="Documents" onClick={() => setDocsOpen(true)} />
                 <HeaderButton label="History" onClick={() => setHistoryOpen(true)} />
-                <HeaderButton
-                  label="Export"
-                  onClick={async () => {
+                <ExportMenu
+                  hasAnswer={answered}
+                  onExportZip={async () => {
                     try { await exportMyData(); showToast("ok", "Your data export is ready"); }
                     catch (e) { showToast("err", e instanceof ApiError && e.status === 429 ? "Export limit reached — try again later." : "Export failed"); }
+                  }}
+                  onDownloadPdf={() => {
+                    if (!result) return;
+                    downloadAnswerAsPdf(askedQuestion, result);
+                  }}
+                  onCopyLink={async () => {
+                    if (!result?.query_id) { showToast("err", "This answer can't be shared."); return; }
+                    try {
+                      const { token } = await shareQuery(result.query_id);
+                      await navigator.clipboard.writeText(`${window.location.origin}/share/${token}`);
+                      showToast("ok", "Share link copied to clipboard");
+                    } catch (e) {
+                      if (e instanceof ApiError && e.status === 401) return handleUnauthorized();
+                      showToast("err", e instanceof ApiError ? e.message : "Could not create share link");
+                    }
                   }}
                 />
                 {/* Theme switch */}

@@ -20,6 +20,10 @@ export default function AppChrome() {
     for (const [key, value] of Object.entries(vars)) {
       document.documentElement.style.setProperty(key, value);
     }
+    // Tells the browser which palette to use for native form controls (select
+    // dropdowns, checkboxes, scrollbars) — without this they always render
+    // with light-mode chrome regardless of our own CSS variables.
+    document.documentElement.style.colorScheme = theme;
   }, [theme]);
 
   useEffect(() => {

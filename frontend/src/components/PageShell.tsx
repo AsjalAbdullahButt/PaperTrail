@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
 import { THEMES, useTheme } from "@/lib/theme";
+import Logo from "@/components/Logo";
 
 const ACCENT_GRADIENT = "linear-gradient(135deg,var(--accent),var(--accent2))";
 
@@ -46,7 +47,7 @@ export default function PageShell({ children }: { children: ReactNode }) {
       <div style={{ position: "relative", zIndex: 1, maxWidth: 1200, margin: "0 auto", padding: "22px 28px 80px" }}>
         <nav style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 16px", borderRadius: 18, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(18px) saturate(140%)", WebkitBackdropFilter: "blur(18px) saturate(140%)", flexWrap: "wrap" }}>
           <Link href="/" style={{ display: "flex", alignItems: "center", gap: 11, textDecoration: "none" }}>
-            <div style={{ width: 30, height: 30, borderRadius: 9, background: ACCENT_GRADIENT, boxShadow: "0 4px 14px var(--accentGlow)" }} />
+            <Logo />
             <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: "-.02em", color: "var(--text)" }}>PaperTrail</span>
           </Link>
 

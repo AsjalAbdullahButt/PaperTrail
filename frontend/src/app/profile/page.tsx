@@ -1,10 +1,18 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import PageShell from "@/components/PageShell";
-import { ApiError, changePassword, deleteAccount, updateProfile } from "@/lib/api";
+import {
+  ApiError,
+  changePassword,
+  deleteAccount,
+  deleteAvatar,
+  resolveApiUrl,
+  updateProfile,
+  uploadAvatar,
+} from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import {
   PasswordInput,
@@ -88,13 +96,17 @@ function bannerStyle(kind: "error" | "ok"): CSSProperties {
   };
 }
 
+const AVATAR_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+
 function ProfileForm() {
   const user = useAuthStore((s) => s.user);
   const [displayName, setDisplayName] = useState(user?.display_name ?? "");
   const [bio, setBio] = useState(user?.bio ?? "");
-  const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url ?? "");
   const [busy, setBusy] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -105,7 +117,7 @@ function ProfileForm() {
       const updated = await updateProfile({
         display_name: displayName.trim() || null,
         bio: bio.trim() || null,
-        avatar_url: avatarUrl.trim() || null,
+        avatar_url: user?.avatar_url ?? null, // avatar is managed separately, below
       });
       useAuthStore.setState({ user: updated });
       toast.success("Profile saved.");
@@ -116,9 +128,102 @@ function ProfileForm() {
     }
   }
 
+  async function handleAvatarChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file
+    if (!file) return;
+    if (!AVATAR_TYPES.has(file.type)) {
+      toast.error("Avatar must be a JPEG, PNG, WebP, or GIF image.");
+      return;
+    }
+    if (file.size > AVATAR_MAX_BYTES) {
+      toast.error("Avatar image must be under 2 MB.");
+      return;
+    }
+    setAvatarBusy(true);
+    try {
+      const updated = await uploadAvatar(file);
+      useAuthStore.setState({ user: updated });
+      toast.success("Avatar updated.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Avatar upload failed.");
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
+
+  async function handleAvatarRemove() {
+    setAvatarBusy(true);
+    try {
+      const updated = await deleteAvatar();
+      useAuthStore.setState({ user: updated });
+      toast.success("Avatar removed.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Could not remove avatar.");
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
+
+  const avatarSrc = user?.avatar_url ? resolveApiUrl(user.avatar_url) : null;
+  const initials = (user?.display_name || user?.email || "?").trim().charAt(0).toUpperCase();
+
   return (
     <form onSubmit={handleSubmit} noValidate style={cardStyle}>
       <div style={sectionTitleStyle}>Profile</div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
+        <div
+          style={{
+            width: 64, height: 64, borderRadius: "50%", overflow: "hidden", flex: "none",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "linear-gradient(135deg,var(--accent),var(--accent2))",
+            color: "var(--onAccent)", fontSize: 24, fontWeight: 800,
+          }}
+        >
+          {avatarSrc ? (
+            // eslint-disable-next-line @next/next/no-img-element -- external/backend-served, not a static asset
+            <img src={avatarSrc} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          ) : (
+            initials
+          )}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={avatarBusy}
+              style={{ ...buttonStyle, padding: "8px 14px", fontSize: 13, opacity: avatarBusy ? 0.75 : 1 }}
+            >
+              {avatarBusy ? "Uploading…" : "Upload avatar"}
+            </button>
+            {avatarSrc && (
+              <button
+                type="button"
+                onClick={handleAvatarRemove}
+                disabled={avatarBusy}
+                style={{
+                  padding: "8px 14px", borderRadius: 12, border: "1px solid var(--card-border)",
+                  background: "var(--seg-bg)", color: "var(--text)", fontFamily: "inherit",
+                  fontWeight: 700, fontSize: 13, cursor: "pointer", opacity: avatarBusy ? 0.75 : 1,
+                }}
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          <span style={{ fontSize: 12, color: "var(--muted)" }}>JPEG, PNG, WebP, or GIF — up to 2 MB.</span>
+        </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          onChange={handleAvatarChange}
+          style={{ display: "none" }}
+        />
+      </div>
+
       <label style={labelStyle}>
         Display name
         <input
@@ -137,17 +242,6 @@ function ProfileForm() {
           value={bio}
           onChange={(e) => setBio(e.target.value)}
           style={textareaStyle}
-        />
-      </label>
-      <label style={{ ...labelStyle, marginTop: 14 }}>
-        Avatar URL
-        <input
-          type="text"
-          maxLength={1024}
-          placeholder="https://…"
-          value={avatarUrl}
-          onChange={(e) => setAvatarUrl(e.target.value)}
-          style={inputStyle}
         />
       </label>
       {error && <div style={bannerStyle("error")} role="alert">{error}</div>}

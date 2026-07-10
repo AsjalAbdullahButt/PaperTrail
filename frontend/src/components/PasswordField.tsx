@@ -132,7 +132,7 @@ export function PasswordInput({
         aria-label={visible ? "Hide password" : "Show password"}
         style={toggleStyle}
       >
-        {visible ? <EyeOffIcon /> : <EyeIcon />}
+        {visible ? <EyeIcon /> : <EyeOffIcon />}
       </button>
     </div>
   );

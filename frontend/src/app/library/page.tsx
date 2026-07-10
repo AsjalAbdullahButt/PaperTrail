@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import toast from "react-hot-toast";
 import PageShell from "@/components/PageShell";
 import Timeline from "@/components/Timeline";
 import {
@@ -77,9 +78,13 @@ function LibraryInner() {
   async function handleCreateCollection() {
     const name = newCollection.trim();
     if (!name) return;
-    await createCollection(name);
-    setNewCollection("");
-    refreshCollections();
+    try {
+      await createCollection(name);
+      setNewCollection("");
+      refreshCollections();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not create collection.");
+    }
   }
 
   return (
@@ -222,20 +227,20 @@ function DocumentCard({ doc, collections, onChanged }: { doc: DocumentInfo; coll
         ))}
       </div>
 
-      <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-        <input value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleAddTag(); }} placeholder="add tag" style={{ flex: 1, minWidth: 0, padding: "6px 9px", borderRadius: 9, background: "var(--seg-bg)", border: "1px solid var(--card-border)", color: "var(--text)", fontFamily: "inherit", fontSize: 12, outline: "none" }} />
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+        <input value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleAddTag(); }} placeholder="add tag" style={{ flex: "1 1 100px", minWidth: 0, padding: "6px 9px", borderRadius: 9, background: "var(--seg-bg)", border: "1px solid var(--card-border)", color: "var(--text)", fontFamily: "inherit", fontSize: 12, outline: "none" }} />
         <select
           onChange={async (e) => { if (e.target.value) { await addToCollection(e.target.value, [doc.id]); e.target.value = ""; } }}
           defaultValue=""
-          style={{ ...selectStyle, fontSize: 12, padding: "6px 8px" }}
+          style={{ ...selectStyle, flex: "1 1 110px", minWidth: 0, fontSize: 12, padding: "6px 8px" }}
         >
           <option value="">+ collection</option>
           {collections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
-        <button onClick={toggleCoverage} style={{ border: "1px solid var(--card-border)", background: "var(--seg-bg)", color: "var(--text)", borderRadius: 9, padding: "0 10px", cursor: "pointer", fontSize: 12 }}>
+        <button onClick={toggleCoverage} style={{ flex: "0 0 auto", border: "1px solid var(--card-border)", background: "var(--seg-bg)", color: "var(--text)", borderRadius: 9, padding: "0 10px", height: 30, cursor: "pointer", fontSize: 12 }}>
           {coverage ? "Hide" : "Coverage"}
         </button>
-        <button onClick={() => setShowTimeline((v) => !v)} style={{ border: "1px solid var(--card-border)", background: "var(--seg-bg)", color: "var(--text)", borderRadius: 9, padding: "0 10px", cursor: "pointer", fontSize: 12 }}>
+        <button onClick={() => setShowTimeline((v) => !v)} style={{ flex: "0 0 auto", border: "1px solid var(--card-border)", background: "var(--seg-bg)", color: "var(--text)", borderRadius: 9, padding: "0 10px", height: 30, cursor: "pointer", fontSize: 12 }}>
           Timeline
         </button>
       </div>

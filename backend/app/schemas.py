@@ -235,6 +235,23 @@ class BookmarkIn(BaseModel):
     note: str | None = Field(default=None, max_length=2000)
 
 
+class ShareOut(BaseModel):
+    token: str
+    shared: bool
+
+
+class SharedQueryOut(BaseModel):
+    """Public, read-only view of a shared query — deliberately excludes
+    anything owner-only (id, bookmark state, collection)."""
+
+    question: str
+    answer: str
+    mode: str
+    confidence_score: float | None = None
+    source_count: int
+    created_at: datetime
+
+
 # --- Visual intelligence (Phase 5) ---
 class MindMapNode(BaseModel):
     id: str

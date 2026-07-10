@@ -225,6 +225,11 @@ class ChatHistory(Base):
     )
     bookmark_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     collection_id: Mapped[str | None] = mapped_column(UUID_COL, nullable=True)
+    # Hash of the public share-link token (see password_reset_tokens for the
+    # same pattern). Null = sharing is off for this query.
+    share_token_hash: Mapped[str | None] = mapped_column(
+        String(64), unique=True, nullable=True
+    )
     deleted_at: Mapped[datetime | None] = mapped_column(TIMESTAMP_COL, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP_COL, nullable=False, default=_utcnow, server_default=func.now()

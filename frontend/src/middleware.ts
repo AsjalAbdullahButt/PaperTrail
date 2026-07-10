@@ -11,12 +11,20 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const AUTH_PAGES = ["/login", "/register"];
+// Publicly viewable regardless of session — a share link is meant to be
+// opened by people who aren't PaperTrail users at all.
+const PUBLIC_PAGES = ["/share"];
 const SESSION_HINT_COOKIE = "pt_session";
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hasSession = request.cookies.get(SESSION_HINT_COOKIE)?.value === "1";
   const isAuthPage = AUTH_PAGES.some((p) => pathname === p || pathname.startsWith(p + "/"));
+  const isPublicPage = PUBLIC_PAGES.some((p) => pathname === p || pathname.startsWith(p + "/"));
+
+  if (isPublicPage) {
+    return NextResponse.next();
+  }
 
   // Signed-in users have no reason to see login/register.
   if (hasSession && isAuthPage) {

@@ -7,6 +7,7 @@ import { ApiError } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { THEMES, useTheme } from "@/lib/theme";
 import { PasswordInput } from "@/components/PasswordField";
+import Logo from "@/components/Logo";
 
 const ACCENT_GRADIENT = "linear-gradient(135deg,var(--accent),var(--accent2))";
 
@@ -217,15 +218,7 @@ export function AuthShell({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 6 }}>
-          <div
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 9,
-              background: ACCENT_GRADIENT,
-              boxShadow: "0 4px 14px var(--accentGlow)",
-            }}
-          />
+          <Logo />
           <span
             style={{
               fontWeight: 800,

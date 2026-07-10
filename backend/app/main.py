@@ -38,6 +38,7 @@ from .routers import (
     export,
     queries,
     query,
+    share,
 )
 
 configure_logging()
@@ -251,6 +252,7 @@ app.include_router(collections.router)
 app.include_router(queries.router)
 app.include_router(analytics.router)
 app.include_router(export.router)
+app.include_router(share.router)
 
 
 @app.get("/api/health")
