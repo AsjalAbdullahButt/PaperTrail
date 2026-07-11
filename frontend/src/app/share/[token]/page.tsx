@@ -26,10 +26,20 @@ export default function SharedQueryPage() {
   const [data, setData] = useState<SharedQuery | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadedFor, setLoadedFor] = useState(token);
+
+  // Reset during render when the token changes (e.g. following a different
+  // share link without a full page reload), instead of a synchronous
+  // setState at the top of the fetch effect below.
+  if (token !== loadedFor) {
+    setLoadedFor(token);
+    setData(null);
+    setError(null);
+    setLoading(true);
+  }
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     getSharedQuery(token)
       .then((res) => { if (!cancelled) setData(res); })
       .catch((err) => {

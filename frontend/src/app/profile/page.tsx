@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent } from "react";
+import { useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import PageShell from "@/components/PageShell";
@@ -422,22 +422,19 @@ function DeleteAccountSection() {
 
 function ProfilePageContent() {
   const user = useAuthStore((s) => s.user);
-  // Re-key the forms once the user record actually loads, so the display-name
-  // field isn't stuck pre-filled with an empty string from before restoreSession
-  // resolved.
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    if (user) setReady(true);
-  }, [user]);
 
   return (
     <div style={{ maxWidth: 560, margin: "0 auto" }}>
       <h1 style={{ margin: "0 0 20px", fontSize: 24, fontWeight: 700, color: "var(--text)" }}>
         Account settings
       </h1>
-      {ready && (
+      {user && (
+        // Keyed on user.id so the forms re-key (and re-derive their initial
+        // field state) once the user record actually loads, instead of
+        // staying stuck pre-filled with empty strings from before
+        // restoreSession resolved.
         <>
-          <ProfileForm key={user?.id} />
+          <ProfileForm key={user.id} />
           <ChangePasswordForm />
           <DeleteAccountSection />
         </>

@@ -65,9 +65,13 @@ const THEME_KEY = "papertrail_theme";
 export function useTheme(): [ThemeName, (t: ThemeName) => void] {
   const [theme, setThemeState] = useState<ThemeName>("dark");
 
-  // Read persisted preference after mount (avoids SSR hydration mismatch).
+  // Read persisted preference after mount (avoids SSR hydration mismatch) —
+  // localStorage is a browser-only external system, unreadable during render,
+  // so this genuinely needs an effect rather than the render-phase "adjusting
+  // state" pattern used elsewhere in the app.
   useEffect(() => {
     const saved = window.localStorage.getItem(THEME_KEY);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from localStorage, not derivable during render (see comment above)
     if (saved === "dark" || saved === "light") setThemeState(saved);
     const onStorage = (e: StorageEvent) => {
       if (e.key === THEME_KEY && (e.newValue === "dark" || e.newValue === "light")) {

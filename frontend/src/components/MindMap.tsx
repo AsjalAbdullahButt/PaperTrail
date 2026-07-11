@@ -128,12 +128,19 @@ export default function MindMap({ queryId }: { queryId: string }) {
   const [loadError, setLoadError] = useState(false);
   const [selected, setSelected] = useState<MindMapNode | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [loadedFor, setLoadedFor] = useState(queryId);
 
-  useEffect(() => {
-    let active = true;
+  // Reset during render when queryId changes, instead of a synchronous
+  // setState at the top of the fetch effect below.
+  if (queryId !== loadedFor) {
+    setLoadedFor(queryId);
     setData(null);
     setLoadError(false);
     setSelected(null);
+  }
+
+  useEffect(() => {
+    let active = true;
     getMindMap(queryId)
       .then((d) => { if (active) setData(d); })
       .catch(() => { if (active) setLoadError(true); });

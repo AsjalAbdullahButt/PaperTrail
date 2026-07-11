@@ -550,10 +550,12 @@ export default function Home() {
     shortcutsHelp: () => showToast("ok", "/ focus · Ctrl+K palette · Ctrl+U upload · Ctrl+H history"),
   });
 
-  // First-login onboarding hint (dismissed permanently in localStorage).
+  // First-login onboarding hint (dismissed permanently in localStorage) —
+  // localStorage is a browser-only external system, unreadable during render.
   const [showOnboarding, setShowOnboarding] = useState(false);
   useEffect(() => {
     if (authed === true && !window.localStorage.getItem("papertrail_onboarded")) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from localStorage, not derivable during render (see comment above)
       setShowOnboarding(true);
     }
   }, [authed]);

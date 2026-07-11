@@ -21,12 +21,26 @@ export default function CommandPalette({
   const [items, setItems] = useState<Item[]>([]);
   const [q, setQ] = useState("");
   const [active, setActive] = useState(0);
+  const [wasOpen, setWasOpen] = useState(open);
+  const [seenQ, setSeenQ] = useState(q);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Reset the search text/selection during render when the palette opens,
+  // and the selection whenever the query text changes — both are pure
+  // derived-state resets (React's "adjusting state" pattern, tracked via
+  // state rather than a ref since refs can't be read/written during render),
+  // rather than synchronous setState calls inside an effect.
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setQ("");
+  }
+  if (q !== seenQ) {
+    setSeenQ(q);
+    setActive(0);
+  }
 
   useEffect(() => {
     if (!open) return;
-    setQ("");
-    setActive(0);
     inputRef.current?.focus();
     (async () => {
       const [docs, colls, hist] = await Promise.all([
@@ -50,8 +64,6 @@ export default function CommandPalette({
       : items;
     return list.slice(0, 40);
   }, [q, items]);
-
-  useEffect(() => { setActive(0); }, [q]);
 
   if (!open) return null;
 

@@ -7,10 +7,18 @@ import { getDocumentTimeline, type TimelineEvent } from "@/lib/api";
 export default function Timeline({ documentId }: { documentId: string }) {
   const [events, setEvents] = useState<TimelineEvent[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadedFor, setLoadedFor] = useState(documentId);
+
+  // Reset to the loading state during render when documentId changes,
+  // instead of a synchronous setState at the top of the fetch effect below.
+  if (documentId !== loadedFor) {
+    setLoadedFor(documentId);
+    setEvents(null);
+    setLoading(true);
+  }
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
     getDocumentTimeline(documentId)
       .then((e) => { if (active) setEvents(e); })
       .catch(() => { if (active) setEvents([]); })

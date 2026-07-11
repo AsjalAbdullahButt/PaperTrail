@@ -71,7 +71,12 @@ function LibraryInner() {
     setDocs(await listDocumentsFiltered(params));
   }, [view, search, typeFilter, tagFilter]);
 
+  // Network-driven data fetches, not state derivable during render — the
+  // setState calls inside these run after an `await`, not synchronously, but
+  // the lint rule can't see through that async boundary.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { refreshCollections(); }, [refreshCollections]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { refreshDocs(); }, [refreshDocs]);
 
   const duplicates = docs.filter((d) => d.is_duplicate);
