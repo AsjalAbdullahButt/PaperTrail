@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile
@@ -152,13 +153,21 @@ def _process_upload(
         )
 
     chunk_texts = [c["text"] for c in chunk_dicts]
-    scores = score_chunks(chunk_texts)
-    highlights = extract_highlights(chunk_texts, scores, n=8)
-    outline = extract_outline(blocks, chunk_texts)
-    full_text = extractor.blocks_to_text(blocks)
 
-    # Embeddings, batched (llm.embed_texts already batches internally).
-    embeddings = llm.embed_texts(chunk_texts)
+    # Embeddings are a network round trip (batched internally); everything
+    # else here is pure-Python CPU work with no dependency on the embedding
+    # result, so run them concurrently instead of paying for both in
+    # sequence — same computations and results, just overlapped.
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        embed_future = pool.submit(llm.embed_texts, chunk_texts)
+
+        scores = score_chunks(chunk_texts)
+        highlights = extract_highlights(chunk_texts, scores, n=8)
+        outline = extract_outline(blocks, chunk_texts)
+        full_text = extractor.blocks_to_text(blocks)
+
+        embeddings = embed_future.result()
+
     if len(embeddings) != len(chunk_texts):
         raise HTTPException(status_code=500, detail="Embedding count mismatch.")
 

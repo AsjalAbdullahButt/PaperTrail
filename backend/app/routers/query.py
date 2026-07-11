@@ -27,7 +27,7 @@ from ..schemas import (
     SourceOut,
     UnsupportedSentence,
 )
-from ..services.followup import generate_followup_questions
+from ..services.followup import parse_followup_questions
 from ..services.hallucination_guard import check_answer
 from ..services.multihop import multihop_retrieve
 from ..services.retriever import hybrid_retrieve
@@ -100,7 +100,9 @@ def _compute_query(
         return QueryResponse(answer=answer, mode=mode, sources=[], confidence_score=0.0)
 
     context_chunks = [c["text"] for c in retrieved]
-    answer = llm.generate_answer(question, context_chunks, "rag")
+    # One model call for both the answer and its follow-up questions (was two
+    # sequential calls) — see llm.generate_rag_answer_with_followups.
+    answer, followups_raw = llm.generate_rag_answer_with_followups(question, context_chunks)
 
     # Confidence = mean of the top-3 ranked scores, clamped to [0, 1].
     top3 = [c["ranked_score"] for c in retrieved[:3]]
@@ -129,7 +131,7 @@ def _compute_query(
             )
         )
 
-    followups = generate_followup_questions(question, answer, retrieved)
+    followups = parse_followup_questions(followups_raw) if followups_raw else []
     unsupported = [
         UnsupportedSentence(sentence=s["sentence"], source_chunk_id=s["source_chunk_id"])
         for s in check_answer(answer, retrieved)

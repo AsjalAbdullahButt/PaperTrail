@@ -54,3 +54,11 @@ def generate_followup_questions(
         logger.warning("Follow-up generation failed: %s", exc)
         return []
     return _parse_questions(raw)
+
+
+def parse_followup_questions(raw: str) -> list[str]:
+    """Public entry point for parsing a raw follow-ups blob, e.g. the trailing
+    block ``llm.generate_rag_answer_with_followups`` splits off of a combined
+    answer+follow-ups completion. Same parsing/validation as the standalone
+    call above, just decoupled from making the model call itself."""
+    return _parse_questions(raw)
