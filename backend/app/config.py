@@ -41,6 +41,18 @@ class Settings(BaseSettings):
     # When false, the original file is deleted after processing (only chunks +
     # embeddings are needed to answer queries).
     store_originals: bool = True
+
+    # --- Storage backend ---
+    # "local" (dev default: files under ./uploads/) or "s3" (any S3-compatible
+    # service, e.g. AWS S3 or Cloudflare R2). See storage.py.
+    storage_backend: str = "local"
+    s3_bucket: str = ""
+    s3_region: str = "auto"
+    # Leave empty for real AWS S3; set for S3-compatible providers (e.g. R2's
+    # https://<account_id>.r2.cloudflarestorage.com).
+    s3_endpoint_url: str = ""
+    s3_access_key_id: str = ""
+    s3_secret_access_key: str = ""
     # Hard ceiling on how many chunks a single RAG query will scan in memory.
     # NOTE: brute-force NumPy cosine similarity does not scale past a few
     # thousand chunks; beyond this a real ANN/vector index is required.

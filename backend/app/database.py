@@ -88,10 +88,10 @@ def purge_soft_deleted(retention_days: int = 30) -> int:
     Runs on startup (see the app lifespan). Chunks/coverage cascade via FK when
     a document row is deleted.
     """
-    import os
     from datetime import datetime, timedelta, timezone
 
     from .models import ChatHistory, Collection, Document
+    from .storage import storage
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
     purged = 0
@@ -102,11 +102,8 @@ def purge_soft_deleted(retention_days: int = 30) -> int:
             .all()
         )
         for doc in docs:
-            if doc.file_path and os.path.exists(doc.file_path):
-                try:
-                    os.remove(doc.file_path)
-                except OSError:
-                    pass
+            if doc.storage_key:
+                storage.delete(doc.storage_key)
             db.delete(doc)
             purged += 1
         for model in (Collection, ChatHistory):

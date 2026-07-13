@@ -131,8 +131,10 @@ class Document(Base):
     word_count: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
-    # Where the original upload is stored on disk (uploads/{user_id}/{uuid}.ext).
-    file_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    # Storage backend key for the original upload
+    # (uploads/{user_id}/{uuid}.ext) — see storage.py. Rows predating the
+    # storage abstraction store "legacy://" + their old local disk path.
+    storage_key: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     # JSON: [{"heading","level","chunk_index"}] and
     #       [{"text","score","chunk_index"}] respectively.
     outline_json: Mapped[str | None] = mapped_column(
@@ -282,7 +284,7 @@ class DocumentVersion(Base):
         ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True
     )
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
-    file_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    storage_key: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     uploaded_at: Mapped[datetime] = mapped_column(
         TIMESTAMP_COL, nullable=False, default=_utcnow, server_default=func.now()
     )

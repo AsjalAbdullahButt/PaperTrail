@@ -30,6 +30,7 @@ from ..config import settings
 from ..database import get_db
 from ..models import Document, PasswordResetToken, TokenBlacklist, User
 from ..ratelimit import limiter, login_limit, register_limit
+from ..storage import storage
 from ..schemas import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
@@ -353,20 +354,16 @@ def delete_account(
     per-table cleanup code is needed here beyond removing on-disk files, which
     the DB cascade can't reach.
     """
-    file_paths = [
-        d.file_path
+    storage_keys = [
+        d.storage_key
         for d in db.query(Document).filter(Document.user_id == current_user.id).all()
-        if d.file_path
+        if d.storage_key
     ]
     user_id = current_user.id
     db.delete(current_user)
     db.commit()
-    for path in file_paths:
-        if os.path.exists(path):
-            try:
-                os.remove(path)
-            except OSError:
-                pass
+    for key in storage_keys:
+        storage.delete(key)
     _remove_avatar_file(user_id)
     _clear_refresh_cookie(response)
     return {"detail": "Account deleted."}

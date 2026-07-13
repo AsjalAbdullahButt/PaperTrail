@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import io
 import json
-import os
 import zipfile
 from datetime import datetime
 
@@ -19,6 +18,7 @@ from ..auth import get_current_user
 from ..database import get_db
 from ..models import ChatHistory, Document, User
 from ..ratelimit import export_limit, limiter
+from ..storage import StorageNotFoundError, storage
 
 router = APIRouter(prefix="/api/export", tags=["export"])
 
@@ -74,8 +74,12 @@ def export_my_data(
         zf.writestr("queries.json", json.dumps(queries_json, indent=2))
         zf.writestr("highlights.json", json.dumps(highlights_json, indent=2))
         for d in docs:
-            if d.file_path and os.path.exists(d.file_path):
-                zf.write(d.file_path, arcname=f"files/{d.id}_{d.filename}")
+            if d.storage_key:
+                try:
+                    data = storage.get(d.storage_key)
+                except StorageNotFoundError:
+                    continue
+                zf.writestr(f"files/{d.id}_{d.filename}", data)
     buf.seek(0)
 
     return StreamingResponse(

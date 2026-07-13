@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -30,6 +29,7 @@ from ..models import (
     DocumentVersion,
     User,
 )
+from ..storage import storage
 from ..schemas import (
     CoverageCell,
     DeleteResult,
@@ -66,17 +66,14 @@ def _owned_doc(db: Session, document_id: str, current_user: User) -> Document:
 
 
 def _store_original(data: bytes, user_id: str, file_type: str) -> str | None:
-    """Persist the raw upload as uploads/{user_id}/{uuid}.{ext}. Returns the
-    path, or None when STORE_ORIGINALS is disabled. The filesystem name is a
-    fresh UUID — the user's original filename never touches the path."""
+    """Persist the raw upload as uploads/{user_id}/{uuid}.{ext} via the
+    configured storage backend. Returns the storage key, or None when
+    STORE_ORIGINALS is disabled. The key uses a fresh UUID — the user's
+    original filename never touches it."""
     if not settings.store_originals:
         return None
-    user_dir = os.path.join(settings.uploads_dir, user_id)
-    os.makedirs(user_dir, exist_ok=True)
-    path = os.path.join(user_dir, f"{uuid.uuid4().hex}.{file_type}")
-    with open(path, "wb") as fh:
-        fh.write(data)
-    return path
+    key = f"{settings.uploads_dir}/{user_id}/{uuid.uuid4().hex}.{file_type}"
+    return storage.put(key, data)
 
 
 DUPLICATE_THRESHOLD = 0.92
@@ -176,11 +173,11 @@ def _process_upload(
     dup = _detect_duplicate(db, document.user_id, embeddings)
 
     # Store the original first so a DB failure below can clean it up.
-    file_path = _store_original(data, document.user_id, file_type)
+    storage_key = _store_original(data, document.user_id, file_type)
     try:
         document.page_count = extractor.page_count(blocks) or None
         document.word_count = extractor.count_words(full_text)
-        document.file_path = file_path
+        document.storage_key = storage_key
         document.outline_json = json.dumps(outline)
         document.highlights_json = json.dumps(highlights)
         document.processed_at = datetime.now(timezone.utc)
@@ -203,8 +200,8 @@ def _process_upload(
         db.refresh(document)
     except Exception:
         db.rollback()
-        if file_path and os.path.exists(file_path):
-            os.remove(file_path)
+        if storage_key:
+            storage.delete(storage_key)
         raise
 
     return UploadResult(
@@ -482,13 +479,13 @@ async def upload_version(
         DocumentVersion(
             document_id=document_id,
             version_number=doc.version_number,
-            file_path=doc.file_path,
+            storage_key=doc.storage_key,
         )
     )
     # Blocking file I/O — keep it off the event loop.
-    new_path = await run_in_threadpool(_store_original, data, current_user.id, file_type)
+    new_key = await run_in_threadpool(_store_original, data, current_user.id, file_type)
     doc.version_number += 1
-    doc.file_path = new_path
+    doc.storage_key = new_key
     db.commit()
     db.refresh(doc)
     out = DocumentOut.model_validate(doc)
