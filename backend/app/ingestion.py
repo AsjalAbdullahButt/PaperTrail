@@ -6,9 +6,13 @@ Kept separate from the router so the chunker can be unit-tested in isolation
 from __future__ import annotations
 
 import io
+import re
 
 CHUNK_SIZE = 800
 CHUNK_OVERLAP = 150
+CHUNK_OVERLAP_SENTENCES = 2
+# Rough token estimate used only to size semantic chunks (no tokenizer dep).
+CHARS_PER_TOKEN = 4
 
 SUPPORTED_TYPES = {"pdf", "txt", "md"}
 
@@ -166,4 +170,109 @@ def chunk_blocks(
         if start + chunk_size >= n:
             break
         start += step
+    return out
+
+
+# Titles/initials that end in a period without ending the sentence (Mr. Smith,
+# Dr. Jones, U.S. policy, etc.) — checked against the *end* of an accumulated
+# sentence, so "Mr." merges with the words that follow it.
+_ABBREVIATION_RE = re.compile(
+    r"\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|Vs|vs|etc|e\.g|i\.e|Inc|Ltd|Co|Corp|"
+    r"Gov|Sen|Rep|Gen|Col|Capt|Lt|Ave|No|Vol|Fig|approx|U\.S|U\.K)\.$",
+    re.IGNORECASE,
+)
+# Candidate sentence boundary: end punctuation followed by whitespace. Split
+# eagerly here, then re-merge pieces whose preceding fragment ends in a known
+# abbreviation (handles "Mr. Smith said" without a spaCy/NLTK dependency).
+_SENTENCE_BOUNDARY_RE = re.compile(r"(?<=[.!?])\s+")
+
+
+def split_sentences(text: str) -> list[str]:
+    """Split ``text`` into sentences, keeping known abbreviations intact."""
+    text = text.strip()
+    if not text:
+        return []
+    pieces = _SENTENCE_BOUNDARY_RE.split(text)
+    sentences: list[str] = []
+    for piece in pieces:
+        if sentences and _ABBREVIATION_RE.search(sentences[-1]):
+            sentences[-1] = f"{sentences[-1]} {piece}"
+        else:
+            sentences.append(piece)
+    return [s.strip() for s in sentences if s.strip()]
+
+
+def chunk_blocks_semantic(
+    blocks: list[dict],
+    chunk_size: int = CHUNK_SIZE,
+    overlap_sentences: int = CHUNK_OVERLAP_SENTENCES,
+) -> list[dict]:
+    """Sentence-boundary-aware alternative to ``chunk_blocks``.
+
+    Joins block text (preserving page/section provenance exactly like
+    ``chunk_blocks``), splits it into sentences, and accumulates whole
+    sentences into chunks that stay within ``chunk_size`` tokens (approximated
+    as ``chunk_size * CHARS_PER_TOKEN`` characters — no tokenizer dependency).
+    Consecutive chunks overlap by ``overlap_sentences`` whole sentences instead
+    of a character window, so a chunk boundary never lands mid-sentence.
+
+    Returns the same ``[{"text","page_number","section_heading"}]`` schema as
+    ``chunk_blocks``.
+    """
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be positive")
+    if overlap_sentences < 0:
+        raise ValueError("overlap_sentences must be >= 0")
+
+    max_chars = chunk_size * CHARS_PER_TOKEN
+
+    # (sentence, page, section) in document order, carrying forward the
+    # section heading exactly like chunk_blocks does.
+    sentences: list[tuple[str, int, str | None]] = []
+    current_section: str | None = None
+    for b in blocks:
+        text = (b.get("text") or "").strip()
+        if not text:
+            continue
+        if b.get("is_heading"):
+            current_section = b.get("heading") or text
+        section = b.get("heading") if b.get("is_heading") else current_section
+        page = int(b.get("page", 1))
+        for sent in split_sentences(text):
+            sentences.append((sent, page, section))
+
+    if not sentences:
+        return []
+
+    out: list[dict] = []
+    i = 0
+    n = len(sentences)
+    while i < n:
+        window_start = i
+        current: list[tuple[str, int, str | None]] = []
+        current_len = 0
+        while i < n:
+            sent, page, section = sentences[i]
+            added_len = len(sent) + (1 if current else 0)  # + joining space
+            if current and current_len + added_len > max_chars:
+                break
+            current.append(sentences[i])
+            current_len += added_len
+            i += 1
+        if not current:
+            # A single sentence longer than max_chars: take it alone so the
+            # loop still makes progress.
+            current = [sentences[i]]
+            i += 1
+
+        text = " ".join(s for s, _, _ in current)
+        page = current[0][1]
+        section = current[0][2]
+        out.append({"text": text, "page_number": page, "section_heading": section})
+
+        if i >= n:
+            break
+        # Step back by overlap_sentences for the next chunk, but always past
+        # window_start so the loop is guaranteed to make forward progress.
+        i = max(window_start + 1, i - overlap_sentences)
     return out

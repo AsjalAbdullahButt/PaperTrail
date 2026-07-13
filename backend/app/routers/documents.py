@@ -19,7 +19,7 @@ from ..cache import cache, user_prefix
 from ..config import settings
 from ..database import get_db
 from ..ratelimit import limiter, upload_limit
-from ..ingestion import chunk_blocks, file_type_from_name
+from ..ingestion import chunk_blocks, chunk_blocks_semantic, file_type_from_name
 from ..models import (
     Chunk,
     Document,
@@ -143,7 +143,8 @@ def _process_upload(
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=422, detail=f"Could not read file: {exc}")
 
-    chunk_dicts = chunk_blocks(blocks)
+    strategy = settings.chunking_strategy
+    chunk_dicts = chunk_blocks(blocks) if strategy == "character" else chunk_blocks_semantic(blocks)
     if not chunk_dicts:
         raise HTTPException(
             status_code=422, detail="No extractable text found in the document."
@@ -178,6 +179,7 @@ def _process_upload(
         document.page_count = extractor.page_count(blocks) or None
         document.word_count = extractor.count_words(full_text)
         document.storage_key = storage_key
+        document.chunking_strategy = strategy
         document.outline_json = json.dumps(outline)
         document.highlights_json = json.dumps(highlights)
         document.processed_at = datetime.now(timezone.utc)

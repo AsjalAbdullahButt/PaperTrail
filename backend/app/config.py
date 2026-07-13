@@ -57,6 +57,11 @@ class Settings(BaseSettings):
     # NOTE: brute-force NumPy cosine similarity does not scale past a few
     # thousand chunks; beyond this a real ANN/vector index is required.
     max_query_chunks: int = 5000
+    # "character" (legacy, fixed-width windows) or "semantic" (sentence-
+    # boundary-aware). New deployments default to "semantic"; existing stored
+    # chunks are never re-embedded automatically (cost), so this only affects
+    # new uploads. See ingestion.chunk_blocks / chunk_blocks_semantic.
+    chunking_strategy: str = "semantic"
 
     # --- CORS ---
     # Comma-separated list of allowed browser origins. Environment-driven so

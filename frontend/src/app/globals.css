@@ -94,6 +94,17 @@ a {
   }
 }
 
+/* ---- Streaming answer cursor ---- */
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
 /* ---- Themed selection + placeholder (vars set inline on root) ---- */
 ::selection {
   background: var(--sel);

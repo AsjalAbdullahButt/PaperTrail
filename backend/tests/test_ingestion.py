@@ -5,7 +5,13 @@ import io
 
 import pytest
 
-from app.ingestion import chunk_blocks, extract_text, sniff_content_ok
+from app.ingestion import (
+    chunk_blocks,
+    chunk_blocks_semantic,
+    extract_text,
+    sniff_content_ok,
+    split_sentences,
+)
 from app.services import extractor
 from app.services.importance import extract_highlights, score_chunks
 from app.services.outliner import extract_outline
@@ -141,6 +147,100 @@ def test_chunk_blocks_carries_page_and_section():
     assert all("page_number" in c and "section_heading" in c for c in chunks)
     # The heading section carries into following body chunks.
     assert chunks[0]["section_heading"] == "OVERVIEW"
+
+
+# ------------------- semantic (sentence-boundary) chunking -------------- #
+def test_split_sentences_respects_abbreviations():
+    text = "Mr. Smith said hello. He then left the building."
+    sentences = split_sentences(text)
+    assert sentences == ["Mr. Smith said hello.", "He then left the building."]
+
+
+def test_split_sentences_handles_multiple_abbreviation_styles():
+    text = (
+        "Dr. Jones met with Prof. Lee vs. the review board. "
+        "The meeting, e.g. a routine check-in, ended quickly."
+    )
+    sentences = split_sentences(text)
+    assert len(sentences) == 2
+    assert sentences[0].startswith("Dr. Jones met with Prof. Lee vs. the review board.")
+    assert sentences[1].startswith("The meeting, e.g. a routine check-in, ended quickly.")
+
+
+def test_split_sentences_empty_text():
+    assert split_sentences("") == []
+    assert split_sentences("   ") == []
+
+
+def test_chunk_blocks_semantic_same_schema_as_chunk_blocks():
+    blocks = [
+        {"text": "OVERVIEW", "page": 1, "heading": "OVERVIEW", "level": 1, "is_heading": True},
+        {
+            "text": "This is the first sentence of the overview. This is the second one.",
+            "page": 1,
+            "heading": None,
+            "level": 0,
+            "is_heading": False,
+        },
+        {
+            "text": "This sentence lives on the second page. It also ends cleanly.",
+            "page": 2,
+            "heading": None,
+            "level": 0,
+            "is_heading": False,
+        },
+    ]
+    character_chunks = chunk_blocks(blocks, chunk_size=40, overlap=10)
+    semantic_chunks = chunk_blocks_semantic(blocks, chunk_size=10, overlap_sentences=1)
+
+    assert character_chunks and semantic_chunks
+    expected_keys = {"text", "page_number", "section_heading"}
+    for c in character_chunks + semantic_chunks:
+        assert set(c) == expected_keys
+    assert semantic_chunks[0]["section_heading"] == "OVERVIEW"
+
+
+def test_chunk_blocks_semantic_never_splits_mid_sentence():
+    blocks = [
+        {
+            "text": (
+                "Dr. Evans reviewed the quarterly figures carefully. "
+                "Revenue grew by twelve percent this year. "
+                "Mr. Patel confirmed the numbers independently. "
+                "The board approved the budget for next year."
+            ),
+            "page": 1,
+            "heading": None,
+            "level": 0,
+            "is_heading": False,
+        }
+    ]
+    chunks = chunk_blocks_semantic(blocks, chunk_size=8, overlap_sentences=1)
+    assert len(chunks) > 1
+    for c in chunks:
+        assert c["text"][-1] in ".?!\"'"
+
+
+def test_chunk_blocks_semantic_overlaps_by_sentences():
+    blocks = [
+        {
+            "text": " ".join(f"This is sentence number {i}." for i in range(10)),
+            "page": 1,
+            "heading": None,
+            "level": 0,
+            "is_heading": False,
+        }
+    ]
+    chunks = chunk_blocks_semantic(blocks, chunk_size=15, overlap_sentences=1)
+    assert len(chunks) > 1
+    # The last sentence(s) of a chunk reappear at the start of the next chunk.
+    first_last_sentence = chunks[0]["text"].rsplit(".", 2)[-2].strip() + "."
+    assert first_last_sentence in chunks[1]["text"]
+
+
+def test_chunk_blocks_semantic_empty_blocks_returns_empty():
+    assert chunk_blocks_semantic([]) == []
+    assert chunk_blocks_semantic([{"text": "", "page": 1, "is_heading": False}]) == []
 
 
 # ------------------------- importance scoring --------------------------- #

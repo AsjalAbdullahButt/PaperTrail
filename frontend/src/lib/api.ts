@@ -465,6 +465,86 @@ export async function askQuery(
   return handle<QueryResponse>(res);
 }
 
+/* --------------------------- query (streaming) --------------------------- */
+export type QueryStreamEvent =
+  | { type: "sources"; sources: Source[] }
+  | { type: "token"; token: string }
+  | { type: "followups"; followups: string[] }
+  | { type: "hallucination"; unsupported_sentences: UnsupportedSentence[] }
+  | { type: "done"; query_id: string | null; confidence_score: number };
+
+/** Parse one "event: X\ndata: Y" SSE block (no trailing blank line) into a
+ * typed event, or null for a block this client doesn't recognize. */
+function parseSseBlock(block: string): QueryStreamEvent | null {
+  let eventName: string | null = null;
+  let data: string | null = null;
+  for (const line of block.split("\n")) {
+    if (line.startsWith("event:")) eventName = line.slice("event:".length).trim();
+    else if (line.startsWith("data:")) data = line.slice("data:".length).trim();
+  }
+  if (!eventName || data === null) return null;
+  const parsed = JSON.parse(data);
+  switch (eventName) {
+    case "sources":
+      return { type: "sources", sources: parsed.sources };
+    case "token":
+      return { type: "token", token: parsed.token };
+    case "followups":
+      return { type: "followups", followups: parsed.followups };
+    case "hallucination":
+      return { type: "hallucination", unsupported_sentences: parsed.unsupported_sentences };
+    case "done":
+      return { type: "done", query_id: parsed.query_id, confidence_score: parsed.confidence_score };
+    default:
+      return null;
+  }
+}
+
+/** Streams a query's answer via Server-Sent Events: source cards arrive
+ * first, then the answer streams in token-by-token, then trailing
+ * follow-ups/hallucination/done events. Throws ApiError on a non-2xx
+ * response; callers should fall back to askQuery() on failure. */
+export async function* askQueryStreaming(
+  question: string,
+  mode: QueryMode,
+  opts: { document_ids?: string[]; collection_id?: string } = {},
+): AsyncGenerator<QueryStreamEvent> {
+  const res = await apiFetch("/api/query/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      question,
+      mode,
+      document_ids: opts.document_ids ?? [],
+      collection_id: opts.collection_id ?? null,
+    }),
+  });
+  if (!res.ok || !res.body) throw new ApiError(await parseError(res), res.status);
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const blocks = buffer.split("\n\n");
+      buffer = blocks.pop() ?? "";
+      for (const block of blocks) {
+        const event = parseSseBlock(block);
+        if (event) yield event;
+      }
+    }
+    if (buffer.trim()) {
+      const event = parseSseBlock(buffer);
+      if (event) yield event;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 /* ------------------------------ documents ------------------------------- */
 export async function uploadDocument(file: File): Promise<UploadResult> {
   const form = new FormData();

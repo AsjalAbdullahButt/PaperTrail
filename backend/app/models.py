@@ -159,6 +159,12 @@ class Document(Base):
     )
     # Set to the id of an existing near-identical document (duplicate detection).
     duplicate_of: Mapped[str | None] = mapped_column(UUID_COL, nullable=True)
+    # Which chunker produced this document's chunks: "character" (legacy,
+    # fixed-width windows) or "semantic" (sentence-boundary-aware). Informational
+    # only — existing chunks are never re-embedded when the default changes.
+    chunking_strategy: Mapped[str | None] = mapped_column(
+        String(16), nullable=True, server_default="character"
+    )
     # Soft delete (Phase 8): non-null => in trash, excluded from all reads.
     deleted_at: Mapped[datetime | None] = mapped_column(TIMESTAMP_COL, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

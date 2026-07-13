@@ -12,6 +12,7 @@ import { createPortal } from "react-dom";
 import {
   ApiError,
   askQuery,
+  askQueryStreaming,
   exportMyData,
   shareQuery,
   uploadDocument,
@@ -506,6 +507,7 @@ export default function Home() {
   const [answerMode, setAnswerMode] = useState<QueryMode>("rag");
   const [timing, setTiming] = useState(0);
   const [asking, setAsking] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [uploading, setUploading] = useState(false);
@@ -589,23 +591,72 @@ export default function Home() {
     router.replace("/login");
   }
 
+  async function runQueryBlocking(question: string, start: number) {
+    const data = await askQuery(question, mode);
+    setResult(data);
+    setAskedQuestion(question);
+    setAnswerMode(mode);
+    setTiming((performance.now() - start) / 1000);
+  }
+
   async function runQuery(q: string) {
     const question = q.trim();
     if (!question || asking) return;
     setAsking(true);
     setError(null);
     const start = performance.now();
+
+    let partial: QueryResponse = {
+      answer: "",
+      mode,
+      sources: [],
+      confidence_score: 0,
+      followup_questions: [],
+      unsupported_sentences: [],
+      query_id: null,
+    };
+    let receivedSources = false;
     try {
-      const data = await askQuery(question, mode);
-      setResult(data);
-      setAskedQuestion(question);
-      setAnswerMode(mode);
-      setTiming((performance.now() - start) / 1000);
+      for await (const event of askQueryStreaming(question, mode)) {
+        if (event.type === "sources") {
+          receivedSources = true;
+          partial = { ...partial, sources: event.sources };
+          setAskedQuestion(question);
+          setAnswerMode(mode);
+          setIsStreaming(true);
+          setResult({ ...partial });
+        } else if (event.type === "token") {
+          partial = { ...partial, answer: partial.answer + event.token };
+          setResult({ ...partial });
+        } else if (event.type === "followups") {
+          partial = { ...partial, followup_questions: event.followups };
+        } else if (event.type === "hallucination") {
+          partial = { ...partial, unsupported_sentences: event.unsupported_sentences };
+        } else if (event.type === "done") {
+          partial = { ...partial, confidence_score: event.confidence_score, query_id: event.query_id };
+          setResult({ ...partial });
+          setTiming((performance.now() - start) / 1000);
+        }
+      }
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) return handleUnauthorized();
-      setError(e instanceof Error ? e.message : "Something went wrong.");
-      setResult(null);
+      if (receivedSources) {
+        // Failed partway through the stream — don't silently replace the
+        // partial answer already on screen with a fresh (re-run) one.
+        setError(e instanceof Error ? e.message : "The answer stream was interrupted.");
+      } else {
+        // Never got going (no SSE support, network hiccup, etc.) — fall back
+        // to the blocking endpoint transparently.
+        try {
+          await runQueryBlocking(question, start);
+        } catch (e2) {
+          if (e2 instanceof ApiError && e2.status === 401) return handleUnauthorized();
+          setError(e2 instanceof Error ? e2.message : "Something went wrong.");
+          setResult(null);
+        }
+      }
     } finally {
+      setIsStreaming(false);
       setAsking(false);
     }
   }
@@ -804,30 +855,39 @@ export default function Home() {
                     </span>
                     {answerMode !== "direct" && (
                       <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 700, color: "var(--accent)", background: "var(--chip-bg)", border: "1px solid var(--chip-border)" }}>
-                        {confPct}% confidence
+                        {isStreaming ? "Answering…" : `${confPct}% confidence`}
                       </span>
                     )}
                   </div>
-                  <div style={{ fontSize: 19, lineHeight: 1.62, letterSpacing: "-.01em", color: "var(--text)", fontWeight: 400 }}>
-                    {renderAnswerWithCitations(result.answer, result.sources.length)}
+                  <div style={{ fontSize: 19, lineHeight: 1.62, letterSpacing: "-.01em", color: "var(--text)", fontWeight: 400, whiteSpace: isStreaming ? "pre-wrap" : undefined }}>
+                    {isStreaming ? (
+                      <>
+                        {result.answer}
+                        <BlinkingCursor />
+                      </>
+                    ) : (
+                      renderAnswerWithCitations(result.answer, result.sources.length)
+                    )}
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 26, paddingTop: 18, borderTop: "1px solid var(--card-border)", flexWrap: "wrap" }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
-                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--accent)", boxShadow: "0 0 8px var(--accent)" }} />
-                      {answerMode === "direct" ? "Direct answer" : confidence}
-                    </span>
-                    <span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--muted)", opacity: 0.5 }} />
-                    <span style={{ fontSize: 13, color: "var(--muted)" }}>
-                      {answerMode === "direct"
-                        ? "No retrieval"
-                        : `Grounded in ${result.sources.length} source${result.sources.length === 1 ? "" : "s"}`}
-                    </span>
-                    <span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--muted)", opacity: 0.5 }} />
-                    <span style={{ fontSize: 13, color: "var(--muted)" }}>answered in {timing.toFixed(1)}s</span>
-                  </div>
+                  {!isStreaming && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 26, paddingTop: 18, borderTop: "1px solid var(--card-border)", flexWrap: "wrap" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--accent)", boxShadow: "0 0 8px var(--accent)" }} />
+                        {answerMode === "direct" ? "Direct answer" : confidence}
+                      </span>
+                      <span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--muted)", opacity: 0.5 }} />
+                      <span style={{ fontSize: 13, color: "var(--muted)" }}>
+                        {answerMode === "direct"
+                          ? "No retrieval"
+                          : `Grounded in ${result.sources.length} source${result.sources.length === 1 ? "" : "s"}`}
+                      </span>
+                      <span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--muted)", opacity: 0.5 }} />
+                      <span style={{ fontSize: 13, color: "var(--muted)" }}>answered in {timing.toFixed(1)}s</span>
+                    </div>
+                  )}
 
                   {/* Hallucination guard: claims without a direct source */}
-                  {result.unsupported_sentences.length > 0 && (
+                  {!isStreaming && result.unsupported_sentences.length > 0 && (
                     <div style={{ marginTop: 16, padding: "10px 13px", borderRadius: 12, fontSize: 12.5, color: "#e0a53a", background: "rgba(224,165,58,.10)", border: "1px solid rgba(224,165,58,.35)" }}>
                       ⚠ {result.unsupported_sentences.length} claim
                       {result.unsupported_sentences.length === 1 ? "" : "s"} without a direct source in your documents.
@@ -835,7 +895,7 @@ export default function Home() {
                   )}
 
                   {/* Follow-up questions */}
-                  {result.followup_questions.length > 0 && (
+                  {!isStreaming && result.followup_questions.length > 0 && (
                     <div style={{ marginTop: 20 }}>
                       <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)", marginBottom: 10 }}>
                         Follow-up questions
@@ -857,7 +917,7 @@ export default function Home() {
 
                 {result.sources.length > 0 && (
                   <div style={{ flex: "1 1 300px", minWidth: 270, maxWidth: 380 }}>
-                    {answerMode !== "direct" && (
+                    {answerMode !== "direct" && !isStreaming && (
                       <div style={{ display: "flex", justifyContent: "center", marginBottom: 12, padding: "12px 0", borderRadius: 16, background: "var(--card-bg)", border: "1px solid var(--card-border)" }}>
                         <ConfidenceGauge value={result.confidence_score} />
                       </div>
@@ -965,6 +1025,23 @@ export default function Home() {
 }
 
 /* ------------------------------ Utilities -------------------------------- */
+function BlinkingCursor() {
+  return (
+    <span
+      aria-hidden
+      style={{
+        display: "inline-block",
+        width: 2,
+        height: "1.05em",
+        marginLeft: 2,
+        verticalAlign: "text-bottom",
+        background: "var(--accent)",
+        animation: "blink 1s step-end infinite",
+      }}
+    />
+  );
+}
+
 function Spinner() {
   return (
     <span

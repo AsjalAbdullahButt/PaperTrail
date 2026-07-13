@@ -28,12 +28,13 @@ vi.mock("@/lib/api", async () => {
   return {
     ...actual,
     askQuery: vi.fn(),
+    askQueryStreaming: vi.fn(),
     uploadDocument: vi.fn(),
   };
 });
 
 import Home from "@/app/page";
-import { uploadDocument } from "@/lib/api";
+import { askQueryStreaming, uploadDocument, type QueryStreamEvent } from "@/lib/api";
 
 describe("Home (authenticated)", () => {
   beforeEach(() => {
@@ -72,5 +73,51 @@ describe("Home (authenticated)", () => {
     await userEvent.upload(fileInput, file);
 
     expect(await screen.findByText(/upload failed: too big/i)).toBeInTheDocument();
+  });
+
+  it("shows source cards before the answer finishes streaming in", async () => {
+    async function* fakeStream(): AsyncGenerator<QueryStreamEvent> {
+      yield {
+        type: "sources",
+        sources: [
+          {
+            n: 1,
+            title: "facts.txt",
+            snippet: "The fictional country Zubrowka has a capital city.",
+            score: 90,
+            document_id: "doc-1",
+            chunk_id: "chunk-1",
+            chunk_index: 0,
+            page_number: 1,
+            section_heading: null,
+            similarity_score: 0.9,
+            importance_score: 0.5,
+            relevance_pct: 90,
+          },
+        ],
+      };
+      yield { type: "token", token: "Lutz " };
+      yield { type: "token", token: "is the capital." };
+      yield { type: "followups", followups: ["What else is in Zubrowka?"] };
+      yield { type: "hallucination", unsupported_sentences: [] };
+      yield { type: "done", query_id: "q-1", confidence_score: 0.87 };
+    }
+    vi.mocked(askQueryStreaming).mockReturnValueOnce(fakeStream());
+
+    render(<Home />);
+    await userEvent.type(
+      screen.getByPlaceholderText(/ask anything/i),
+      "What is the capital?"
+    );
+    await userEvent.click(screen.getByRole("button", { name: /^ask/i }));
+
+    // Source card appears (title from the "sources" event).
+    expect(await screen.findByText("facts.txt")).toBeInTheDocument();
+    // Streaming completes and the full answer text renders.
+    expect(await screen.findByText(/Lutz is the capital\./)).toBeInTheDocument();
+    // Follow-up question surfaced only after the stream fully completes.
+    expect(
+      await screen.findByText("What else is in Zubrowka?")
+    ).toBeInTheDocument();
   });
 });

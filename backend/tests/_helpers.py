@@ -37,6 +37,81 @@ def make_text_pdf(text: str) -> bytes:
     return out
 
 
+def _pdf_escape(s: str) -> bytes:
+    return s.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)").encode()
+
+
+def make_multi_page_pdf(page_texts: list[str]) -> bytes:
+    """Build a minimal, valid multi-page PDF with one paragraph per page.
+
+    Generalizes ``make_text_pdf`` to N pages sharing a single font object, with
+    long page text word-wrapped across several text-showing lines so pypdf's
+    extract_text() returns continuous prose rather than one huge line.
+    """
+    n = len(page_texts)
+    font_obj = 3 + 2 * n
+
+    objs: list[bytes] = [
+        b"<</Type/Catalog/Pages 2 0 R>>",
+        b"<</Type/Pages/Kids["
+        + b" ".join(f"{3 + 2 * i} 0 R".encode() for i in range(n))
+        + b"]/Count "
+        + str(n).encode()
+        + b">>",
+    ]
+    for i, text in enumerate(page_texts):
+        page_obj = 3 + 2 * i
+        content_obj = page_obj + 1
+        objs.append(
+            b"<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents "
+            + str(content_obj).encode()
+            + b" 0 R/Resources<</Font<</F1 "
+            + str(font_obj).encode()
+            + b" 0 R>>>>>>"
+        )
+
+        words = text.split()
+        lines: list[str] = []
+        cur = ""
+        for w in words:
+            if cur and len(cur) + len(w) + 1 > 90:
+                lines.append(cur)
+                cur = w
+            else:
+                cur = f"{cur} {w}".strip()
+        if cur:
+            lines.append(cur)
+
+        parts = [b"BT /F1 12 Tf 50 750 Td"]
+        for j, line in enumerate(lines):
+            if j == 0:
+                parts.append(b" (" + _pdf_escape(line) + b") Tj")
+            else:
+                parts.append(b" 0 -16 Td (" + _pdf_escape(line) + b") Tj")
+        parts.append(b" ET")
+        stream = b"".join(parts)
+        objs.append(
+            b"<</Length " + str(len(stream)).encode() + b">>stream\n" + stream + b"\nendstream"
+        )
+    objs.append(b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>")
+
+    out = b"%PDF-1.4\n"
+    offsets = []
+    for i, o in enumerate(objs, 1):
+        offsets.append(len(out))
+        out += str(i).encode() + b" 0 obj\n" + o + b"\nendobj\n"
+    xref_pos = len(out)
+    out += b"xref\n0 " + str(len(objs) + 1).encode() + b"\n"
+    out += b"0000000000 65535 f \n"
+    for off in offsets:
+        out += ("%010d 00000 n \n" % off).encode()
+    out += (
+        b"trailer<</Size " + str(len(objs) + 1).encode() + b"/Root 1 0 R>>\n"
+        b"startxref\n" + str(xref_pos).encode() + b"\n%%EOF"
+    )
+    return out
+
+
 def make_encrypted_pdf(password: str = "secret") -> bytes:
     """A password-protected PDF whose text cannot be extracted without the key."""
     from pypdf import PdfWriter

@@ -6,7 +6,13 @@ import time
 import pytest
 
 import app.routers.documents as documents_router
-from ._helpers import make_encrypted_pdf, make_text_pdf, upload_bytes, upload_text_doc
+from ._helpers import (
+    make_encrypted_pdf,
+    make_multi_page_pdf,
+    make_text_pdf,
+    upload_bytes,
+    upload_text_doc,
+)
 
 from conftest import requires_db
 
@@ -156,6 +162,55 @@ def test_upload_xlsx_creates_queryable_chunks(client):
     assert res.status_code == 200, res.text
     assert res.json()["chunks_created"] >= 1
     assert res.json()["file_type"] == "xlsx"
+
+
+# --------------- V3 Phase 1: sentence-boundary (semantic) chunking ------- #
+def test_upload_pdf_semantic_chunking_no_chunk_ends_mid_sentence(client, db_session):
+    from sqlalchemy import select
+
+    from app.models import Chunk, Document
+
+    pages = [
+        (
+            f"This is page {i} of the annual report. "
+            f"Dr. Evans reviewed section {i} carefully and confirmed the figures. "
+            f"Revenue in region {i} grew by a healthy margin this year. "
+            f"Mr. Patel signed off on the results for this section."
+        )
+        for i in range(1, 11)
+    ]
+    pdf = make_multi_page_pdf(pages)
+    res = upload_bytes(client, "annual-report.pdf", pdf, "application/pdf")
+    assert res.status_code == 200, res.text
+    assert res.json()["page_count"] == 10
+
+    doc_id = res.json()["id"]
+    doc = db_session.execute(select(Document).where(Document.id == doc_id)).scalar_one()
+    assert doc.chunking_strategy == "semantic"
+
+    chunks = db_session.execute(
+        select(Chunk.content).where(Chunk.document_id == doc_id)
+    ).scalars().all()
+    assert chunks
+    for content in chunks:
+        assert content[-1] in ".?!\"'", f"chunk ends mid-sentence: {content!r}"
+        # "Mr." / "Dr." must never be split away from the name that follows.
+        assert not content.rstrip().endswith(("Mr.", "Dr."))
+
+
+def test_upload_txt_character_strategy_recorded(client, db_session, monkeypatch):
+    import app.routers.documents as documents_router
+    from sqlalchemy import select
+
+    from app.models import Document
+
+    monkeypatch.setattr(documents_router.settings, "chunking_strategy", "character", raising=False)
+    body = upload_text_doc(client, "legacy.txt", "hello world " * 200)
+
+    doc = db_session.execute(
+        select(Document).where(Document.id == body["id"])
+    ).scalar_one()
+    assert doc.chunking_strategy == "character"
 
 
 def test_document_status_reports_processed(client):

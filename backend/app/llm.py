@@ -16,6 +16,7 @@ import hashlib
 import logging
 import math
 import re
+from typing import Iterator
 
 from .config import settings
 
@@ -160,6 +161,67 @@ def _build_messages(question: str, context_chunks: list[str], mode: str) -> list
         {"role": "system", "content": system},
         {"role": "user", "content": user},
     ]
+
+
+# --------------------------------------------------------------------------- #
+# Streaming generation (RAG mode only — see routers/query.py's /query/stream)
+# --------------------------------------------------------------------------- #
+def stream_rag_answer(question: str, context_chunks: list[str]) -> Iterator[str]:
+    """Yield successive answer-text chunks for a RAG-mode question.
+
+    Tries OpenAI streaming, then Groq streaming, then falls back to yielding
+    the full offline extractive answer as a single chunk — the same provider
+    fallback order as ``generate_answer``, just token-by-token instead of a
+    single blocking call.
+    """
+    if settings.openai_ready:
+        try:
+            yield from _stream_openai(question, context_chunks)
+            return
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("OpenAI streaming failed (%s); trying next fallback.", exc)
+
+    if settings.groq_ready:
+        try:
+            yield from stream_rag_answer_groq(question, context_chunks)
+            return
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Groq streaming failed (%s); using offline fallback.", exc)
+
+    yield _offline_generate(question, context_chunks, "rag")
+
+
+def _stream_openai(question: str, context_chunks: list[str]) -> Iterator[str]:
+    from openai import OpenAI
+
+    client = OpenAI(api_key=settings.openai_api_key)
+    stream = client.chat.completions.create(
+        model=settings.openai_chat_model,
+        messages=_build_messages(question, context_chunks, "rag"),
+        temperature=0.2,
+        stream=True,
+    )
+    for event in stream:
+        delta = event.choices[0].delta.content
+        if delta:
+            yield delta
+
+
+def stream_rag_answer_groq(question: str, context_chunks: list[str]) -> Iterator[str]:
+    """Groq's chat endpoint is OpenAI-compatible, including ``stream=True``."""
+    from openai import OpenAI
+
+    client = OpenAI(api_key=settings.groq_api_key, base_url=settings.groq_base_url)
+    stream = client.chat.completions.create(
+        model=settings.groq_chat_model,
+        messages=_build_messages(question, context_chunks, "rag"),
+        temperature=0.2,
+        stream=True,
+    )
+    for event in stream:
+        delta = event.choices[0].delta.content
+        if delta:
+            yield delta
 
 
 # Marker the model is asked to emit between the answer and the follow-up

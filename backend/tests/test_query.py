@@ -97,9 +97,13 @@ def test_query_survives_mismatched_embedding_dimensions(client, db_session):
 
 
 def test_upload_embedding_count_mismatch_returns_500(client, monkeypatch):
-    # Force embed_texts to return the wrong number of vectors.
+    # Force embed_texts to always return one fewer vector than there are
+    # chunks, regardless of chunking strategy/count, so the mismatch is
+    # guaranteed to trigger.
     monkeypatch.setattr(
-        documents_router.llm, "embed_texts", lambda chunks: [[0.0, 1.0]]  # one vector
+        documents_router.llm,
+        "embed_texts",
+        lambda chunks: [[0.0, 1.0]] * max(0, len(chunks) - 1),
     )
     res = client.post(
         "/api/documents/upload",

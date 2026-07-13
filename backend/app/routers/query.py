@@ -12,6 +12,7 @@ import json
 import logging
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from .. import llm
@@ -27,7 +28,7 @@ from ..schemas import (
     SourceOut,
     UnsupportedSentence,
 )
-from ..services.followup import parse_followup_questions
+from ..services.followup import generate_followup_questions, parse_followup_questions
 from ..services.hallucination_guard import check_answer
 from ..services.multihop import multihop_retrieve
 from ..services.retriever import hybrid_retrieve
@@ -104,10 +105,32 @@ def _compute_query(
     # sequential calls) — see llm.generate_rag_answer_with_followups.
     answer, followups_raw = llm.generate_rag_answer_with_followups(question, context_chunks)
 
-    # Confidence = mean of the top-3 ranked scores, clamped to [0, 1].
-    top3 = [c["ranked_score"] for c in retrieved[:3]]
-    confidence = min(1.0, sum(top3) / len(top3)) if top3 else 0.0
+    confidence = _confidence(retrieved)
+    sources = _build_sources(retrieved)
+    followups = parse_followup_questions(followups_raw) if followups_raw else []
+    unsupported = [
+        UnsupportedSentence(sentence=s["sentence"], source_chunk_id=s["source_chunk_id"])
+        for s in check_answer(answer, retrieved)
+        if not s["supported"]
+    ]
 
+    return QueryResponse(
+        answer=answer,
+        mode=mode,
+        sources=sources,
+        confidence_score=confidence,
+        followup_questions=followups,
+        unsupported_sentences=unsupported,
+    )
+
+
+def _confidence(retrieved: list[dict]) -> float:
+    """Mean of the top-3 ranked scores, clamped to [0, 1]."""
+    top3 = [c["ranked_score"] for c in retrieved[:3]]
+    return round(min(1.0, sum(top3) / len(top3)), 4) if top3 else 0.0
+
+
+def _build_sources(retrieved: list[dict]) -> list[SourceOut]:
     sources: list[SourceOut] = []
     for i, c in enumerate(retrieved, start=1):
         snippet = c["text"].strip().replace("\n", " ")
@@ -130,22 +153,7 @@ def _compute_query(
                 relevance_pct=relevance,
             )
         )
-
-    followups = parse_followup_questions(followups_raw) if followups_raw else []
-    unsupported = [
-        UnsupportedSentence(sentence=s["sentence"], source_chunk_id=s["source_chunk_id"])
-        for s in check_answer(answer, retrieved)
-        if not s["supported"]
-    ]
-
-    return QueryResponse(
-        answer=answer,
-        mode=mode,
-        sources=sources,
-        confidence_score=round(confidence, 4),
-        followup_questions=followups,
-        unsupported_sentences=unsupported,
-    )
+    return sources
 
 
 def _save_history(
@@ -176,3 +184,116 @@ def _save_history(
     db.commit()
     db.refresh(row)
     return row
+
+
+# --------------------------------------------------------------------------- #
+# Streaming (SSE) variant — kept alongside the blocking endpoint above, not a
+# replacement, for clients (tests, exports, share links) that need one
+# synchronous JSON response.
+# --------------------------------------------------------------------------- #
+def _sse(event: str, data: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+
+
+def _stream_events(
+    db: Session, current_user: User, payload: QueryRequest, question: str, mode: str
+):
+    """Generator of SSE-formatted strings for POST /api/query/stream.
+
+    Emits ``sources`` immediately (before any answer text), streams ``token``
+    events as the answer is generated, then trailing ``followups`` /
+    ``hallucination`` / ``done`` events. ChatHistory is persisted only once
+    the full answer is known (after the stream completes), same as the
+    blocking endpoint.
+    """
+    if mode == "direct":
+        answer = llm.generate_answer(question, [], "direct")
+        yield _sse("sources", {"sources": []})
+        yield _sse("token", {"token": answer})
+        response = QueryResponse(answer=answer, mode=mode, sources=[], confidence_score=0.0)
+        row = _save_history(db, current_user, question, response, mode)
+        yield _sse("followups", {"followups": []})
+        yield _sse("hallucination", {"unsupported_sentences": []})
+        yield _sse("done", {"query_id": row.id, "confidence_score": 0.0})
+        return
+
+    document_ids = payload.document_ids or None
+    collection_id = payload.collection_id
+
+    if mode == "multihop":
+        retrieved = multihop_retrieve(
+            db, current_user.id, question,
+            document_ids=document_ids, collection_id=collection_id,
+        )
+    else:
+        retrieved = hybrid_retrieve(
+            db, current_user.id, question,
+            document_ids=document_ids, collection_id=collection_id, top_k=TOP_K,
+        )
+
+    sources = _build_sources(retrieved)
+    yield _sse("sources", {"sources": [s.model_dump() for s in sources]})
+
+    if not retrieved:
+        answer = (
+            "There are no documents (or no relevant passages) to answer that yet. "
+            "Upload a document, or widen your selection, and ask again."
+        )
+        yield _sse("token", {"token": answer})
+        response = QueryResponse(answer=answer, mode=mode, sources=[], confidence_score=0.0)
+        row = _save_history(db, current_user, question, response, mode)
+        yield _sse("followups", {"followups": []})
+        yield _sse("hallucination", {"unsupported_sentences": []})
+        yield _sse("done", {"query_id": row.id, "confidence_score": 0.0})
+        return
+
+    context_chunks = [c["text"] for c in retrieved]
+    parts: list[str] = []
+    for token in llm.stream_rag_answer(question, context_chunks):
+        parts.append(token)
+        yield _sse("token", {"token": token})
+    answer = "".join(parts)
+
+    confidence = _confidence(retrieved)
+    followups = generate_followup_questions(question, answer, retrieved)
+    unsupported = [
+        UnsupportedSentence(sentence=s["sentence"], source_chunk_id=s["source_chunk_id"])
+        for s in check_answer(answer, retrieved)
+        if not s["supported"]
+    ]
+
+    response = QueryResponse(
+        answer=answer,
+        mode=mode,
+        sources=sources,
+        confidence_score=confidence,
+        followup_questions=followups,
+        unsupported_sentences=unsupported,
+    )
+    row = _save_history(db, current_user, question, response, mode)
+
+    yield _sse("followups", {"followups": followups})
+    yield _sse(
+        "hallucination",
+        {"unsupported_sentences": [u.model_dump() for u in unsupported]},
+    )
+    yield _sse("done", {"query_id": row.id, "confidence_score": confidence})
+
+
+@router.post("/query/stream")
+@limiter.limit(query_limit)
+def query_stream(
+    request: Request,
+    payload: QueryRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """SSE variant of /api/query: source cards arrive before the model starts
+    answering, then the answer streams in token-by-token."""
+    question = payload.question.strip()
+    mode = payload.mode
+    return StreamingResponse(
+        _stream_events(db, current_user, payload, question, mode),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

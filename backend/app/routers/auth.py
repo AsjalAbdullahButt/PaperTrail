@@ -14,14 +14,12 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import os
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile
-from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -246,29 +244,27 @@ def update_profile(
 
 AVATAR_MAX_BYTES = 2 * 1024 * 1024  # 2 MB
 AVATAR_CONTENT_TYPES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif"}
+_EXT_TO_CONTENT_TYPE = {ext: ct for ct, ext in AVATAR_CONTENT_TYPES.items()}
 
 
-def _avatar_dir() -> str:
-    path = os.path.join(settings.uploads_dir, "avatars")
-    os.makedirs(path, exist_ok=True)
-    return path
+def _avatar_key(user_id: str, ext: str) -> str:
+    return f"{settings.uploads_dir}/avatars/{user_id}.{ext}"
 
 
-def _find_avatar_file(avatar_dir: str, user_id: str) -> str | None:
-    prefix = f"{user_id}."
-    for name in os.listdir(avatar_dir):
-        if name.startswith(prefix):
-            return os.path.join(avatar_dir, name)
+def _find_avatar_key(user_id: str) -> str | None:
+    """The extension is unknown ahead of time, so probe each supported one —
+    the storage backend has no directory-listing primitive."""
+    for ext in _EXT_TO_CONTENT_TYPE:
+        key = _avatar_key(user_id, ext)
+        if storage.exists(key):
+            return key
     return None
 
 
 def _remove_avatar_file(user_id: str) -> None:
-    existing = _find_avatar_file(_avatar_dir(), user_id)
-    if existing and os.path.exists(existing):
-        try:
-            os.remove(existing)
-        except OSError:
-            pass
+    existing = _find_avatar_key(user_id)
+    if existing:
+        storage.delete(existing)
 
 
 @router.post("/me/avatar", response_model=UserOut)
@@ -287,9 +283,7 @@ async def upload_avatar(
         raise HTTPException(status_code=413, detail="Avatar image must be under 2 MB.")
 
     _remove_avatar_file(current_user.id)  # drop a previous avatar of a different extension
-    path = os.path.join(_avatar_dir(), f"{current_user.id}.{ext}")
-    with open(path, "wb") as fh:
-        fh.write(data)
+    storage.put(_avatar_key(current_user.id, ext), data, content_type=file.content_type or "")
 
     # A fresh query string per upload busts the browser's <img> cache — the
     # path itself is stable so old links wouldn't otherwise notice a change.
@@ -316,10 +310,12 @@ def get_avatar(user_id: str):
     """Serve an uploaded avatar image. Unauthenticated: avatars are meant to be
     displayable wherever the app shows a user (same trust level as any other
     public profile picture host)."""
-    path = _find_avatar_file(_avatar_dir(), user_id)
-    if path is None:
+    key = _find_avatar_key(user_id)
+    if key is None:
         raise HTTPException(status_code=404, detail="No avatar set.")
-    return FileResponse(path)
+    ext = key.rsplit(".", 1)[-1]
+    data = storage.get(key)
+    return Response(content=data, media_type=_EXT_TO_CONTENT_TYPE[ext])
 
 
 @router.post("/change-password")
