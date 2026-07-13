@@ -25,4 +25,4 @@ RUN pip install "gunicorn==23.0.0"
 EXPOSE 8000
 
 # Apply migrations, then serve. WEB_CONCURRENCY controls worker count.
-CMD ["sh", "-c", "alembic upgrade head && gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w ${WEB_CONCURRENCY:-4} -b 0.0.0.0:8000 --access-logfile -"]
+CMD ["sh", "-c", "alembic upgrade head && gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w ${WEB_CONCURRENCY:-4} -b 0.0.0.0:${PORT:-8000} --access-logfile -"]

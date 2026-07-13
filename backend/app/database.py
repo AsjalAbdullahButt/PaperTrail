@@ -17,6 +17,17 @@ class Base(DeclarativeBase):
     """Declarative base for all ORM models."""
 
 
+def _mysql_connect_args() -> dict:
+    """PyMySQL connect_args enabling TLS for managed providers (e.g. Aiven),
+    which reject plain connections outright."""
+    if not settings.db_ssl_mode:
+        return {}
+    ssl_args: dict = {"ssl": {}}
+    if settings.db_ssl_ca:
+        ssl_args["ssl"] = {"ca": settings.db_ssl_ca}
+    return ssl_args
+
+
 # Explicit pool sizing (do not rely on SQLAlchemy defaults of 5+10):
 #   pool_size       - persistent connections kept open per worker process.
 #   max_overflow    - extra short-lived connections allowed under burst load.
@@ -34,6 +45,7 @@ engine = create_engine(
     max_overflow=settings.db_max_overflow,
     pool_timeout=settings.db_pool_timeout,
     pool_recycle=settings.db_pool_recycle,
+    connect_args=_mysql_connect_args(),
     echo=False,
 )
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
@@ -60,7 +72,9 @@ def check_db() -> tuple[bool, str | None]:
 
 def create_database_if_missing() -> None:
     """Ensure the target database exists before we connect to it."""
-    server_engine = create_engine(settings.server_url, echo=False)
+    server_engine = create_engine(
+        settings.server_url, connect_args=_mysql_connect_args(), echo=False
+    )
     with server_engine.connect() as conn:
         conn.execute(
             text(

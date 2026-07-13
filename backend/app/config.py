@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     db_user: str = "root"
     db_password: str = ""
     db_name: str = "papertrail"
+    # TLS for managed MySQL providers (e.g. Aiven) that reject plain connections.
+    db_ssl_mode: bool = False
+    db_ssl_ca: str = ""  # path to CA cert file, e.g. /etc/secrets/aiven-ca.pem
 
     # --- Uploads / limits ---
     # Hard ceiling on a single upload. Rejected with HTTP 413 above this.

@@ -57,3 +57,10 @@ yarn-error.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# --- Docs ---
+# Keep README.md tracked; ignore every other Markdown file (deployment notes,
+# scratch docs, etc).
+*.md
+!README.md
+!**/README.md

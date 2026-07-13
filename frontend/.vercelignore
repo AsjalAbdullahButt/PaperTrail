@@ -1,0 +1,9 @@
+node_modules
+.next
+e2e
+playwright-report
+playwright/.cache
+coverage
+*.test.ts
+*.test.tsx
+*.spec.ts

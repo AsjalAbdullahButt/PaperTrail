@@ -1,8 +1,9 @@
 """Authentication routes: register, login, refresh, logout, me.
 
 Access tokens are returned in the JSON body (the frontend keeps them in memory
-only). Refresh tokens are set as an httpOnly, SameSite=Strict cookie so they are
-never readable by JavaScript and are sent automatically only to the auth routes.
+only). Refresh tokens are set as an httpOnly, SameSite=None cookie (frontend and
+backend live on different domains in production) so they are never readable by
+JavaScript and are sent automatically only to the auth routes.
 Logout revokes the refresh token by blacklisting its ``jti``.
 
 Refresh tokens are single-use: /refresh blacklists the presented token's
@@ -70,7 +71,7 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
         value=token,
         httponly=True,
         secure=settings.cookie_secure,
-        samesite="strict",
+        samesite="none",
         max_age=settings.refresh_expire_days * 24 * 3600,
         path="/api/auth",
     )
@@ -81,7 +82,7 @@ def _clear_refresh_cookie(response: Response) -> None:
         key=settings.refresh_cookie_name,
         httponly=True,
         secure=settings.cookie_secure,
-        samesite="strict",
+        samesite="none",
         path="/api/auth",
     )
 
