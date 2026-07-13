@@ -120,4 +120,44 @@ describe("Home (authenticated)", () => {
       await screen.findByText("What else is in Zubrowka?")
     ).toBeInTheDocument();
   });
+
+  it("threads prior turns into the next query, and 'New conversation' clears them", async () => {
+    async function* fakeStream(answer: string): AsyncGenerator<QueryStreamEvent> {
+      yield { type: "sources", sources: [] };
+      yield { type: "token", token: answer };
+      yield { type: "done", query_id: "q-1", confidence_score: 0.5 };
+    }
+
+    const calls: unknown[] = [];
+    vi.mocked(askQueryStreaming).mockImplementation((_q, _mode, opts) => {
+      calls.push(opts?.conversation_history ?? []);
+      return fakeStream(`answer #${calls.length}`);
+    });
+
+    render(<Home />);
+    const input = screen.getByPlaceholderText(/ask anything/i);
+    const askButton = screen.getByRole("button", { name: /^ask/i });
+
+    await userEvent.type(input, "first question");
+    await userEvent.click(askButton);
+    expect(await screen.findByText("answer #1")).toBeInTheDocument();
+    expect(calls[0]).toEqual([]); // no prior turns yet
+
+    await userEvent.clear(input);
+    await userEvent.type(input, "second question");
+    await userEvent.click(askButton);
+    expect(await screen.findByText("answer #2")).toBeInTheDocument();
+    // The prior exchange is now carried as context.
+    expect(calls[1]).toEqual([
+      { role: "user", content: "first question" },
+      { role: "assistant", content: "answer #1" },
+    ]);
+
+    await userEvent.click(screen.getByRole("button", { name: /new conversation/i }));
+    await userEvent.clear(input);
+    await userEvent.type(input, "third question");
+    await userEvent.click(askButton);
+    expect(await screen.findByText("answer #3")).toBeInTheDocument();
+    expect(calls[2]).toEqual([]); // cleared by "New conversation"
+  });
 });

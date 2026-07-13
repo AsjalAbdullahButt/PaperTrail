@@ -44,11 +44,35 @@ describe("DocumentManager", () => {
         tags: [],
         is_duplicate: false,
         duplicate_of_name: null,
+        summary: null,
       },
     ]);
     render(<DocumentManager {...baseProps} />);
     expect(await screen.findByText("report.txt")).toBeInTheDocument();
     expect(screen.getByText(/txt · 3 chunks/i)).toBeInTheDocument();
+  });
+
+  it("shows a one-line summary under the filename when present", async () => {
+    vi.mocked(listDocuments).mockResolvedValueOnce([
+      {
+        id: "d2",
+        filename: "with-summary.pdf",
+        file_type: "pdf",
+        page_count: 5,
+        word_count: 500,
+        version_number: 1,
+        created_at: "2026-01-01T00:00:00Z",
+        chunk_count: 4,
+        tags: [],
+        is_duplicate: false,
+        duplicate_of_name: null,
+        summary: "A concise executive summary of the document.",
+      },
+    ]);
+    render(<DocumentManager {...baseProps} />);
+    expect(
+      await screen.findByText("A concise executive summary of the document.")
+    ).toBeInTheDocument();
   });
 
   it("shows error state when load fails", async () => {

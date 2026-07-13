@@ -87,6 +87,26 @@ export default function UploadReadyCard({
         </button>
       </div>
 
+      {result.summary && (
+        <div style={{ marginTop: 18 }}>
+          <div style={sectionLabel}>✦ Summary</div>
+          <blockquote
+            style={{
+              margin: "10px 0 0",
+              padding: "12px 15px",
+              borderLeft: "3px solid var(--accent2)",
+              borderRadius: 8,
+              background: "var(--chip-bg)",
+              fontSize: 14,
+              lineHeight: 1.55,
+              color: "var(--text)",
+            }}
+          >
+            {result.summary}
+          </blockquote>
+        </div>
+      )}
+
       {topHighlights.length > 0 && (
         <div style={{ marginTop: 18 }}>
           <div style={sectionLabel}>Highlights</div>

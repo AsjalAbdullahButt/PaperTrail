@@ -29,7 +29,7 @@ def _parse_sse(text: str) -> list[tuple[str | None, dict]]:
 
 
 def _fake_stream(*tokens: str):
-    def _stream(question, context_chunks):
+    def _stream(question, context_chunks, history=None):
         yield from tokens
 
     return _stream
@@ -114,7 +114,9 @@ def test_query_stream_persists_chat_history(client, db_session, monkeypatch):
 
 def test_query_stream_direct_mode_skips_retrieval(client, monkeypatch):
     monkeypatch.setattr(
-        query_router.llm, "generate_answer", lambda q, chunks, mode: "A direct answer."
+        query_router.llm,
+        "generate_answer",
+        lambda q, chunks, mode, history=None: "A direct answer.",
     )
     res = client.post("/api/query/stream", json={"question": "hi", "mode": "direct"})
     assert res.status_code == 200

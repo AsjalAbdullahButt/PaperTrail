@@ -112,3 +112,83 @@ def test_openai_failure_falls_back_to_offline(monkeypatch):
     out = llm.embed_texts(["hello"])
     assert len(out) == 1
     assert abs(sum(v * v for v in out[0]) ** 0.5 - 1.0) < 1e-9
+
+
+# --------------------- V3 Phase 3: conversation history ------------------ #
+def test_build_messages_no_history_matches_old_two_message_shape():
+    messages = llm._build_messages("q", ["ctx"], "rag")
+    assert [m["role"] for m in messages] == ["system", "user"]
+
+
+def test_build_messages_empty_history_list_same_as_none():
+    with_none = llm._build_messages("q", ["ctx"], "rag", None)
+    with_empty = llm._build_messages("q", ["ctx"], "rag", [])
+    assert with_none == with_empty
+
+
+def test_build_messages_history_inserted_between_system_and_new_user_message():
+    history = [
+        {"role": "user", "content": "What is this document about?"},
+        {"role": "assistant", "content": "It's a quarterly report."},
+    ]
+    messages = llm._build_messages("Tell me more about the first point", ["ctx"], "rag", history)
+
+    assert [m["role"] for m in messages] == ["system", "user", "assistant", "user"]
+    assert messages[1] == history[0]
+    assert messages[2] == history[1]
+    assert "Tell me more about the first point" in messages[3]["content"]
+
+
+def test_generate_answer_threads_history_into_the_hosted_call(monkeypatch):
+    captured = {}
+
+    def fake_chat(model, messages, temperature):
+        captured["messages"] = messages
+        msg = types.SimpleNamespace(content="follow-up answer")
+        return types.SimpleNamespace(choices=[types.SimpleNamespace(message=msg)])
+
+    _install_fake_openai(monkeypatch, chat=fake_chat)
+    history = [
+        {"role": "user", "content": "first question"},
+        {"role": "assistant", "content": "first answer"},
+    ]
+    out = llm.generate_answer("second question", ["ctx"], "rag", history)
+
+    assert out == "follow-up answer"
+    roles = [m["role"] for m in captured["messages"]]
+    assert roles == ["system", "user", "assistant", "user"]
+    assert captured["messages"][-1]["content"].endswith("Question: second question")
+
+
+# --------------------- V3 Phase 4: document summary ---------------------- #
+def test_summarize_document_empty_highlights_returns_empty_without_calling_model(monkeypatch):
+    def boom(*a, **k):
+        raise AssertionError("should not call the model with no highlights")
+
+    monkeypatch.setattr(llm, "complete_text", boom)
+    assert llm.summarize_document("report.pdf", []) == ""
+
+
+def test_summarize_document_offline_returns_empty(monkeypatch):
+    monkeypatch.setattr(llm.settings, "openai_api_key", "")
+    monkeypatch.setattr(llm.settings, "groq_api_key", "")
+    out = llm.summarize_document("report.pdf", ["Revenue grew this quarter."])
+    assert out == ""
+
+
+def test_summarize_document_uses_top_5_highlights_and_title_in_system_prompt(monkeypatch):
+    captured = {}
+
+    def fake_complete_text(prompt, system, temperature=0.3):
+        captured["prompt"] = prompt
+        captured["system"] = system
+        return "A concise summary."
+
+    monkeypatch.setattr(llm, "complete_text", fake_complete_text)
+    highlights = [f"highlight {i}" for i in range(8)]
+    out = llm.summarize_document("Q3 Report.pdf", highlights)
+
+    assert out == "A concise summary."
+    assert "Q3 Report.pdf" in captured["system"]
+    assert "highlight 5" not in captured["prompt"]  # only the top 5 are used
+    assert "highlight 4" in captured["prompt"]

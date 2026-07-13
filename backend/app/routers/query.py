@@ -72,11 +72,18 @@ def query(
     return response
 
 
+def _history_dicts(payload: QueryRequest) -> list[dict]:
+    """Prior conversation turns as plain dicts, oldest first, ready to thread
+    into an llm.py call. QueryRequest already caps/truncates to the last 6."""
+    return [{"role": t.role, "content": t.content} for t in payload.conversation_history]
+
+
 def _compute_query(
     db: Session, current_user: User, payload: QueryRequest, question: str, mode: str
 ) -> QueryResponse:
+    history = _history_dicts(payload)
     if mode == "direct":
-        answer = llm.generate_answer(question, [], "direct")
+        answer = llm.generate_answer(question, [], "direct", history)
         return QueryResponse(answer=answer, mode=mode, sources=[], confidence_score=0.0)
 
     document_ids = payload.document_ids or None
@@ -103,7 +110,7 @@ def _compute_query(
     context_chunks = [c["text"] for c in retrieved]
     # One model call for both the answer and its follow-up questions (was two
     # sequential calls) — see llm.generate_rag_answer_with_followups.
-    answer, followups_raw = llm.generate_rag_answer_with_followups(question, context_chunks)
+    answer, followups_raw = llm.generate_rag_answer_with_followups(question, context_chunks, history)
 
     confidence = _confidence(retrieved)
     sources = _build_sources(retrieved)
@@ -206,8 +213,9 @@ def _stream_events(
     the full answer is known (after the stream completes), same as the
     blocking endpoint.
     """
+    history = _history_dicts(payload)
     if mode == "direct":
-        answer = llm.generate_answer(question, [], "direct")
+        answer = llm.generate_answer(question, [], "direct", history)
         yield _sse("sources", {"sources": []})
         yield _sse("token", {"token": answer})
         response = QueryResponse(answer=answer, mode=mode, sources=[], confidence_score=0.0)
@@ -249,7 +257,7 @@ def _stream_events(
 
     context_chunks = [c["text"] for c in retrieved]
     parts: list[str] = []
-    for token in llm.stream_rag_answer(question, context_chunks):
+    for token in llm.stream_rag_answer(question, context_chunks, history):
         parts.append(token)
         yield _sse("token", {"token": token})
     answer = "".join(parts)

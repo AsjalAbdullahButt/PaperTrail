@@ -156,7 +156,7 @@ def _process_upload(
     # else here is pure-Python CPU work with no dependency on the embedding
     # result, so run them concurrently instead of paying for both in
     # sequence — same computations and results, just overlapped.
-    with ThreadPoolExecutor(max_workers=1) as pool:
+    with ThreadPoolExecutor(max_workers=2) as pool:
         embed_future = pool.submit(llm.embed_texts, chunk_texts)
 
         scores = score_chunks(chunk_texts)
@@ -164,7 +164,14 @@ def _process_upload(
         outline = extract_outline(blocks, chunk_texts)
         full_text = extractor.blocks_to_text(blocks)
 
+        # A second, independent network call (summary) — submitted alongside
+        # the embedding call so it overlaps instead of adding its own latency.
+        summary_future = pool.submit(
+            llm.summarize_document, document.filename, [h["text"] for h in highlights[:5]]
+        )
+
         embeddings = embed_future.result()
+        summary = summary_future.result()
 
     if len(embeddings) != len(chunk_texts):
         raise HTTPException(status_code=500, detail="Embedding count mismatch.")
@@ -180,6 +187,7 @@ def _process_upload(
         document.word_count = extractor.count_words(full_text)
         document.storage_key = storage_key
         document.chunking_strategy = strategy
+        document.summary = summary or None
         document.outline_json = json.dumps(outline)
         document.highlights_json = json.dumps(highlights)
         document.processed_at = datetime.now(timezone.utc)
@@ -215,6 +223,7 @@ def _process_upload(
         chunks_created=len(chunk_dicts),
         highlights=[Highlight(**h) for h in highlights],
         outline=[OutlineEntry(**o) for o in outline],
+        summary=document.summary,
         is_duplicate=dup is not None,
         duplicate_of_name=(dup[1] if dup else None),
     )

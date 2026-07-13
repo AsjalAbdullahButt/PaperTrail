@@ -213,6 +213,32 @@ def test_upload_txt_character_strategy_recorded(client, db_session, monkeypatch)
     assert doc.chunking_strategy == "character"
 
 
+# -------------------- V3 Phase 4: document summary on upload ------------- #
+def test_upload_returns_summary_when_llm_configured(client, monkeypatch):
+    monkeypatch.setattr(
+        documents_router.llm, "summarize_document", lambda title, texts: "A concise executive summary."
+    )
+    body = upload_text_doc(client, "report.txt", "Quarterly revenue rose sharply this year. " * 20)
+    assert body["summary"] == "A concise executive summary."
+
+
+def test_upload_returns_null_summary_in_offline_mode(client, monkeypatch):
+    monkeypatch.setattr(documents_router.llm, "summarize_document", lambda title, texts: "")
+    body = upload_text_doc(client, "report2.txt", "Quarterly revenue rose sharply this year. " * 20)
+    assert body["summary"] is None
+
+
+def test_document_list_includes_summary(client, monkeypatch):
+    monkeypatch.setattr(
+        documents_router.llm, "summarize_document", lambda title, texts: "Summary text."
+    )
+    upload_text_doc(client, "withsummary.txt", "Some meaningful content here. " * 20)
+    res = client.get("/api/documents")
+    assert res.status_code == 200
+    doc = next(d for d in res.json() if d["filename"] == "withsummary.txt")
+    assert doc["summary"] == "Summary text."
+
+
 def test_document_status_reports_processed(client):
     body = upload_text_doc(client, "s.txt", "some content to process here " * 10)
     res = client.get(f"/api/documents/{body['id']}/status")

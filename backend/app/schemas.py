@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
@@ -118,6 +119,7 @@ class DocumentOut(BaseModel):
     tags: list[str] = Field(default_factory=list)
     is_duplicate: bool = False
     duplicate_of_name: str | None = None
+    summary: str | None = None
 
 
 class Highlight(BaseModel):
@@ -141,6 +143,7 @@ class UploadResult(BaseModel):
     chunks_created: int
     highlights: list[Highlight] = []
     outline: list[OutlineEntry] = []
+    summary: str | None = None
     is_duplicate: bool = False
     duplicate_of_name: str | None = None
 
@@ -320,11 +323,23 @@ class CoverageGap(BaseModel):
 
 
 # --- Query ---
+# Cap on conversation_history: 6 turns = 3 user/assistant exchanges. Keeps the
+# context window (and per-request cost) bounded regardless of what a client
+# sends; older turns are dropped, not rejected.
+MAX_CONVERSATION_TURNS = 6
+
+
+class ConversationTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(..., min_length=1, max_length=4000)
+
+
 class QueryRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=2000)
     mode: str = Field("rag", pattern="^(rag|direct|multihop)$")
     document_ids: list[str] = Field(default_factory=list)
     collection_id: str | None = None
+    conversation_history: list[ConversationTurn] = Field(default_factory=list)
 
     @field_validator("question")
     @classmethod
@@ -333,6 +348,11 @@ class QueryRequest(BaseModel):
         if not v:
             raise ValueError("Question cannot be empty or whitespace only.")
         return v
+
+    @field_validator("conversation_history")
+    @classmethod
+    def _truncate_history(cls, v: list["ConversationTurn"]) -> list["ConversationTurn"]:
+        return v[-MAX_CONVERSATION_TURNS:] if len(v) > MAX_CONVERSATION_TURNS else v
 
 
 class SourceOut(BaseModel):

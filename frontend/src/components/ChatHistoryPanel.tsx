@@ -11,6 +11,10 @@ type Props = {
   onUnauthorized: () => void;
 };
 
+// Past entries here are read-only (no click-to-rerun action exists yet). If
+// one is ever made clickable to restore a query, it must run as a standalone
+// query with an empty conversation_history — history entries predate the
+// current live conversation and re-running one is not a continuation of it.
 export default function ChatHistoryPanel({ open, onClose, refreshKey, onUnauthorized }: Props) {
   const [items, setItems] = useState<ChatHistoryItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);

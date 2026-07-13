@@ -14,9 +14,9 @@ def test_identical_query_served_from_cache_without_recalling_llm(client, monkeyp
     calls = {"generate": 0}
     real_generate = query_router.llm.generate_answer
 
-    def counting_generate(question, context, mode):
+    def counting_generate(question, context, mode, history=None):
         calls["generate"] += 1
-        return real_generate(question, context, mode)
+        return real_generate(question, context, mode, history)
 
     monkeypatch.setattr(query_router.llm, "generate_answer", counting_generate)
 
@@ -34,9 +34,9 @@ def test_cache_invalidated_when_documents_change(client, monkeypatch):
     calls = {"generate": 0}
     real_generate = query_router.llm.generate_answer
 
-    def counting_generate(question, context, mode):
+    def counting_generate(question, context, mode, history=None):
         calls["generate"] += 1
-        return real_generate(question, context, mode)
+        return real_generate(question, context, mode, history)
 
     monkeypatch.setattr(query_router.llm, "generate_answer", counting_generate)
 
@@ -58,9 +58,9 @@ def test_cache_disabled_when_ttl_zero(client, monkeypatch):
     calls = {"generate": 0}
     real_generate = query_router.llm.generate_answer
 
-    def counting_generate(question, context, mode):
+    def counting_generate(question, context, mode, history=None):
         calls["generate"] += 1
-        return real_generate(question, context, mode)
+        return real_generate(question, context, mode, history)
 
     monkeypatch.setattr(query_router.llm, "generate_answer", counting_generate)
     payload = {"question": "no cache please", "mode": "direct"}

@@ -105,21 +105,29 @@ def _offline_embed(text: str) -> list[float]:
 # --------------------------------------------------------------------------- #
 # Generation
 # --------------------------------------------------------------------------- #
-def generate_answer(question: str, context_chunks: list[str], mode: str) -> str:
+def generate_answer(
+    question: str,
+    context_chunks: list[str],
+    mode: str,
+    history: list[dict] | None = None,
+) -> str:
     """Answer a question.
 
     RAG mode: answer strictly from ``context_chunks``. Direct mode: answer from
     the model's own knowledge (no retrieval), ``context_chunks`` ignored.
+    ``history`` is prior conversation turns (``[{"role","content"}, ...]``,
+    oldest first) threaded in for follow-up questions; ``None``/``[]`` behaves
+    exactly like a stateless single-turn query.
     """
     if settings.openai_ready:
         try:
-            return _openai_generate(question, context_chunks, mode)
+            return _openai_generate(question, context_chunks, mode, history)
         except Exception as exc:  # noqa: BLE001
             logger.warning("OpenAI generation failed (%s); using offline fallback.", exc)
 
     if settings.groq_ready:
         try:
-            return _groq_generate(question, context_chunks, mode)
+            return _groq_generate(question, context_chunks, mode, history)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Groq generation failed (%s); using offline fallback.", exc)
 
@@ -140,8 +148,18 @@ _FORMATTING_INSTRUCTIONS = (
 )
 
 
-def _build_messages(question: str, context_chunks: list[str], mode: str) -> list[dict]:
-    """Assemble the chat messages shared by every hosted-model provider."""
+def _build_messages(
+    question: str,
+    context_chunks: list[str],
+    mode: str,
+    history: list[dict] | None = None,
+) -> list[dict]:
+    """Assemble the chat messages shared by every hosted-model provider.
+
+    When ``history`` is given (prior turns, oldest first), it is inserted
+    between the system message and the current user question so the model can
+    answer follow-ups in context.
+    """
     if mode == "rag":
         context = "\n\n".join(f"[{i + 1}] {c}" for i, c in enumerate(context_chunks))
         system = (
@@ -159,6 +177,7 @@ def _build_messages(question: str, context_chunks: list[str], mode: str) -> list
         user = question
     return [
         {"role": "system", "content": system},
+        *[{"role": t["role"], "content": t["content"]} for t in (history or [])],
         {"role": "user", "content": user},
     ]
 
@@ -166,24 +185,27 @@ def _build_messages(question: str, context_chunks: list[str], mode: str) -> list
 # --------------------------------------------------------------------------- #
 # Streaming generation (RAG mode only — see routers/query.py's /query/stream)
 # --------------------------------------------------------------------------- #
-def stream_rag_answer(question: str, context_chunks: list[str]) -> Iterator[str]:
+def stream_rag_answer(
+    question: str, context_chunks: list[str], history: list[dict] | None = None
+) -> Iterator[str]:
     """Yield successive answer-text chunks for a RAG-mode question.
 
     Tries OpenAI streaming, then Groq streaming, then falls back to yielding
     the full offline extractive answer as a single chunk — the same provider
     fallback order as ``generate_answer``, just token-by-token instead of a
-    single blocking call.
+    single blocking call. ``history`` is threaded through the same way as
+    ``generate_answer``.
     """
     if settings.openai_ready:
         try:
-            yield from _stream_openai(question, context_chunks)
+            yield from _stream_openai(question, context_chunks, history)
             return
         except Exception as exc:  # noqa: BLE001
             logger.warning("OpenAI streaming failed (%s); trying next fallback.", exc)
 
     if settings.groq_ready:
         try:
-            yield from stream_rag_answer_groq(question, context_chunks)
+            yield from stream_rag_answer_groq(question, context_chunks, history)
             return
         except Exception as exc:  # noqa: BLE001
             logger.warning("Groq streaming failed (%s); using offline fallback.", exc)
@@ -191,13 +213,15 @@ def stream_rag_answer(question: str, context_chunks: list[str]) -> Iterator[str]
     yield _offline_generate(question, context_chunks, "rag")
 
 
-def _stream_openai(question: str, context_chunks: list[str]) -> Iterator[str]:
+def _stream_openai(
+    question: str, context_chunks: list[str], history: list[dict] | None = None
+) -> Iterator[str]:
     from openai import OpenAI
 
     client = OpenAI(api_key=settings.openai_api_key)
     stream = client.chat.completions.create(
         model=settings.openai_chat_model,
-        messages=_build_messages(question, context_chunks, "rag"),
+        messages=_build_messages(question, context_chunks, "rag", history),
         temperature=0.2,
         stream=True,
     )
@@ -207,14 +231,16 @@ def _stream_openai(question: str, context_chunks: list[str]) -> Iterator[str]:
             yield delta
 
 
-def stream_rag_answer_groq(question: str, context_chunks: list[str]) -> Iterator[str]:
+def stream_rag_answer_groq(
+    question: str, context_chunks: list[str], history: list[dict] | None = None
+) -> Iterator[str]:
     """Groq's chat endpoint is OpenAI-compatible, including ``stream=True``."""
     from openai import OpenAI
 
     client = OpenAI(api_key=settings.groq_api_key, base_url=settings.groq_base_url)
     stream = client.chat.completions.create(
         model=settings.groq_chat_model,
-        messages=_build_messages(question, context_chunks, "rag"),
+        messages=_build_messages(question, context_chunks, "rag", history),
         temperature=0.2,
         stream=True,
     )
@@ -230,7 +256,9 @@ def stream_rag_answer_groq(question: str, context_chunks: list[str]) -> Iterator
 _FOLLOWUP_MARKER = "===FOLLOWUPS==="
 
 
-def _build_rag_messages_with_followups(question: str, context_chunks: list[str]) -> list[dict]:
+def _build_rag_messages_with_followups(
+    question: str, context_chunks: list[str], history: list[dict] | None = None
+) -> list[dict]:
     context = "\n\n".join(f"[{i + 1}] {c}" for i, c in enumerate(context_chunks))
     system = (
         "You are PaperTrail, a careful assistant that answers ONLY from the "
@@ -245,11 +273,14 @@ def _build_rag_messages_with_followups(question: str, context_chunks: list[str])
     user = f"Context:\n{context}\n\nQuestion: {question}"
     return [
         {"role": "system", "content": system},
+        *[{"role": t["role"], "content": t["content"]} for t in (history or [])],
         {"role": "user", "content": user},
     ]
 
 
-def generate_rag_answer_with_followups(question: str, context_chunks: list[str]) -> tuple[str, str]:
+def generate_rag_answer_with_followups(
+    question: str, context_chunks: list[str], history: list[dict] | None = None
+) -> tuple[str, str]:
     """RAG answer + a raw follow-up-questions blob from a *single* model call.
 
     Generating the answer and its follow-up questions used to be two separate
@@ -259,6 +290,9 @@ def generate_rag_answer_with_followups(question: str, context_chunks: list[str])
     with a delimited trailing block cuts a full network round trip off every
     RAG/multi-hop query without changing what either output contains.
 
+    ``history`` (prior conversation turns, oldest first) is threaded in the
+    same way as ``generate_answer``/``stream_rag_answer``.
+
     Returns ``(answer, raw_followups_blob)``; the blob is ``""`` when the
     model didn't include the marker (or no provider is configured) — callers
     already treat that as "no follow-ups", the same graceful-degradation
@@ -267,7 +301,7 @@ def generate_rag_answer_with_followups(question: str, context_chunks: list[str])
     if not (settings.openai_ready or settings.groq_ready):
         return _offline_generate(question, context_chunks, "rag"), ""
 
-    messages = _build_rag_messages_with_followups(question, context_chunks)
+    messages = _build_rag_messages_with_followups(question, context_chunks, history)
     raw: str | None = None
 
     if settings.openai_ready:
@@ -303,26 +337,30 @@ def generate_rag_answer_with_followups(question: str, context_chunks: list[str])
     return raw, ""
 
 
-def _openai_generate(question: str, context_chunks: list[str], mode: str) -> str:
+def _openai_generate(
+    question: str, context_chunks: list[str], mode: str, history: list[dict] | None = None
+) -> str:
     from openai import OpenAI
 
     client = OpenAI(api_key=settings.openai_api_key)
     resp = client.chat.completions.create(
         model=settings.openai_chat_model,
-        messages=_build_messages(question, context_chunks, mode),
+        messages=_build_messages(question, context_chunks, mode, history),
         temperature=0.2,
     )
     return (resp.choices[0].message.content or "").strip()
 
 
-def _groq_generate(question: str, context_chunks: list[str], mode: str) -> str:
+def _groq_generate(
+    question: str, context_chunks: list[str], mode: str, history: list[dict] | None = None
+) -> str:
     """Generate via Groq's OpenAI-compatible chat endpoint (custom base_url)."""
     from openai import OpenAI
 
     client = OpenAI(api_key=settings.groq_api_key, base_url=settings.groq_base_url)
     resp = client.chat.completions.create(
         model=settings.groq_chat_model,
-        messages=_build_messages(question, context_chunks, mode),
+        messages=_build_messages(question, context_chunks, mode, history),
         temperature=0.2,
     )
     return (resp.choices[0].message.content or "").strip()
@@ -368,6 +406,22 @@ def complete_text(prompt: str, system: str = "You are a helpful assistant.",
             logger.warning("Groq completion failed (%s).", exc)
 
     return ""
+
+
+def summarize_document(title: str, highlight_texts: list[str]) -> str:
+    """Generate a 2-4 sentence executive summary from a document's top
+    highlights. Returns "" in offline mode (no generative model configured) —
+    callers must treat that as "no summary available", not an error."""
+    if not highlight_texts:
+        return ""
+    system = (
+        f"You are a precise document analyst. Given key passages from a document "
+        f"titled '{title}', write a 2-4 sentence executive summary that captures "
+        "the document's core topic, key findings or arguments, and intended "
+        "audience. Be factual. Do not add information not present in the passages."
+    )
+    user = "\n---\n".join(highlight_texts[:5])
+    return complete_text(user, system=system, temperature=0.2)
 
 
 def _offline_generate(question: str, context_chunks: list[str], mode: str) -> str:

@@ -143,6 +143,9 @@ class Document(Base):
     highlights_json: Mapped[str | None] = mapped_column(
         LONGTEXT().with_variant(Text(), "sqlite"), nullable=True
     )
+    # LLM-generated executive summary (2-4 sentences) from the top highlights.
+    # Null for offline-mode uploads and rows predating this column.
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     processed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP_COL, nullable=True)
     # Ingestion pipeline state: "queued" | "processing" | "done" | "failed".
     # Rows predating this column were all fully processed, hence the "done"

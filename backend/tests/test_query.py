@@ -6,6 +6,7 @@ import json
 from sqlalchemy import select
 
 import app.routers.documents as documents_router
+import app.routers.query as query_router
 from app.models import Chunk
 from ._helpers import upload_text_doc
 
@@ -46,6 +47,79 @@ def test_query_direct_mode_has_no_sources(client):
     body = res.json()
     assert body["mode"] == "direct"
     assert body["sources"] == []
+
+
+# --------------- V3 Phase 3: conversation history / follow-ups ----------- #
+def test_query_rag_threads_conversation_history_to_the_llm_call(client, monkeypatch):
+    upload_text_doc(
+        client,
+        "report.txt",
+        "The quarterly report highlights strong revenue growth this year overall.",
+    )
+    captured = {}
+
+    def fake_generate(question, context_chunks, history=None):
+        captured["history"] = history
+        return "Here's more detail.", ""
+
+    monkeypatch.setattr(query_router.llm, "generate_rag_answer_with_followups", fake_generate)
+
+    history = [
+        {"role": "user", "content": "What is this document about?"},
+        {"role": "assistant", "content": "It's a quarterly report."},
+    ]
+    res = client.post(
+        "/api/query",
+        json={
+            "question": "Tell me more about the first point",
+            "mode": "rag",
+            "conversation_history": history,
+        },
+    )
+    assert res.status_code == 200
+    assert captured["history"] == history
+
+
+def test_query_direct_mode_threads_conversation_history(client, monkeypatch):
+    captured = {}
+
+    def fake_generate(question, context_chunks, mode, history=None):
+        captured["history"] = history
+        return "direct follow-up"
+
+    monkeypatch.setattr(query_router.llm, "generate_answer", fake_generate)
+
+    history = [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}]
+    res = client.post(
+        "/api/query",
+        json={"question": "how are you?", "mode": "direct", "conversation_history": history},
+    )
+    assert res.status_code == 200
+    assert res.json()["answer"] == "direct follow-up"
+    assert captured["history"] == history
+
+
+def test_query_conversation_history_over_8_turns_truncated_before_reaching_llm(client, monkeypatch):
+    captured = {}
+
+    def fake_generate(question, context_chunks, mode, history=None):
+        captured["history"] = history
+        return "ok"
+
+    monkeypatch.setattr(query_router.llm, "generate_answer", fake_generate)
+
+    turns = [
+        {"role": "user" if i % 2 == 0 else "assistant", "content": f"turn {i}"}
+        for i in range(8)
+    ]
+    res = client.post(
+        "/api/query",
+        json={"question": "q", "mode": "direct", "conversation_history": turns},
+    )
+    assert res.status_code == 200
+    assert len(captured["history"]) == 6
+    assert captured["history"][0]["content"] == "turn 2"  # oldest 2 dropped
+    assert captured["history"][-1]["content"] == "turn 7"
 
 
 def test_query_malformed_mode_rejected(client):

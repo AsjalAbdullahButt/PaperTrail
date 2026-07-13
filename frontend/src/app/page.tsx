@@ -16,6 +16,7 @@ import {
   exportMyData,
   shareQuery,
   uploadDocument,
+  type ConversationTurn,
   type QueryMode,
   type QueryResponse,
   type Source,
@@ -509,6 +510,7 @@ export default function Home() {
   const [asking, setAsking] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [conversationHistory, setConversationHistory] = useState<ConversationTurn[]>([]);
 
   const [uploading, setUploading] = useState(false);
   const [lastUpload, setLastUpload] = useState<UploadResult | null>(null);
@@ -578,6 +580,7 @@ export default function Home() {
   function handleUnauthorized() {
     void storeLogout(); // clear token/session, then route to sign-in
     setResult(null);
+    setConversationHistory([]);
     setDocsOpen(false);
     setHistoryOpen(false);
     showToast("err", "Your session expired. Please sign in again.");
@@ -587,16 +590,40 @@ export default function Home() {
   function signOut() {
     void storeLogout();
     setResult(null);
+    setConversationHistory([]);
     setQuery("");
     router.replace("/login");
   }
 
+  const MAX_CONVERSATION_TURNS = 6;
+
+  /** Appends this exchange to conversationHistory and trims to the last 3
+   * exchanges (6 turns), so the next follow-up question carries it as
+   * context. */
+  function appendToConversation(question: string, answer: string) {
+    setConversationHistory((prev) =>
+      [
+        ...prev,
+        { role: "user", content: question } as ConversationTurn,
+        { role: "assistant", content: answer } as ConversationTurn,
+      ].slice(-MAX_CONVERSATION_TURNS)
+    );
+  }
+
+  function startNewConversation() {
+    setConversationHistory([]);
+    setResult(null);
+    setAskedQuestion("");
+    setError(null);
+  }
+
   async function runQueryBlocking(question: string, start: number) {
-    const data = await askQuery(question, mode);
+    const data = await askQuery(question, mode, { conversation_history: conversationHistory });
     setResult(data);
     setAskedQuestion(question);
     setAnswerMode(mode);
     setTiming((performance.now() - start) / 1000);
+    appendToConversation(question, data.answer);
   }
 
   async function runQuery(q: string) {
@@ -617,7 +644,9 @@ export default function Home() {
     };
     let receivedSources = false;
     try {
-      for await (const event of askQueryStreaming(question, mode)) {
+      for await (const event of askQueryStreaming(question, mode, {
+        conversation_history: conversationHistory,
+      })) {
         if (event.type === "sources") {
           receivedSources = true;
           partial = { ...partial, sources: event.sources };
@@ -636,6 +665,7 @@ export default function Home() {
           partial = { ...partial, confidence_score: event.confidence_score, query_id: event.query_id };
           setResult({ ...partial });
           setTiming((performance.now() - start) / 1000);
+          appendToConversation(question, partial.answer);
         }
       }
     } catch (e) {
@@ -806,6 +836,16 @@ export default function Home() {
                   {!asking && <span style={{ fontSize: 15, marginTop: -1 }}>→</span>}
                 </button>
               </div>
+              {conversationHistory.length > 0 && (
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+                  <button
+                    onClick={startNewConversation}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 10, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 12.5, color: "var(--muted)" }}
+                  >
+                    <span aria-hidden>↺</span> New conversation
+                  </button>
+                </div>
+              )}
               {error && (
                 <div role="alert" style={{ marginTop: 12, padding: "10px 14px", borderRadius: 12, fontSize: 13.5, color: "#ff8a80", background: "rgba(255,80,80,.10)", border: "1px solid rgba(255,120,120,.35)" }}>
                   {error}

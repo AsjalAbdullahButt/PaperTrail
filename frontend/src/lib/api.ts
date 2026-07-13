@@ -85,6 +85,7 @@ export type UploadResult = {
   chunks_created: number;
   highlights: Highlight[];
   outline: OutlineEntry[];
+  summary: string | null;
 };
 
 export type DocumentStatus = {
@@ -107,6 +108,7 @@ export type DocumentInfo = {
   tags: string[];
   is_duplicate: boolean;
   duplicate_of_name: string | null;
+  summary: string | null;
 };
 
 export type Collection = {
@@ -447,10 +449,20 @@ export async function resetPassword(token: string, newPassword: string): Promise
 }
 
 /* ------------------------------- query ---------------------------------- */
+export type ConversationTurn = { role: "user" | "assistant"; content: string };
+
+export type AskQueryOpts = {
+  document_ids?: string[];
+  collection_id?: string;
+  /** Prior turns (oldest first). At most the last 6 are used server-side;
+   * send more and the server truncates rather than rejecting. */
+  conversation_history?: ConversationTurn[];
+};
+
 export async function askQuery(
   question: string,
   mode: QueryMode,
-  opts: { document_ids?: string[]; collection_id?: string } = {},
+  opts: AskQueryOpts = {},
 ): Promise<QueryResponse> {
   const res = await apiFetch("/api/query", {
     method: "POST",
@@ -460,6 +472,7 @@ export async function askQuery(
       mode,
       document_ids: opts.document_ids ?? [],
       collection_id: opts.collection_id ?? null,
+      conversation_history: opts.conversation_history ?? [],
     }),
   });
   return handle<QueryResponse>(res);
@@ -507,7 +520,7 @@ function parseSseBlock(block: string): QueryStreamEvent | null {
 export async function* askQueryStreaming(
   question: string,
   mode: QueryMode,
-  opts: { document_ids?: string[]; collection_id?: string } = {},
+  opts: AskQueryOpts = {},
 ): AsyncGenerator<QueryStreamEvent> {
   const res = await apiFetch("/api/query/stream", {
     method: "POST",
@@ -517,6 +530,7 @@ export async function* askQueryStreaming(
       mode,
       document_ids: opts.document_ids ?? [],
       collection_id: opts.collection_id ?? null,
+      conversation_history: opts.conversation_history ?? [],
     }),
   });
   if (!res.ok || !res.body) throw new ApiError(await parseError(res), res.status);

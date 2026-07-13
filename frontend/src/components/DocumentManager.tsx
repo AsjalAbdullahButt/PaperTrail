@@ -122,6 +122,20 @@ export default function DocumentManager({
                     {(d.chunk_count ?? 0) === 1 ? "" : "s"}
                     {d.page_count ? ` · ${d.page_count} pages` : ""}
                   </div>
+                  {d.summary && (
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "var(--muted)",
+                        marginTop: 4,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {d.summary}
+                    </div>
+                  )}
                 </div>
 
                 {confirmId === d.id ? (
