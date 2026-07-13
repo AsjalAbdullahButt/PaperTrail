@@ -30,15 +30,28 @@ vi.mock("@/lib/api", async () => {
     askQuery: vi.fn(),
     askQueryStreaming: vi.fn(),
     uploadDocument: vi.fn(),
+    listDocuments: vi.fn(),
   };
 });
 
 import Home from "@/app/page";
-import { askQueryStreaming, uploadDocument, type QueryStreamEvent } from "@/lib/api";
+import {
+  askQueryStreaming,
+  listDocuments,
+  uploadDocument,
+  type QueryStreamEvent,
+} from "@/lib/api";
+import { useQueryStore } from "@/stores/queryStore";
+
+const initialQueryState = useQueryStore.getState();
 
 describe("Home (authenticated)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // useQueryStore is a module-level singleton (unlike useAuthStore, it
+    // isn't mocked above), so conversationHistory/hasAnswer/etc. from one
+    // test would otherwise leak into the next.
+    useQueryStore.setState(initialQueryState, true);
   });
 
   it("toggles the answer mode and reflects it via aria-pressed", async () => {
@@ -159,5 +172,68 @@ describe("Home (authenticated)", () => {
     await userEvent.click(askButton);
     expect(await screen.findByText("answer #3")).toBeInTheDocument();
     expect(calls[2]).toEqual([]); // cleared by "New conversation"
+  });
+
+  it("compare mode requires selecting 2+ documents before it can be submitted", async () => {
+    vi.mocked(listDocuments).mockResolvedValueOnce([
+      {
+        id: "doc-a",
+        filename: "alpha.txt",
+        file_type: "txt",
+        page_count: null,
+        word_count: 10,
+        version_number: 1,
+        created_at: "2026-01-01T00:00:00Z",
+        chunk_count: 1,
+        tags: [],
+        is_duplicate: false,
+        duplicate_of_name: null,
+        summary: null,
+      },
+      {
+        id: "doc-b",
+        filename: "beta.txt",
+        file_type: "txt",
+        page_count: null,
+        word_count: 10,
+        version_number: 1,
+        created_at: "2026-01-01T00:00:00Z",
+        chunk_count: 1,
+        tags: [],
+        is_duplicate: false,
+        duplicate_of_name: null,
+        summary: null,
+      },
+    ]);
+
+    async function* fakeStream(): AsyncGenerator<QueryStreamEvent> {
+      yield { type: "sources", sources: [] };
+      yield { type: "token", token: "comparison answer" };
+      yield { type: "done", query_id: "q-1", confidence_score: 0.5 };
+    }
+    vi.mocked(askQueryStreaming).mockReturnValueOnce(fakeStream());
+
+    render(<Home />);
+    await userEvent.click(screen.getByRole("button", { name: /^compare$/i }));
+
+    expect(await screen.findByText("alpha.txt")).toBeInTheDocument();
+    expect(screen.getByText(/select 2\+ documents/i)).toBeInTheDocument();
+
+    const askButton = screen.getByRole("button", { name: /^ask/i });
+    expect(askButton).toBeDisabled();
+
+    await userEvent.click(screen.getByRole("button", { name: "alpha.txt" }));
+    expect(askButton).toBeDisabled(); // still only 1 selected
+
+    await userEvent.click(screen.getByRole("button", { name: "beta.txt" }));
+    expect(askButton).not.toBeDisabled();
+    expect(screen.queryByText(/select 2\+ documents/i)).not.toBeInTheDocument();
+
+    await userEvent.type(screen.getByPlaceholderText(/ask anything/i), "diff?");
+    await userEvent.click(askButton);
+
+    expect(await screen.findByText("comparison answer")).toBeInTheDocument();
+    const [, , opts] = vi.mocked(askQueryStreaming).mock.calls[0];
+    expect(opts?.document_ids?.sort()).toEqual(["doc-a", "doc-b"]);
   });
 });

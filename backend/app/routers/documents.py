@@ -4,11 +4,13 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
@@ -126,6 +128,47 @@ def _detect_duplicate(
     return None
 
 
+def _set_progress(db: Session, document: Document, step: str, progress: int, **extra) -> None:
+    """Persist a progress checkpoint immediately (its own commit) so a
+    concurrent GET .../progress request — running in a different DB session —
+    observes it right away rather than waiting for the final commit."""
+    document.processing_progress = json.dumps({"step": step, "progress": progress, **extra})
+    db.commit()
+
+
+def _embed_with_progress(
+    db: Session, document: Document, chunk_texts: list[str]
+) -> list[list[float]]:
+    """Embed in EMBED_BATCH-sized batches (rather than one llm.embed_texts
+    call for everything), updating processing_progress after each batch so
+    the progress bar can show "Creating embeddings (12/45)…" rather than
+    jumping straight from 25% to 95%."""
+    total = len(chunk_texts)
+    embeddings: list[list[float]] = []
+    for start in range(0, total, EMBED_BATCH):
+        batch = chunk_texts[start : start + EMBED_BATCH]
+        embeddings.extend(llm.embed_texts(batch))
+        progress = 25 + int(70 * len(embeddings) / total)
+        _set_progress(
+            db, document, "embedding", progress,
+            chunks_done=len(embeddings), chunks_total=total,
+        )
+    return embeddings
+
+
+def _score_and_summarize(blocks: list[dict], chunk_texts: list[str], filename: str):
+    """CPU-bound scoring/outline/highlight extraction plus the summary LLM
+    call — none of it touches the database, so it's safe to run on a
+    background thread while ``_embed_with_progress`` commits progress
+    checkpoints on the caller's thread."""
+    scores = score_chunks(chunk_texts)
+    highlights = extract_highlights(chunk_texts, scores, n=8)
+    outline = extract_outline(blocks, chunk_texts)
+    full_text = extractor.blocks_to_text(blocks)
+    summary = llm.summarize_document(filename, [h["text"] for h in highlights[:5]])
+    return scores, highlights, outline, full_text, summary
+
+
 def _process_upload(
     db: Session, document: Document, data: bytes, file_type: str
 ) -> UploadResult:
@@ -151,27 +194,20 @@ def _process_upload(
         )
 
     chunk_texts = [c["text"] for c in chunk_dicts]
+    _set_progress(db, document, "extracted", 25)
 
-    # Embeddings are a network round trip (batched internally); everything
-    # else here is pure-Python CPU work with no dependency on the embedding
-    # result, so run them concurrently instead of paying for both in
-    # sequence — same computations and results, just overlapped.
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        embed_future = pool.submit(llm.embed_texts, chunk_texts)
-
-        scores = score_chunks(chunk_texts)
-        highlights = extract_highlights(chunk_texts, scores, n=8)
-        outline = extract_outline(blocks, chunk_texts)
-        full_text = extractor.blocks_to_text(blocks)
-
-        # A second, independent network call (summary) — submitted alongside
-        # the embedding call so it overlaps instead of adding its own latency.
-        summary_future = pool.submit(
-            llm.summarize_document, document.filename, [h["text"] for h in highlights[:5]]
-        )
-
-        embeddings = embed_future.result()
-        summary = summary_future.result()
+    # SQLAlchemy Sessions are not safe to use across threads — even one
+    # commit from a second thread while the first is otherwise idle raises
+    # "session is provisioning a new connection" — so the embedding loop
+    # (which commits a progress checkpoint per batch) must stay on this
+    # thread. Everything else here (scoring, highlighting, outline, and the
+    # summary network call) touches no `db` state, so that bundle runs on a
+    # background thread and overlaps with embedding instead of adding its own
+    # latency on top.
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        meta_future = pool.submit(_score_and_summarize, blocks, chunk_texts, document.filename)
+        embeddings = _embed_with_progress(db, document, chunk_texts)
+        scores, highlights, outline, full_text, summary = meta_future.result()
 
     if len(embeddings) != len(chunk_texts):
         raise HTTPException(status_code=500, detail="Embedding count mismatch.")
@@ -193,6 +229,7 @@ def _process_upload(
         document.processed_at = datetime.now(timezone.utc)
         document.duplicate_of = dup[0] if dup else None
         document.processing_status = "done"
+        document.processing_progress = None
 
         for idx, (cd, embedding) in enumerate(zip(chunk_dicts, embeddings)):
             db.add(
@@ -235,6 +272,7 @@ def _mark_failed(db: Session, document: Document, message: str) -> None:
     db.rollback()
     document.processing_status = "failed"
     document.processing_error = message[:1000]
+    document.processing_progress = None
     db.commit()
 
 
@@ -331,6 +369,69 @@ def document_status(
         chunk_count=int(chunk_count),
         processing_status=document.processing_status,
         error=document.processing_error,
+    )
+
+
+_PROGRESS_POLL_SECONDS = 0.5
+_PROGRESS_MAX_POLLS = 240  # 2 minutes worst case before giving up
+
+
+def _sse(event: str, data: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+
+
+def _progress_events(db: Session, document_id: str):
+    """Poll ``processing_progress`` every ``_PROGRESS_POLL_SECONDS`` and emit
+    an event on each change; closes with ``done``/``error`` once
+    ``processing_status`` leaves "processing"."""
+    last_sent: str | None = None
+    for _ in range(_PROGRESS_MAX_POLLS):
+        db.expire_all()  # otherwise the identity map would keep serving the
+        # first snapshot fetched, hiding updates the background ingestion
+        # thread has since committed via a different Session.
+        document = db.get(Document, document_id)
+        if document is None:
+            yield _sse("error", {"message": "Document not found."})
+            return
+
+        if document.processing_progress != last_sent:
+            last_sent = document.processing_progress
+            if last_sent:
+                yield _sse("progress", json.loads(last_sent))
+
+        if document.processing_status == "done":
+            yield _sse("done", {"status": "done"})
+            return
+        if document.processing_status == "failed":
+            yield _sse("error", {"status": "failed", "message": document.processing_error})
+            return
+
+        time.sleep(_PROGRESS_POLL_SECONDS)
+
+    yield _sse("error", {"message": "Timed out waiting for processing to finish."})
+
+
+@router.get("/{document_id}/progress")
+def document_progress(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """SSE stream of ingestion progress for a single document. Emits a
+    ``progress`` event on each change, then a closing ``done``/``error``.
+    Validated here (404/403) before the streaming response begins, same
+    reasoning as /api/query/stream: raising after the body starts streaming
+    can't produce a clean error status."""
+    document = db.get(Document, document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    if document.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized for this document.")
+
+    return StreamingResponse(
+        _progress_events(db, document_id),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 

@@ -336,7 +336,7 @@ class ConversationTurn(BaseModel):
 
 class QueryRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=2000)
-    mode: str = Field("rag", pattern="^(rag|direct|multihop)$")
+    mode: str = Field("rag", pattern="^(rag|direct|multihop|compare)$")
     document_ids: list[str] = Field(default_factory=list)
     collection_id: str | None = None
     conversation_history: list[ConversationTurn] = Field(default_factory=list)

@@ -1,484 +1,26 @@
 "use client";
 
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type CSSProperties,
-} from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import { createPortal } from "react-dom";
-import {
-  ApiError,
-  askQuery,
-  askQueryStreaming,
-  exportMyData,
-  shareQuery,
-  uploadDocument,
-  type ConversationTurn,
-  type QueryMode,
-  type QueryResponse,
-  type Source,
-  type UploadResult,
-} from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
+import { useQueryStore } from "@/stores/queryStore";
+import { useToast } from "@/hooks/useToast";
+import { useDocumentUpload } from "@/hooks/useDocumentUpload";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { useParallax } from "@/hooks/useParallax";
+import { useOnboarding } from "@/hooks/useOnboarding";
+import { THEMES, useTheme } from "@/lib/theme";
+import AmbientBackground from "@/components/AmbientBackground";
+import Header from "@/components/Header";
+import QueryPanel from "@/components/QueryPanel";
+import MindMap from "@/components/MindMap";
 import DocumentManager from "@/components/DocumentManager";
 import ChatHistoryPanel from "@/components/ChatHistoryPanel";
 import UploadReadyCard from "@/components/UploadReadyCard";
-import MindMap from "@/components/MindMap";
-import ConfidenceGauge from "@/components/ConfidenceGauge";
 import CommandPalette from "@/components/CommandPalette";
-import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
-import { useFloatingRect } from "@/hooks/useFloatingRect";
-import { THEMES, useTheme } from "@/lib/theme";
-import { renderAnswerWithCitations } from "@/components/Citations";
-import Logo from "@/components/Logo";
+import OnboardingModal from "@/components/OnboardingModal";
+import ToastViewport from "@/components/ToastViewport";
 
-/* ----------------------------- Theme tokens ------------------------------ */
-const SUGGESTIONS = [
-  "Summarize the Q3 revenue report",
-  "What are the key risks in the vendor contract?",
-  "How does onboarding work for new hires?",
-];
-
-const ACCENT_GRADIENT = "linear-gradient(135deg,var(--accent),var(--accent2))";
-
-/* ------------------------------ Small parts ------------------------------ */
-function MagnifierIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="var(--muted)"
-      strokeWidth="2"
-      strokeLinecap="round"
-      style={{ flex: "none", marginLeft: 6 }}
-      aria-hidden
-    >
-      <circle cx="11" cy="11" r="7" />
-      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-    </svg>
-  );
-}
-
-function SuggestionChip({ q, onPick }: { q: string; onPick: () => void }) {
-  const [hover, setHover] = useState(false);
-  return (
-    <button
-      onClick={onPick}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 9,
-        padding: "11px 17px",
-        borderRadius: 14,
-        cursor: "pointer",
-        fontFamily: "inherit",
-        fontWeight: 500,
-        fontSize: 14,
-        color: "var(--text)",
-        background: "var(--card-bg)",
-        border: `1px solid ${hover ? "var(--accent)" : "var(--card-border)"}`,
-        backdropFilter: "blur(14px) saturate(140%)",
-        WebkitBackdropFilter: "blur(14px)",
-        transform: hover ? "translateY(-1px)" : "none",
-        transition: "transform .15s ease, border-color .15s ease",
-      }}
-    >
-      <span style={{ color: "var(--muted)", fontSize: 13 }}>try</span>
-      {q}
-      <span style={{ color: "var(--accent)", fontWeight: 700 }}>→</span>
-    </button>
-  );
-}
-
-function SourceCard({ src }: { src: Source }) {
-  const [hover, setHover] = useState(false);
-  const typeLabel = `${src.title.split(".").pop()?.toUpperCase() || "DOC"} · p.${src.page_number}`;
-  const whyRetrieved =
-    `Relevance ${src.relevance_pct}% · similarity ${Math.round(src.similarity_score * 100)}%` +
-    ` · importance ${Math.round(src.importance_score * 100)}%`;
-  return (
-    <div
-      id={`src-${src.n}`}
-      title={whyRetrieved}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        padding: "16px 17px",
-        borderRadius: 16,
-        background: "var(--card-bg)",
-        border: `1px solid ${hover ? "var(--accent)" : "var(--card-border)"}`,
-        backdropFilter: "blur(18px) saturate(140%)",
-        WebkitBackdropFilter: "blur(18px) saturate(140%)",
-        boxShadow: "0 8px 24px var(--cardShadow)",
-        transition: "border-color .15s ease",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 11 }}>
-        <div
-          style={{
-            width: 30,
-            height: 36,
-            borderRadius: 6,
-            background: "var(--doc-bg)",
-            border: "1px solid var(--card-border)",
-            flex: "none",
-            position: "relative",
-            overflow: "hidden",
-          }}
-        >
-          <div style={{ position: "absolute", top: 6, left: 5, right: 5, height: 2, borderRadius: 2, background: "var(--muted)", opacity: 0.4 }} />
-          <div style={{ position: "absolute", top: 11, left: 5, right: 9, height: 2, borderRadius: 2, background: "var(--muted)", opacity: 0.4 }} />
-          <div style={{ position: "absolute", top: 16, left: 5, right: 6, height: 2, borderRadius: 2, background: "var(--muted)", opacity: 0.4 }} />
-          <div style={{ position: "absolute", bottom: 5, left: 5, width: 14, height: 5, borderRadius: 2, background: "var(--accent)", opacity: 0.7 }} />
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between" }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", letterSpacing: "-.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {src.title}
-            </span>
-            <span style={{ flex: "none", display: "inline-flex", alignItems: "center", padding: "3px 8px", borderRadius: 8, fontSize: 11.5, fontWeight: 700, color: "var(--accent)", background: "var(--chip-bg)", border: "1px solid var(--chip-border)" }}>
-              {src.score}%
-            </span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--accent2)" }}>[{src.n}]</span>
-            <span style={{ fontSize: 11.5, color: "var(--muted)" }}>{typeLabel}</span>
-            {src.section_heading && (
-              <span style={{ fontSize: 11.5, color: "var(--muted)", fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 160 }}>
-                · {src.section_heading}
-              </span>
-            )}
-          </div>
-          <p style={{ margin: "9px 0 0", fontSize: 12.5, lineHeight: 1.5, color: "var(--muted)" }}>{src.snippet}</p>
-          {/* Relevance meter */}
-          <div title={`Relevance ${src.relevance_pct}%`} style={{ marginTop: 11, height: 4, borderRadius: 3, background: "var(--seg-bg)", overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${src.score}%`, borderRadius: 3, background: "linear-gradient(90deg,var(--accent),var(--accent2))" }} />
-          </div>
-          {/* Importance meter (second bar) */}
-          <div title={`Importance ${Math.round(src.importance_score * 100)}%`} style={{ marginTop: 5, height: 3, borderRadius: 3, background: "var(--seg-bg)", overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${Math.round(src.importance_score * 100)}%`, borderRadius: 3, background: "var(--accent2)", opacity: 0.7 }} />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const segActive: CSSProperties = {
-  border: "none",
-  cursor: "pointer",
-  fontFamily: "inherit",
-  fontWeight: 700,
-  fontSize: 13,
-  padding: "7px 14px",
-  borderRadius: 10,
-  color: "var(--onAccent)",
-  background: ACCENT_GRADIENT,
-  boxShadow: "0 3px 10px var(--accentGlow)",
-};
-const segIdle: CSSProperties = {
-  border: "none",
-  cursor: "pointer",
-  fontFamily: "inherit",
-  fontWeight: 600,
-  fontSize: 13,
-  padding: "7px 14px",
-  borderRadius: 10,
-  color: "var(--muted)",
-  background: "transparent",
-};
-
-const MODE_INFO: Record<QueryMode, { label: string; description: string }> = {
-  rag: {
-    label: "RAG",
-    description: "Searches your documents for the most relevant passages and grounds the answer in them, with citations.",
-  },
-  multihop: {
-    label: "Multi-hop",
-    description: "Chains several retrieval steps together to connect facts that are spread across multiple documents.",
-  },
-  direct: {
-    label: "Direct",
-    description: "Skips retrieval entirely and answers straight from the model's own knowledge, ungrounded.",
-  },
-};
-
-function ModeButton({
-  mode,
-  active,
-  onClick,
-}: {
-  mode: QueryMode;
-  active: boolean;
-  onClick: () => void;
-}) {
-  const [hover, setHover] = useState(false);
-  const anchorRef = useRef<HTMLDivElement>(null);
-  const rect = useFloatingRect(anchorRef, hover);
-  const info = MODE_INFO[mode];
-  return (
-    <div
-      ref={anchorRef}
-      style={{ position: "relative" }}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-    >
-      <button onClick={onClick} aria-pressed={active} style={active ? segActive : segIdle}>
-        {info.label}
-      </button>
-      {hover && rect && typeof document !== "undefined" && createPortal(
-        <div
-          role="tooltip"
-          style={{
-            position: "fixed",
-            top: rect.bottom + 10,
-            left: rect.left + rect.width / 2,
-            transform: "translateX(-50%)",
-            width: 220,
-            padding: "10px 13px",
-            borderRadius: 12,
-            background: "var(--menu-bg)",
-            border: "1px solid var(--card-border)",
-            color: "var(--text)",
-            fontSize: 12.5,
-            lineHeight: 1.5,
-            fontWeight: 500,
-            textAlign: "center",
-            zIndex: 1000,
-            boxShadow: "0 12px 30px var(--cardShadow)",
-            backdropFilter: "blur(18px) saturate(140%)",
-            WebkitBackdropFilter: "blur(18px) saturate(140%)",
-            pointerEvents: "none",
-            animation: "rise .15s ease both",
-          }}
-        >
-          {info.description}
-        </div>,
-        document.body
-      )}
-    </div>
-  );
-}
-
-function DownloadIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3v12" />
-      <path d="M7 10l5 5 5-5" />
-      <path d="M5 21h14" />
-    </svg>
-  );
-}
-function LinkIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 17H7a5 5 0 0 1 0-10h2" />
-      <path d="M15 7h2a5 5 0 0 1 0 10h-2" />
-      <line x1="8" y1="12" x2="16" y2="12" />
-    </svg>
-  );
-}
-function FileTextIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
-      <path d="M14 2v6h6" />
-      <line x1="8" y1="13" x2="16" y2="13" />
-      <line x1="8" y1="17" x2="13" y2="17" />
-    </svg>
-  );
-}
-function ChevronDownIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M6 9l6 6 6-6" />
-    </svg>
-  );
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-/** Opens a print-formatted window for the current answer; the browser's own
- * "Save as PDF" print destination is the export mechanism (no PDF library
- * dependency needed). */
-function downloadAnswerAsPdf(question: string, result: QueryResponse): void {
-  const win = window.open("", "_blank", "noopener,noreferrer,width=820,height=1000");
-  if (!win) return;
-  const sourcesHtml = result.sources
-    .map(
-      (s) => `<li><strong>[${s.n}] ${escapeHtml(s.title)}</strong> — p.${s.page_number} · ${s.score}% relevance<br><span class="snippet">${escapeHtml(s.snippet)}</span></li>`
-    )
-    .join("");
-  const confPct = Math.round(result.confidence_score * 100);
-  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>PaperTrail — ${escapeHtml(question).slice(0, 60)}</title>
-<style>
-  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #16181d; padding: 48px; max-width: 720px; margin: 0 auto; line-height: 1.6; }
-  .brand { font-weight: 800; font-size: 15px; letter-spacing: -.02em; color: #10b981; margin-bottom: 22px; }
-  h1 { font-size: 19px; margin: 0 0 20px; }
-  .answer { font-size: 15px; white-space: pre-wrap; margin-bottom: 30px; }
-  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #666; border-top: 1px solid #ddd; padding-top: 18px; margin-top: 6px; }
-  ol { padding-left: 20px; margin: 12px 0 0; }
-  li { margin-bottom: 14px; font-size: 12.5px; }
-  .snippet { color: #555; }
-  .meta { font-size: 12px; color: #888; margin-top: 26px; }
-  @media print { body { padding: 0 32px; } }
-</style></head>
-<body>
-  <div class="brand">PaperTrail</div>
-  <h1>${escapeHtml(question) || "Untitled question"}</h1>
-  <div class="answer">${escapeHtml(result.answer)}</div>
-  ${result.sources.length ? `<h2>Sources</h2><ol>${sourcesHtml}</ol>` : ""}
-  <div class="meta">${result.mode === "direct" ? "Direct answer · no retrieval" : `Confidence ${confPct}% · grounded in ${result.sources.length} source${result.sources.length === 1 ? "" : "s"}`}</div>
-</body></html>`);
-  win.document.close();
-  win.focus();
-  win.onload = () => win.print();
-}
-
-function ExportMenu({
-  hasAnswer,
-  onExportZip,
-  onDownloadPdf,
-  onCopyLink,
-}: {
-  hasAnswer: boolean;
-  onExportZip: () => void;
-  onDownloadPdf: () => void;
-  onCopyLink: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const rect = useFloatingRect(ref, open);
-
-  useEffect(() => {
-    if (!open) return;
-    function onDocClick(e: MouseEvent) {
-      const target = e.target as Node;
-      if (ref.current?.contains(target)) return;
-      if (menuRef.current?.contains(target)) return;
-      setOpen(false);
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("mousedown", onDocClick);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  const itemStyle: CSSProperties = {
-    display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 12px",
-    border: "none", background: "none", color: "var(--text)", fontFamily: "inherit",
-    fontSize: 13.5, fontWeight: 600, cursor: "pointer", textAlign: "left", borderRadius: 10,
-  };
-  const disabledItemStyle: CSSProperties = { ...itemStyle, color: "var(--muted)", cursor: "default", opacity: 0.5 };
-
-  return (
-    <div ref={ref} style={{ position: "relative", flex: "none" }}>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 12,
-          border: `1px solid ${open ? "var(--accent)" : "var(--card-border)"}`, background: "var(--seg-bg)",
-          color: "var(--text)", fontFamily: "inherit", fontWeight: 600, fontSize: 13.5, cursor: "pointer",
-        }}
-      >
-        <DownloadIcon />
-        Export
-        <span style={{ display: "inline-flex", transform: open ? "rotate(180deg)" : "none", transition: "transform .15s ease" }}>
-          <ChevronDownIcon />
-        </span>
-      </button>
-      {open && rect && typeof document !== "undefined" && createPortal(
-        <div
-          ref={menuRef}
-          role="menu"
-          style={{
-            position: "fixed", top: rect.bottom + 8, left: rect.right - 250, width: 250, padding: 6, borderRadius: 14,
-            background: "var(--menu-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px) saturate(150%)",
-            WebkitBackdropFilter: "blur(22px) saturate(150%)", boxShadow: "0 18px 40px var(--cardShadow)", zIndex: 1000,
-            animation: "rise .15s ease both",
-          }}
-        >
-          <button
-            role="menuitem"
-            disabled={!hasAnswer}
-            style={hasAnswer ? itemStyle : disabledItemStyle}
-            onClick={() => { if (hasAnswer) { onDownloadPdf(); setOpen(false); } }}
-          >
-            <FileTextIcon /> Download this answer as PDF
-          </button>
-          <button
-            role="menuitem"
-            disabled={!hasAnswer}
-            style={hasAnswer ? itemStyle : disabledItemStyle}
-            onClick={() => { if (hasAnswer) { onCopyLink(); setOpen(false); } }}
-          >
-            <LinkIcon /> Copy share link
-          </button>
-          <div style={{ height: 1, background: "var(--card-border)", margin: "6px 4px" }} />
-          <button role="menuitem" style={itemStyle} onClick={() => { onExportZip(); setOpen(false); }}>
-            <DownloadIcon /> Download account data (.zip)
-          </button>
-        </div>,
-        document.body
-      )}
-    </div>
-  );
-}
-
-function HeaderButton({
-  label,
-  onClick,
-}: {
-  label: string;
-  onClick: () => void;
-}) {
-  const [hover, setHover] = useState(false);
-  return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        padding: "9px 14px",
-        borderRadius: 12,
-        border: `1px solid ${hover ? "var(--accent)" : "var(--card-border)"}`,
-        background: "var(--seg-bg)",
-        color: "var(--text)",
-        fontFamily: "inherit",
-        fontWeight: 600,
-        fontSize: 13.5,
-        cursor: "pointer",
-        flex: "none",
-      }}
-    >
-      {label}
-    </button>
-  );
-}
-
-/* -------------------------------- Page ----------------------------------- */
 export default function Home() {
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -486,64 +28,50 @@ export default function Home() {
   const restoreSession = useAuthStore((s) => s.restoreSession);
   const storeLogout = useAuthStore((s) => s.logout);
 
-  // On mount, silently exchange the httpOnly refresh cookie for an access
-  // token so a reload keeps the session. Once ready, unauthenticated users are
-  // routed to /login (the real gate; middleware only handles redirect UX).
-  useEffect(() => {
-    restoreSession();
-  }, [restoreSession]);
+  useEffect(() => { restoreSession(); }, [restoreSession]);
   useEffect(() => {
     if (ready && !isAuthenticated) router.replace("/login");
   }, [ready, isAuthenticated, router]);
-
   const authed = ready ? isAuthenticated : null;
+
   const [theme, setTheme] = useTheme();
-  const [mode, setMode] = useState<QueryMode>("rag");
-  const [query, setQuery] = useState("");
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const queryInputRef = useRef<HTMLInputElement>(null);
-
-  const [result, setResult] = useState<QueryResponse | null>(null);
-  const [askedQuestion, setAskedQuestion] = useState("");
-  const [answerMode, setAnswerMode] = useState<QueryMode>("rag");
-  const [timing, setTiming] = useState(0);
-  const [asking, setAsking] = useState(false);
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [conversationHistory, setConversationHistory] = useState<ConversationTurn[]>([]);
-
-  const [uploading, setUploading] = useState(false);
-  const [lastUpload, setLastUpload] = useState<UploadResult | null>(null);
-  const [toast, setToast] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-
   const [docsOpen, setDocsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [docRefreshKey, setDocRefreshKey] = useState(0);
-  const [parallax, setParallax] = useState({ x: 0, y: 0 });
+  const queryInputRef = useRef<HTMLInputElement>(null);
+  const parallax = useParallax();
+  const { showOnboarding, dismissOnboarding } = useOnboarding(authed);
 
-  // Subtle mouse parallax on the ambient layer for depth. Disabled entirely
-  // when the user prefers reduced motion. setState runs only inside the rAF
-  // callback (not synchronously in the effect body).
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    if (mq.matches) return;
-    let raf = 0;
-    function onMove(e: MouseEvent) {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        setParallax({
-          x: (e.clientX / window.innerWidth - 0.5) * 2,
-          y: (e.clientY / window.innerHeight - 0.5) * 2,
-        });
-      });
-    }
-    window.addEventListener("mousemove", onMove);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      cancelAnimationFrame(raf);
-    };
-  }, []);
+  const { toast, showToast } = useToast();
+  const setQuery = useQueryStore((s) => s.setQuery);
+  const runQuery = useQueryStore((s) => s.runQuery);
+  const startNewConversation = useQueryStore((s) => s.startNewConversation);
+  const hasAnswer = useQueryStore((s) => s.hasAnswer);
+  const answerMode = useQueryStore((s) => s.answerMode);
+  const queryId = useQueryStore((s) => s.queryId);
+
+  function handleUnauthorized() {
+    void storeLogout();
+    startNewConversation();
+    setDocsOpen(false);
+    setHistoryOpen(false);
+    showToast("err", "Your session expired. Please sign in again.");
+    router.replace("/login");
+  }
+
+  const { uploading, lastUpload, setLastUpload, fileRef, handleFile } = useDocumentUpload({
+    onUnauthorized: handleUnauthorized,
+    onUploaded: () => setDocRefreshKey((k) => k + 1),
+    showToast,
+  });
+
+  function signOut() {
+    void storeLogout();
+    startNewConversation();
+    setQuery("");
+    router.replace("/login");
+  }
 
   useKeyboardShortcuts({
     focusQuery: () => queryInputRef.current?.focus(),
@@ -554,564 +82,50 @@ export default function Home() {
     shortcutsHelp: () => showToast("ok", "/ focus · Ctrl+K palette · Ctrl+U upload · Ctrl+H history"),
   });
 
-  // First-login onboarding hint (dismissed permanently in localStorage) —
-  // localStorage is a browser-only external system, unreadable during render.
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  useEffect(() => {
-    if (authed === true && !window.localStorage.getItem("papertrail_onboarded")) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from localStorage, not derivable during render (see comment above)
-      setShowOnboarding(true);
-    }
-  }, [authed]);
-  function dismissOnboarding() {
-    window.localStorage.setItem("papertrail_onboarded", "1");
-    setShowOnboarding(false);
-  }
-
   const isDark = theme === "dark";
-  const t = THEMES[theme];
-  const answered = result !== null;
-
-  function showToast(kind: "ok" | "err", text: string) {
-    setToast({ kind, text });
-    window.setTimeout(() => setToast(null), 4000);
-  }
-
-  function handleUnauthorized() {
-    void storeLogout(); // clear token/session, then route to sign-in
-    setResult(null);
-    setConversationHistory([]);
-    setDocsOpen(false);
-    setHistoryOpen(false);
-    showToast("err", "Your session expired. Please sign in again.");
-    router.replace("/login");
-  }
-
-  function signOut() {
-    void storeLogout();
-    setResult(null);
-    setConversationHistory([]);
-    setQuery("");
-    router.replace("/login");
-  }
-
-  const MAX_CONVERSATION_TURNS = 6;
-
-  /** Appends this exchange to conversationHistory and trims to the last 3
-   * exchanges (6 turns), so the next follow-up question carries it as
-   * context. */
-  function appendToConversation(question: string, answer: string) {
-    setConversationHistory((prev) =>
-      [
-        ...prev,
-        { role: "user", content: question } as ConversationTurn,
-        { role: "assistant", content: answer } as ConversationTurn,
-      ].slice(-MAX_CONVERSATION_TURNS)
-    );
-  }
-
-  function startNewConversation() {
-    setConversationHistory([]);
-    setResult(null);
-    setAskedQuestion("");
-    setError(null);
-  }
-
-  async function runQueryBlocking(question: string, start: number) {
-    const data = await askQuery(question, mode, { conversation_history: conversationHistory });
-    setResult(data);
-    setAskedQuestion(question);
-    setAnswerMode(mode);
-    setTiming((performance.now() - start) / 1000);
-    appendToConversation(question, data.answer);
-  }
-
-  async function runQuery(q: string) {
-    const question = q.trim();
-    if (!question || asking) return;
-    setAsking(true);
-    setError(null);
-    const start = performance.now();
-
-    let partial: QueryResponse = {
-      answer: "",
-      mode,
-      sources: [],
-      confidence_score: 0,
-      followup_questions: [],
-      unsupported_sentences: [],
-      query_id: null,
-    };
-    let receivedSources = false;
-    try {
-      for await (const event of askQueryStreaming(question, mode, {
-        conversation_history: conversationHistory,
-      })) {
-        if (event.type === "sources") {
-          receivedSources = true;
-          partial = { ...partial, sources: event.sources };
-          setAskedQuestion(question);
-          setAnswerMode(mode);
-          setIsStreaming(true);
-          setResult({ ...partial });
-        } else if (event.type === "token") {
-          partial = { ...partial, answer: partial.answer + event.token };
-          setResult({ ...partial });
-        } else if (event.type === "followups") {
-          partial = { ...partial, followup_questions: event.followups };
-        } else if (event.type === "hallucination") {
-          partial = { ...partial, unsupported_sentences: event.unsupported_sentences };
-        } else if (event.type === "done") {
-          partial = { ...partial, confidence_score: event.confidence_score, query_id: event.query_id };
-          setResult({ ...partial });
-          setTiming((performance.now() - start) / 1000);
-          appendToConversation(question, partial.answer);
-        }
-      }
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 401) return handleUnauthorized();
-      if (receivedSources) {
-        // Failed partway through the stream — don't silently replace the
-        // partial answer already on screen with a fresh (re-run) one.
-        setError(e instanceof Error ? e.message : "The answer stream was interrupted.");
-      } else {
-        // Never got going (no SSE support, network hiccup, etc.) — fall back
-        // to the blocking endpoint transparently.
-        try {
-          await runQueryBlocking(question, start);
-        } catch (e2) {
-          if (e2 instanceof ApiError && e2.status === 401) return handleUnauthorized();
-          setError(e2 instanceof Error ? e2.message : "Something went wrong.");
-          setResult(null);
-        }
-      }
-    } finally {
-      setIsStreaming(false);
-      setAsking(false);
-    }
-  }
-
-  async function handleFile(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = ""; // allow re-uploading the same file
-    if (!file) return;
-    setUploading(true);
-    try {
-      const res = await uploadDocument(file);
-      setLastUpload(res);
-      showToast("ok", `Uploaded ${res.filename} · ${res.chunks_created} chunks`);
-      setDocRefreshKey((k) => k + 1); // refresh the document manager
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401) return handleUnauthorized();
-      showToast("err", err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  const accentBtn: CSSProperties = {
-    color: "var(--onAccent)",
-    background: ACCENT_GRADIENT,
-    boxShadow: "0 4px 14px var(--accentGlow)",
-  };
-
-  const confPct = result ? Math.round(result.confidence_score * 100) : 0;
-  const confidence = confPct >= 75 ? "High confidence" : confPct >= 50 ? "Moderate" : "Low confidence";
 
   return (
-    <div
-      style={{
-        position: "relative",
-        minHeight: "100vh",
-        background: "var(--bg)",
-        transition: "background .4s ease",
-        ...t,
-      } as CSSProperties}
-    >
-      {/* Ambient animated blobs (whole-layer mouse parallax for depth) */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          overflow: "hidden",
-          pointerEvents: "none",
-          zIndex: 0,
-          transform: `translate3d(${parallax.x * 18}px, ${parallax.y * 18}px, 0)`,
-          transition: "transform .25s ease-out",
-          willChange: "transform",
-        }}
-      >
-        <div style={{ position: "absolute", top: -140, left: -120, width: 560, height: 560, borderRadius: "50%", background: "var(--blob1)", filter: "blur(90px)", opacity: "var(--blobOp)" as unknown as number, animation: "floatA 18s ease-in-out infinite" }} />
-        <div style={{ position: "absolute", bottom: -180, right: -120, width: 620, height: 620, borderRadius: "50%", background: "var(--blob2)", filter: "blur(100px)", opacity: "var(--blobOp)" as unknown as number, animation: "floatB 22s ease-in-out infinite" }} />
-        <div style={{ position: "absolute", top: "32%", left: "44%", width: 420, height: 420, borderRadius: "50%", background: "var(--blob3)", filter: "blur(110px)", opacity: "var(--blobOp3)" as unknown as number, animation: "floatC 26s ease-in-out infinite" }} />
-      </div>
+    <div style={{ position: "relative", minHeight: "100vh", background: "var(--bg)", transition: "background .4s ease", ...THEMES[theme] } as CSSProperties}>
+      <AmbientBackground parallax={parallax} />
 
       <div style={{ position: "relative", zIndex: 1, maxWidth: 1200, margin: "0 auto", padding: "22px 28px 80px" }}>
         {authed === true && (
           <>
-            {/* TOP BAR */}
-            <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 16px", borderRadius: 18, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(18px) saturate(140%)", WebkitBackdropFilter: "blur(18px) saturate(140%)", flexWrap: "wrap" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0 }}>
-                <Logo />
-                <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: "-.02em", color: "var(--text)" }}>PaperTrail</span>
-              </div>
-
-              {/* Segmented mode toggle */}
-              <div role="group" aria-label="Answer mode" style={{ display: "flex", gap: 3, padding: 4, borderRadius: 13, background: "var(--seg-bg)", border: "1px solid var(--card-border)" }}>
-                <ModeButton mode="rag" active={mode === "rag"} onClick={() => setMode("rag")} />
-                <ModeButton mode="multihop" active={mode === "multihop"} onClick={() => setMode("multihop")} />
-                <ModeButton mode="direct" active={mode === "direct"} onClick={() => setMode("direct")} />
-              </div>
-
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto", flexWrap: "wrap" }}>
-                <HeaderButton label="Library" onClick={() => router.push("/library")} />
-                <HeaderButton label="Analytics" onClick={() => router.push("/analytics")} />
-                <HeaderButton label="Documents" onClick={() => setDocsOpen(true)} />
-                <HeaderButton label="History" onClick={() => setHistoryOpen(true)} />
-                <ExportMenu
-                  hasAnswer={answered}
-                  onExportZip={async () => {
-                    try { await exportMyData(); showToast("ok", "Your data export is ready"); }
-                    catch (e) { showToast("err", e instanceof ApiError && e.status === 429 ? "Export limit reached — try again later." : "Export failed"); }
-                  }}
-                  onDownloadPdf={() => {
-                    if (!result) return;
-                    downloadAnswerAsPdf(askedQuestion, result);
-                  }}
-                  onCopyLink={async () => {
-                    if (!result?.query_id) { showToast("err", "This answer can't be shared."); return; }
-                    try {
-                      const { token } = await shareQuery(result.query_id);
-                      await navigator.clipboard.writeText(`${window.location.origin}/share/${token}`);
-                      showToast("ok", "Share link copied to clipboard");
-                    } catch (e) {
-                      if (e instanceof ApiError && e.status === 401) return handleUnauthorized();
-                      showToast("err", e instanceof ApiError ? e.message : "Could not create share link");
-                    }
-                  }}
-                />
-                {/* Theme switch */}
-                <button
-                  onClick={() => setTheme(isDark ? "light" : "dark")}
-                  aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
-                  style={{ position: "relative", width: 60, height: 30, borderRadius: 16, border: "1px solid var(--card-border)", background: "var(--seg-bg)", cursor: "pointer", padding: 0, flex: "none" }}
-                >
-                  <span style={{ position: "absolute", top: 3, left: isDark ? 33 : 3, width: 24, height: 24, borderRadius: "50%", background: ACCENT_GRADIENT, boxShadow: "0 2px 8px var(--accentGlow)", transition: "left .28s cubic-bezier(.4,0,.2,1)" }} />
-                </button>
-                {/* Upload */}
-                <button
-                  onClick={() => fileRef.current?.click()}
-                  disabled={uploading}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 15px", borderRadius: 12, border: "none", cursor: uploading ? "default" : "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 13.5, opacity: uploading ? 0.7 : 1, ...accentBtn }}
-                >
-                  {uploading ? <Spinner /> : <span style={{ fontSize: 15, lineHeight: 1, marginTop: -1 }}>+</span>}
-                  {uploading ? "Uploading…" : "Upload document"}
-                </button>
-                <input ref={fileRef} type="file" accept=".pdf,.docx,.txt,.md,.xlsx,.csv" onChange={handleFile} style={{ display: "none" }} />
-                <HeaderButton label="Profile" onClick={() => router.push("/profile")} />
-                <HeaderButton label="Sign out" onClick={signOut} />
-              </div>
-            </div>
-
-            {/* SEARCH BAR */}
-            <div style={{ marginTop: 40 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px 9px 16px", borderRadius: 20, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px) saturate(150%)", WebkitBackdropFilter: "blur(22px) saturate(150%)", boxShadow: "0 14px 40px var(--cardShadow)" }}>
-                <MagnifierIcon />
-                <input
-                  ref={queryInputRef}
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") runQuery(query || SUGGESTIONS[0]); }}
-                  placeholder="Ask anything about your documents…"
-                  aria-label="Ask a question about your documents"
-                  style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", fontFamily: "inherit", fontSize: 16.5, color: "var(--text)", padding: "2px 4px" }}
-                />
-                <button
-                  onClick={() => runQuery(query || SUGGESTIONS[0])}
-                  disabled={asking}
-                  style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px 20px", borderRadius: 14, border: "none", cursor: asking ? "default" : "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 14, flex: "none", opacity: asking ? 0.75 : 1, ...accentBtn }}
-                >
-                  {asking ? <Spinner /> : null}
-                  {asking ? "Asking…" : "Ask"}
-                  {!asking && <span style={{ fontSize: 15, marginTop: -1 }}>→</span>}
-                </button>
-              </div>
-              {conversationHistory.length > 0 && (
-                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
-                  <button
-                    onClick={startNewConversation}
-                    style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 10, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 12.5, color: "var(--muted)" }}
-                  >
-                    <span aria-hidden>↺</span> New conversation
-                  </button>
-                </div>
-              )}
-              {error && (
-                <div role="alert" style={{ marginTop: 12, padding: "10px 14px", borderRadius: 12, fontSize: 13.5, color: "#ff8a80", background: "rgba(255,80,80,.10)", border: "1px solid rgba(255,120,120,.35)" }}>
-                  {error}
-                </div>
-              )}
-              {lastUpload && !answered && (
-                <UploadReadyCard result={lastUpload} onDismiss={() => setLastUpload(null)} />
-              )}
-            </div>
-
-            {/* EMPTY / LANDING STATE */}
-            {!answered && !asking && (
-              <div style={{ textAlign: "center", marginTop: 90, animation: "rise .5s ease both" }}>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 13px", borderRadius: 20, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(14px)", fontSize: 12.5, fontWeight: 600, color: "var(--muted)", letterSpacing: ".01em" }}>
-                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--accent)", boxShadow: "0 0 8px var(--accent)" }} />
-                  Grounded in your documents
-                </div>
-                <h1 style={{ margin: "22px auto 0", maxWidth: 640, fontSize: 44, lineHeight: 1.08, letterSpacing: "-.03em", fontWeight: 800, color: "var(--text)" }}>
-                  Answers you can trace back<br />to the source.
-                </h1>
-                <p style={{ margin: "16px auto 0", maxWidth: 500, fontSize: 16, lineHeight: 1.55, color: "var(--muted)" }}>
-                  Ask a question and PaperTrail retrieves the exact passages, cites them inline, and shows you how confident it is.
-                </p>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 11, justifyContent: "center", marginTop: 34 }}>
-                  {SUGGESTIONS.map((q) => (
-                    <SuggestionChip key={q} q={q} onPick={() => { setQuery(q); runQuery(q); }} />
-                  ))}
-                </div>
-              </div>
+            <Header
+              isDark={isDark}
+              onToggleTheme={() => setTheme(isDark ? "light" : "dark")}
+              onDocsOpen={() => setDocsOpen(true)}
+              onHistoryOpen={() => setHistoryOpen(true)}
+              uploading={uploading}
+              fileRef={fileRef}
+              onFileChange={handleFile}
+              onSignOut={signOut}
+              onUnauthorized={handleUnauthorized}
+              showToast={showToast}
+            />
+            <QueryPanel queryInputRef={queryInputRef} onUnauthorized={handleUnauthorized} />
+            {lastUpload && !hasAnswer && (
+              <UploadReadyCard result={lastUpload} onDismiss={() => setLastUpload(null)} />
             )}
-
-            {/* LOADING SKELETON */}
-            {asking && !answered && (
-              <div style={{ marginTop: 34, animation: "rise .35s ease both" }}>
-                <SkeletonCard />
-              </div>
-            )}
-
-            {/* ANSWERED STATE */}
-            {result && (
-              <div style={{ display: "flex", gap: 22, marginTop: 34, flexWrap: "wrap", alignItems: "flex-start", animation: "rise .45s ease both" }}>
-                <div style={{ flex: "1 1 520px", minWidth: 300, padding: "30px 32px", borderRadius: 22, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px) saturate(150%)", WebkitBackdropFilter: "blur(22px) saturate(150%)", boxShadow: "0 18px 50px var(--cardShadow)" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 18 }}>
-                    <div style={{ width: 22, height: 22, borderRadius: 7, background: ACCENT_GRADIENT, flex: "none" }} />
-                    <span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--muted)" }}>
-                      {answerMode === "direct" ? "Direct answer" : answerMode === "multihop" ? "Multi-hop answer" : "Retrieved answer"}
-                    </span>
-                    {answerMode !== "direct" && (
-                      <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 700, color: "var(--accent)", background: "var(--chip-bg)", border: "1px solid var(--chip-border)" }}>
-                        {isStreaming ? "Answering…" : `${confPct}% confidence`}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 19, lineHeight: 1.62, letterSpacing: "-.01em", color: "var(--text)", fontWeight: 400, whiteSpace: isStreaming ? "pre-wrap" : undefined }}>
-                    {isStreaming ? (
-                      <>
-                        {result.answer}
-                        <BlinkingCursor />
-                      </>
-                    ) : (
-                      renderAnswerWithCitations(result.answer, result.sources.length)
-                    )}
-                  </div>
-                  {!isStreaming && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 26, paddingTop: 18, borderTop: "1px solid var(--card-border)", flexWrap: "wrap" }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
-                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--accent)", boxShadow: "0 0 8px var(--accent)" }} />
-                        {answerMode === "direct" ? "Direct answer" : confidence}
-                      </span>
-                      <span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--muted)", opacity: 0.5 }} />
-                      <span style={{ fontSize: 13, color: "var(--muted)" }}>
-                        {answerMode === "direct"
-                          ? "No retrieval"
-                          : `Grounded in ${result.sources.length} source${result.sources.length === 1 ? "" : "s"}`}
-                      </span>
-                      <span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--muted)", opacity: 0.5 }} />
-                      <span style={{ fontSize: 13, color: "var(--muted)" }}>answered in {timing.toFixed(1)}s</span>
-                    </div>
-                  )}
-
-                  {/* Hallucination guard: claims without a direct source */}
-                  {!isStreaming && result.unsupported_sentences.length > 0 && (
-                    <div style={{ marginTop: 16, padding: "10px 13px", borderRadius: 12, fontSize: 12.5, color: "#e0a53a", background: "rgba(224,165,58,.10)", border: "1px solid rgba(224,165,58,.35)" }}>
-                      ⚠ {result.unsupported_sentences.length} claim
-                      {result.unsupported_sentences.length === 1 ? "" : "s"} without a direct source in your documents.
-                    </div>
-                  )}
-
-                  {/* Follow-up questions */}
-                  {!isStreaming && result.followup_questions.length > 0 && (
-                    <div style={{ marginTop: 20 }}>
-                      <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)", marginBottom: 10 }}>
-                        Follow-up questions
-                      </div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                        {result.followup_questions.map((q, i) => (
-                          <button
-                            key={i}
-                            onClick={() => { setQuery(q); runQuery(q); }}
-                            style={{ padding: "8px 13px", borderRadius: 12, cursor: "pointer", fontFamily: "inherit", fontSize: 13, color: "var(--text)", background: "var(--seg-bg)", border: "1px solid var(--card-border)" }}
-                          >
-                            {q}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {result.sources.length > 0 && (
-                  <div style={{ flex: "1 1 300px", minWidth: 270, maxWidth: 380 }}>
-                    {answerMode !== "direct" && !isStreaming && (
-                      <div style={{ display: "flex", justifyContent: "center", marginBottom: 12, padding: "12px 0", borderRadius: 16, background: "var(--card-bg)", border: "1px solid var(--card-border)" }}>
-                        <ConfidenceGauge value={result.confidence_score} />
-                      </div>
-                    )}
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "2px 4px 14px" }}>
-                      <span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)" }}>Sources</span>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)" }}>
-                        {result.sources.length} document{result.sources.length === 1 ? "" : "s"}
-                      </span>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                      {result.sources.map((src) => (
-                        <SourceCard key={src.n} src={src} />
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Concept map (RAG / multi-hop only) */}
-            {result && answerMode !== "direct" && result.query_id && (
-              <MindMap queryId={result.query_id} />
-            )}
+            {hasAnswer && answerMode !== "direct" && queryId && <MindMap queryId={queryId} />}
           </>
         )}
       </div>
 
-      {/* Slide-over panels */}
       {authed === true && (
         <>
-          <DocumentManager
-            open={docsOpen}
-            onClose={() => setDocsOpen(false)}
-            refreshKey={docRefreshKey}
-            onChanged={() => setDocRefreshKey((k) => k + 1)}
-            onUnauthorized={handleUnauthorized}
+          <DocumentManager open={docsOpen} onClose={() => setDocsOpen(false)} refreshKey={docRefreshKey} onChanged={() => setDocRefreshKey((k) => k + 1)} onUnauthorized={handleUnauthorized} />
+          <ChatHistoryPanel open={historyOpen} onClose={() => setHistoryOpen(false)} refreshKey={docRefreshKey} onUnauthorized={handleUnauthorized} />
+          <CommandPalette
+            open={paletteOpen}
+            onClose={() => setPaletteOpen(false)}
+            onPickQuery={(q) => { setQuery(q); setPaletteOpen(false); void runQuery(q, handleUnauthorized); }}
           />
-          <ChatHistoryPanel
-            open={historyOpen}
-            onClose={() => setHistoryOpen(false)}
-            refreshKey={docRefreshKey}
-            onUnauthorized={handleUnauthorized}
-          />
+          {showOnboarding && <OnboardingModal onDismiss={dismissOnboarding} />}
         </>
       )}
 
-      {/* Command palette */}
-      {authed === true && (
-        <CommandPalette
-          open={paletteOpen}
-          onClose={() => setPaletteOpen(false)}
-          onPickQuery={(q) => { setQuery(q); setPaletteOpen(false); runQuery(q); }}
-        />
-      )}
-
-      {/* First-login onboarding hint */}
-      {authed === true && showOnboarding && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ maxWidth: 440, padding: "28px 30px", borderRadius: 20, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px) saturate(150%)", boxShadow: "0 24px 60px var(--cardShadow)" }}>
-            <h2 style={{ margin: "0 0 10px", fontSize: 20, fontWeight: 800, color: "var(--text)" }}>Welcome to PaperTrail</h2>
-            <ol style={{ margin: "0 0 18px", paddingLeft: 20, color: "var(--muted)", fontSize: 14, lineHeight: 1.9 }}>
-              <li><strong style={{ color: "var(--text)" }}>Upload</strong> a document (top-right, or Ctrl+U).</li>
-              <li>Ask a question in the <strong style={{ color: "var(--text)" }}>search bar</strong> (press /).</li>
-              <li>Switch <strong style={{ color: "var(--text)" }}>RAG / Multi-hop / Direct</strong> modes.</li>
-              <li>Trace answers to their <strong style={{ color: "var(--text)" }}>source cards</strong>.</li>
-              <li>Browse everything in the <strong style={{ color: "var(--text)" }}>Library</strong>.</li>
-            </ol>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-              <button onClick={dismissOnboarding} style={{ padding: "10px 18px", borderRadius: 12, border: "none", cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 14, color: "var(--onAccent)", background: ACCENT_GRADIENT }}>
-                Got it
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TOAST */}
-      <div aria-live="polite" role="status" style={{ position: "fixed", bottom: 22, right: 22, zIndex: 70 }}>
-        {toast && (
-          <div
-            style={{
-              padding: "12px 16px",
-              borderRadius: 12,
-              fontSize: 13.5,
-              fontWeight: 600,
-              color: "var(--text)",
-              background: "var(--card-bg)",
-              border: `1px solid ${toast.kind === "ok" ? "var(--chip-border)" : "rgba(255,120,120,.4)"}`,
-              backdropFilter: "blur(18px) saturate(150%)",
-              WebkitBackdropFilter: "blur(18px) saturate(150%)",
-              boxShadow: "0 10px 30px var(--cardShadow)",
-              animation: "rise .3s ease both",
-            }}
-          >
-            <span style={{ marginRight: 8 }} aria-hidden>
-              {toast.kind === "ok" ? "✓" : "⚠"}
-            </span>
-            {toast.text}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------ Utilities -------------------------------- */
-function BlinkingCursor() {
-  return (
-    <span
-      aria-hidden
-      style={{
-        display: "inline-block",
-        width: 2,
-        height: "1.05em",
-        marginLeft: 2,
-        verticalAlign: "text-bottom",
-        background: "var(--accent)",
-        animation: "blink 1s step-end infinite",
-      }}
-    />
-  );
-}
-
-function Spinner() {
-  return (
-    <span
-      aria-hidden
-      style={{
-        width: 14,
-        height: 14,
-        borderRadius: "50%",
-        border: "2px solid rgba(255,255,255,.45)",
-        borderTopColor: "#fff",
-        display: "inline-block",
-        animation: "spin .7s linear infinite",
-      }}
-    />
-  );
-}
-
-function SkeletonCard() {
-  return (
-    <div style={{ display: "flex", gap: 22, flexWrap: "wrap", alignItems: "flex-start" }}>
-      <div style={{ flex: "1 1 520px", minWidth: 300, padding: "30px 32px", borderRadius: 22, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px)" }}>
-        {[92, 88, 80, 60].map((w, i) => (
-          <div key={i} style={{ height: 14, width: `${w}%`, borderRadius: 7, margin: "0 0 14px", background: "var(--seg-bg)", animation: "pulse 1.2s ease-in-out infinite", animationDelay: `${i * 0.1}s` }} />
-        ))}
-      </div>
-      <div style={{ flex: "1 1 300px", minWidth: 270, maxWidth: 380, display: "flex", flexDirection: "column", gap: 12 }}>
-        {[0, 1].map((i) => (
-          <div key={i} style={{ height: 92, borderRadius: 16, background: "var(--card-bg)", border: "1px solid var(--card-border)", animation: "pulse 1.2s ease-in-out infinite", animationDelay: `${i * 0.15}s` }} />
-        ))}
-      </div>
+      <ToastViewport toast={toast} />
     </div>
   );
 }

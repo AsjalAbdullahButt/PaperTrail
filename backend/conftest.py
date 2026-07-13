@@ -66,12 +66,19 @@ def db_session():
 
 @pytest.fixture(autouse=True)
 def _no_disk_writes(monkeypatch):
-    """Tests exercise the upload pipeline but must not leave files on disk, and
-    default rate limits are relaxed so ordinary tests don't trip them. Tests
-    that specifically exercise a limit set their own (later, so it wins)."""
+    """Tests exercise the upload pipeline but must not leave files on disk,
+    default rate limits are relaxed so ordinary tests don't trip them, and the
+    LLM layer defaults to the offline path — a real (possibly rate-limited or
+    slow-to-retry) OpenAI/Groq key in the local .env must never leak into
+    ordinary test runs, where it can add minutes of retry backoff and make
+    timing-sensitive tests (e.g. rate-limit window tests) flaky. Tests that
+    specifically exercise a limit, or the real hosted-provider code path, set
+    their own values (later, so they win)."""
     from app.config import settings
 
     monkeypatch.setattr(settings, "store_originals", False, raising=False)
+    monkeypatch.setattr(settings, "openai_api_key", "", raising=False)
+    monkeypatch.setattr(settings, "groq_api_key", "", raising=False)
     for attr in (
         "rate_limit_query", "rate_limit_upload", "rate_limit_login",
         "rate_limit_register", "rate_limit_export", "rate_limit_default",

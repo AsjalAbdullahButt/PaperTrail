@@ -14,7 +14,11 @@ CHUNK_OVERLAP_SENTENCES = 2
 # Rough token estimate used only to size semantic chunks (no tokenizer dep).
 CHARS_PER_TOKEN = 4
 
-SUPPORTED_TYPES = {"pdf", "txt", "md"}
+# Kept in sync with services.extractor.SUPPORTED_TYPES (the actual upload-time
+# validator) — this constant is not itself wired into request validation, but
+# left out of sync with the extractor before was a latent bug waiting to bite
+# whatever future code reads it.
+SUPPORTED_TYPES = {"pdf", "docx", "pptx", "txt", "md", "xlsx", "csv"}
 
 
 def file_type_from_name(filename: str) -> str:

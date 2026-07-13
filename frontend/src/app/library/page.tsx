@@ -22,7 +22,7 @@ import {
 } from "@/lib/api";
 
 const TYPE_ICON: Record<string, string> = {
-  pdf: "PDF", docx: "DOC", txt: "TXT", md: "MD", xlsx: "XLS", csv: "CSV",
+  pdf: "PDF", docx: "DOC", pptx: "PPT", txt: "TXT", md: "MD", xlsx: "XLS", csv: "CSV",
 };
 
 const card: CSSProperties = {

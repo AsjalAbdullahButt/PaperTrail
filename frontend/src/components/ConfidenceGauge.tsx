@@ -18,15 +18,30 @@ function arcPath(fromDeg: number, toDeg: number): string {
   return `M ${x1} ${y1} A ${R} ${R} 0 ${large} 1 ${x2} ${y2}`;
 }
 
+// Calibration thresholds match backend/app/routers/query.py's _confidence():
+// < 0.4 is capped low as an absolute "likely off-topic" gate, so labels
+// follow the same cut points rather than the old relative 0.5/0.75 split.
+const LOW_MAX = 0.4;
+const HIGH_MIN = 0.7;
+
 export default function ConfidenceGauge({ value }: { value: number }) {
   const v = Math.max(0, Math.min(1, value));
   // Semicircle from 180deg (left) to 360deg (right).
   const end = 180 + v * 180;
   const pct = Math.round(v * 100);
-  const label = v >= 0.75 ? "High confidence" : v >= 0.5 ? "Moderate" : "Low confidence";
+  const label = v > HIGH_MIN ? "High confidence" : v >= LOW_MAX ? "Moderate" : "Low confidence";
+  const tooltip =
+    v > HIGH_MIN
+      ? "High — well-supported"
+      : v >= LOW_MAX
+      ? "Moderate — review sources"
+      : "Low — answer may not be in documents";
 
   return (
-    <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+    <div
+      title={tooltip}
+      style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 2 }}
+    >
       <svg viewBox="0 0 120 70" width="120" height="70" role="img" aria-label={`Confidence ${pct} percent`}>
         <defs>
           <linearGradient id="conf-grad" x1="0" y1="0" x2="1" y2="0">

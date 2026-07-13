@@ -15,7 +15,7 @@ from app.ingestion import (
 from app.services import extractor
 from app.services.importance import extract_highlights, score_chunks
 from app.services.outliner import extract_outline
-from ._helpers import make_encrypted_pdf, make_text_pdf
+from ._helpers import make_encrypted_pdf, make_pptx_bytes, make_text_pdf
 
 
 def _make_docx(paras: list[tuple[str, str | None]]) -> bytes:
@@ -110,6 +110,49 @@ def test_extract_blocks_xlsx_rows_to_text():
     blocks = extractor.extract_blocks(data, "xlsx")
     texts = " ".join(b["text"] for b in blocks)
     assert "Name: Widget" in texts and "Amount: 42" in texts
+
+
+def test_extract_blocks_pptx_slide_count_and_provenance():
+    data = make_pptx_bytes(
+        [
+            {"title": "Introduction", "body": "Welcome to the quarterly review."},
+            {
+                "title": "Key Points",
+                "body": "Revenue grew twenty percent.",
+                "notes": "Remember to mention the new budget.",
+            },
+            {"title": "Conclusion", "body": "Thanks for attending."},
+        ]
+    )
+    blocks = extractor.extract_blocks(data, "pptx")
+    # 3 slides x (title + body) + 1 notes block on slide 2 = 7 blocks.
+    assert len(blocks) == 7
+    assert all(1 <= b["page"] <= 3 for b in blocks)
+
+
+def test_extract_blocks_pptx_title_is_heading():
+    data = make_pptx_bytes([{"title": "Introduction", "body": "Some body text here."}])
+    blocks = extractor.extract_blocks(data, "pptx")
+    titles = [b for b in blocks if b["is_heading"]]
+    assert len(titles) == 1
+    assert titles[0]["text"] == "Introduction"
+    assert titles[0]["level"] == 1
+    assert titles[0]["page"] == 1
+
+
+def test_extract_blocks_pptx_speaker_notes_tagged():
+    data = make_pptx_bytes(
+        [{"title": "Slide", "body": "Body text.", "notes": "Speaker notes go here."}]
+    )
+    blocks = extractor.extract_blocks(data, "pptx")
+    notes_blocks = [b for b in blocks if b["heading"] == "Notes"]
+    assert len(notes_blocks) == 1
+    assert notes_blocks[0]["text"] == "Speaker notes go here."
+
+
+def test_validate_content_accepts_real_pptx_bytes():
+    data = make_pptx_bytes([{"title": "T", "body": "B"}])
+    assert extractor.validate_content(data, "pptx") is True
 
 
 def test_extract_blocks_csv_rows_to_text():

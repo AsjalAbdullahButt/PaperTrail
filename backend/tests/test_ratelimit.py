@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import app.ratelimit as ratelimit
+import app.routers.documents as documents_router
+import app.routers.query as query_router
 
 from conftest import requires_db
 
@@ -9,7 +11,12 @@ pytestmark = requires_db
 
 
 def test_query_rate_limit_returns_429_after_window(client, monkeypatch):
-    # Tighten the limit so we can trip it deterministically.
+    # Tighten the limit so we can trip it deterministically. Direct mode still
+    # calls the LLM layer, so stub it out — these assertions are about the
+    # rate limiter's request counting, not real model latency (a slow/rate
+    # -limited real provider retry could otherwise let the window roll over
+    # between requests and make this test flaky).
+    monkeypatch.setattr(query_router.llm, "generate_answer", lambda q, chunks, mode, history=None: "ok")
     monkeypatch.setattr(ratelimit.settings, "rate_limit_query", "3/minute")
 
     statuses = []
@@ -26,6 +33,10 @@ def test_query_rate_limit_returns_429_after_window(client, monkeypatch):
 
 
 def test_upload_rate_limit_returns_429(client, monkeypatch):
+    # Stub the summary call — a slow/rate-limited real provider retry (up to
+    # ~60s of backoff) could let the 1-minute rate-limit window roll over
+    # between these sequential uploads and make this test flaky.
+    monkeypatch.setattr(documents_router.llm, "summarize_document", lambda title, texts: "")
     monkeypatch.setattr(ratelimit.settings, "rate_limit_upload", "2/minute")
 
     def _upload():
@@ -42,6 +53,7 @@ def test_upload_rate_limit_returns_429(client, monkeypatch):
 def test_rate_limit_is_per_user(anon_client, monkeypatch):
     from conftest import auth_headers
 
+    monkeypatch.setattr(query_router.llm, "generate_answer", lambda q, chunks, mode, history=None: "ok")
     monkeypatch.setattr(ratelimit.settings, "rate_limit_query", "2/minute")
     a = auth_headers(anon_client, "rl-a@papertrail.io")
     b = auth_headers(anon_client, "rl-b@papertrail.io")

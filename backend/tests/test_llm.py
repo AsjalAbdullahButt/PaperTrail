@@ -192,3 +192,36 @@ def test_summarize_document_uses_top_5_highlights_and_title_in_system_prompt(mon
     assert "Q3 Report.pdf" in captured["system"]
     assert "highlight 5" not in captured["prompt"]  # only the top 5 are used
     assert "highlight 4" in captured["prompt"]
+
+
+# --------------------- V3 Phase 6: document comparison -------------------- #
+def test_build_compare_messages_groups_passages_by_document():
+    chunks_by_doc = {
+        "alpha.txt": ["Alpha revenue was 10 million."],
+        "beta.txt": ["Beta revenue was 20 million.", "Beta grew fast."],
+    }
+    messages = llm._build_compare_messages("Compare revenue", chunks_by_doc)
+    assert [m["role"] for m in messages] == ["system", "user"]
+
+    user_content = messages[1]["content"]
+    assert "Document: alpha.txt" in user_content
+    assert "Document: beta.txt" in user_content
+    # Global numbering across documents: alpha gets [1], beta gets [2] and [3].
+    assert "[1] Alpha revenue was 10 million." in user_content
+    assert "[2] Beta revenue was 20 million." in user_content
+    assert "[3] Beta grew fast." in user_content
+    assert "Compare revenue" in user_content
+
+
+def test_offline_compare_generate_no_chunks():
+    assert "could not find" in llm._offline_compare_generate("q", {}).lower()
+
+
+def test_generate_compare_answer_offline_lists_each_document(monkeypatch):
+    monkeypatch.setattr(llm.settings, "openai_api_key", "")
+    monkeypatch.setattr(llm.settings, "groq_api_key", "")
+    out = llm.generate_compare_answer(
+        "Compare", {"alpha.txt": ["Alpha fact."], "beta.txt": ["Beta fact."]}
+    )
+    assert "alpha.txt" in out
+    assert "beta.txt" in out

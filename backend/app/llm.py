@@ -250,6 +250,129 @@ def stream_rag_answer_groq(
             yield delta
 
 
+# --------------------------------------------------------------------------- #
+# Compare mode (multi-document, provenance-aware) — see routers/query.py
+# --------------------------------------------------------------------------- #
+def _build_compare_messages(question: str, chunks_by_doc: dict[str, list[str]]) -> list[dict]:
+    """Assemble chat messages for compare mode: passages are grouped under
+    their source document's name (not flattened into one list) so the model
+    can explicitly attribute claims to "Document A" vs. "Document B" instead
+    of blending them. Citation numbers run globally 1..N across all documents,
+    in the same order sources are built downstream, so [n] tokens the model
+    emits line up with the rendered source cards.
+    """
+    system = (
+        "You are PaperTrail, a careful analyst. Answer the question using ONLY "
+        "the provided document passages. When documents contain different "
+        "information, explicitly compare them by document name. Cite passage "
+        "numbers inline as [1], [2], etc. " + _FORMATTING_INSTRUCTIONS
+    )
+    lines: list[str] = []
+    n = 0
+    for doc_name, texts in chunks_by_doc.items():
+        lines.append(f"Document: {doc_name}")
+        for text in texts:
+            n += 1
+            lines.append(f"[{n}] {text}")
+        lines.append("")
+    context = "\n".join(lines).strip()
+    user = f"{context}\n\nQuestion: {question}"
+    return [
+        {"role": "system", "content": system},
+        {"role": "user", "content": user},
+    ]
+
+
+def _offline_compare_generate(question: str, chunks_by_doc: dict[str, list[str]]) -> str:
+    """Extractive, clearly-labeled offline fallback: the top passage from
+    each document, so at least a side-by-side skeleton is visible."""
+    if not chunks_by_doc:
+        return "I could not find anything relevant in the selected documents to compare."
+    lines = ["[offline mode] Top passage from each selected document:"]
+    n = 0
+    for doc_name, texts in chunks_by_doc.items():
+        if not texts:
+            continue
+        n += 1
+        snippet = texts[0].strip()
+        if len(snippet) > 300:
+            snippet = snippet[:300].rsplit(" ", 1)[0] + "…"
+        lines.append(f"\n**{doc_name}** [{n}]: {snippet}")
+    return "\n".join(lines)
+
+
+def generate_compare_answer(question: str, chunks_by_doc: dict[str, list[str]]) -> str:
+    """Blocking compare-mode answer: same OpenAI -> Groq -> offline fallback
+    order as generate_answer, using document-grouped context."""
+    messages = _build_compare_messages(question, chunks_by_doc)
+
+    if settings.openai_ready:
+        try:
+            from openai import OpenAI
+
+            client = OpenAI(api_key=settings.openai_api_key)
+            resp = client.chat.completions.create(
+                model=settings.openai_chat_model, messages=messages, temperature=0.2,
+            )
+            return (resp.choices[0].message.content or "").strip()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("OpenAI compare generation failed (%s); trying next fallback.", exc)
+
+    if settings.groq_ready:
+        try:
+            from openai import OpenAI
+
+            client = OpenAI(api_key=settings.groq_api_key, base_url=settings.groq_base_url)
+            resp = client.chat.completions.create(
+                model=settings.groq_chat_model, messages=messages, temperature=0.2,
+            )
+            return (resp.choices[0].message.content or "").strip()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Groq compare generation failed (%s); using offline fallback.", exc)
+
+    return _offline_compare_generate(question, chunks_by_doc)
+
+
+def stream_compare_answer(question: str, chunks_by_doc: dict[str, list[str]]) -> Iterator[str]:
+    """Streaming counterpart of ``generate_compare_answer`` — same fallback
+    order, yielding the offline answer as a single chunk."""
+    messages = _build_compare_messages(question, chunks_by_doc)
+
+    if settings.openai_ready:
+        try:
+            from openai import OpenAI
+
+            client = OpenAI(api_key=settings.openai_api_key)
+            stream = client.chat.completions.create(
+                model=settings.openai_chat_model, messages=messages, temperature=0.2, stream=True,
+            )
+            for event in stream:
+                delta = event.choices[0].delta.content
+                if delta:
+                    yield delta
+            return
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("OpenAI compare streaming failed (%s); trying next fallback.", exc)
+
+    if settings.groq_ready:
+        try:
+            from openai import OpenAI
+
+            client = OpenAI(api_key=settings.groq_api_key, base_url=settings.groq_base_url)
+            stream = client.chat.completions.create(
+                model=settings.groq_chat_model, messages=messages, temperature=0.2, stream=True,
+            )
+            for event in stream:
+                delta = event.choices[0].delta.content
+                if delta:
+                    yield delta
+            return
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Groq compare streaming failed (%s); using offline fallback.", exc)
+
+    yield _offline_compare_generate(question, chunks_by_doc)
+
+
 # Marker the model is asked to emit between the answer and the follow-up
 # questions in the combined RAG call below — arbitrary but distinctive enough
 # to never collide with real answer text.

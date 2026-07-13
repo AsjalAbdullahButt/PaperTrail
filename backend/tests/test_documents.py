@@ -1,6 +1,7 @@
 """Router coverage for /api/documents: upload validation, listing, pagination."""
 from __future__ import annotations
 
+import json
 import time
 
 import pytest
@@ -9,6 +10,7 @@ import app.routers.documents as documents_router
 from ._helpers import (
     make_encrypted_pdf,
     make_multi_page_pdf,
+    make_pptx_bytes,
     make_text_pdf,
     upload_bytes,
     upload_text_doc,
@@ -162,6 +164,40 @@ def test_upload_xlsx_creates_queryable_chunks(client):
     assert res.status_code == 200, res.text
     assert res.json()["chunks_created"] >= 1
     assert res.json()["file_type"] == "xlsx"
+
+
+# ------------------------- V3 Phase 5: PPTX support ----------------------- #
+def test_upload_pptx_creates_queryable_chunks(client):
+    data = make_pptx_bytes(
+        [
+            {"title": "Introduction", "body": "This deck covers the quarterly business review."},
+            {"title": "Revenue", "body": "Revenue grew twenty percent year over year overall."},
+        ]
+    )
+    res = upload_bytes(
+        client,
+        "deck.pptx",
+        data,
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["file_type"] == "pptx"
+    assert body["chunks_created"] >= 1
+
+
+def test_query_pptx_document_grounded_answer(client):
+    data = make_pptx_bytes(
+        [{"title": "Facts", "body": "The capital of the fictional country Zubrowka is Lutz."}]
+    )
+    upload_bytes(client, "facts.pptx", data)
+    res = client.post(
+        "/api/query", json={"question": "What is the capital of Zubrowka?", "mode": "rag"}
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert len(body["sources"]) >= 1
+    assert body["sources"][0]["title"] == "facts.pptx"
 
 
 # --------------- V3 Phase 1: sentence-boundary (semantic) chunking ------- #
@@ -349,3 +385,101 @@ async def test_concurrent_request_not_blocked_by_upload(db_session, monkeypatch)
     # On the event loop this would wait out the 0.5s embed sleep; off-loop it
     # completes effectively instantly.
     assert elapsed < 0.2, f"/api/health was blocked for {elapsed:.3f}s"
+
+
+# --------------- V3 Phase 7: real-time upload progress -------------------- #
+def _parse_sse(text: str) -> list[tuple[str | None, dict]]:
+    events: list[tuple[str | None, dict]] = []
+    for block in text.strip().split("\n\n"):
+        if not block.strip():
+            continue
+        event = None
+        data: dict = {}
+        for line in block.splitlines():
+            if line.startswith("event:"):
+                event = line[len("event:"):].strip()
+            elif line.startswith("data:"):
+                data = json.loads(line[len("data:"):].strip())
+        events.append((event, data))
+    return events
+
+
+def test_embed_with_progress_updates_processing_progress_at_each_batch(client, db_session, monkeypatch):
+    from sqlalchemy import select
+
+    from app.models import Document
+
+    body = upload_text_doc(client, "seed.txt", "seed content " * 10)
+    doc = db_session.execute(select(Document).where(Document.id == body["id"])).scalar_one()
+    doc.processing_progress = None
+    db_session.commit()
+
+    snapshots = []
+
+    def fake_embed(texts):
+        snapshots.append(doc.processing_progress)
+        return [[0.0]] * len(texts)
+
+    monkeypatch.setattr(documents_router.llm, "embed_texts", fake_embed)
+    chunk_texts = [f"chunk {i}" for i in range(45)]  # EMBED_BATCH=20 -> batches of 20, 20, 5
+
+    embeddings = documents_router._embed_with_progress(db_session, doc, chunk_texts)
+
+    assert len(embeddings) == 45
+    # Three distinct checkpoints were committed, one per batch, each showing
+    # more progress than the last (the first batch's fake_embed call runs
+    # before any checkpoint exists yet, hence None).
+    assert snapshots[0] is None
+    assert json.loads(snapshots[1])["chunks_done"] == 20
+    assert json.loads(snapshots[2])["chunks_done"] == 40
+
+    final = json.loads(doc.processing_progress)
+    assert final == {"step": "embedding", "progress": 95, "chunks_done": 45, "chunks_total": 45}
+
+
+def test_progress_endpoint_emits_done_when_processing_finished(client):
+    body = upload_text_doc(client, "quick.txt", "quick content here " * 20)
+    res = client.get(f"/api/documents/{body['id']}/progress")
+    assert res.status_code == 200
+    assert res.headers["content-type"].startswith("text/event-stream")
+
+    events = _parse_sse(res.text)
+    assert events[-1][0] == "done"
+    assert events[-1][1] == {"status": "done"}
+
+
+def test_progress_endpoint_emits_error_when_processing_failed(client, db_session, monkeypatch):
+    from sqlalchemy import select
+
+    from app.models import Document
+
+    def boom(data, file_type):
+        raise RuntimeError("simulated extractor crash")
+
+    monkeypatch.setattr(documents_router.extractor, "extract_blocks", boom)
+    upload_bytes(client, "broken.txt", b"plain text content", "text/plain")
+
+    doc_id = db_session.execute(
+        select(Document.id).where(Document.filename == "broken.txt")
+    ).scalar_one()
+
+    res = client.get(f"/api/documents/{doc_id}/progress")
+    assert res.status_code == 200
+    events = _parse_sse(res.text)
+    assert events[-1][0] == "error"
+    assert events[-1][1]["status"] == "failed"
+    assert events[-1][1]["message"]
+
+
+def test_progress_endpoint_404_for_missing_document(client):
+    res = client.get("/api/documents/does-not-exist/progress")
+    assert res.status_code == 404
+
+
+def test_progress_endpoint_403_for_other_users_document(client, anon_client):
+    from conftest import auth_headers
+
+    body = upload_text_doc(client, "mine2.txt", "private content here " * 10)
+    other = auth_headers(anon_client, "progress-intruder@papertrail.io")
+    res = anon_client.get(f"/api/documents/{body['id']}/progress", headers=other)
+    assert res.status_code == 403

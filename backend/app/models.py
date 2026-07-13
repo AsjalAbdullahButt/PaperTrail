@@ -157,6 +157,10 @@ class Document(Base):
     )
     # Populated when processing_status == "failed"; user-safe message only.
     processing_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # JSON: {"step","progress","chunks_done","chunks_total"} — updated at
+    # checkpoints during ingestion (polled by GET .../progress); cleared to
+    # null once processing_status reaches "done" or "failed".
+    processing_progress: Mapped[str | None] = mapped_column(Text, nullable=True)
     version_number: Mapped[int] = mapped_column(
         Integer, nullable=False, default=1, server_default="1"
     )

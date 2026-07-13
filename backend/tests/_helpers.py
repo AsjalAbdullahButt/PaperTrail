@@ -112,6 +112,26 @@ def make_multi_page_pdf(page_texts: list[str]) -> bytes:
     return out
 
 
+def make_pptx_bytes(slides: list[dict]) -> bytes:
+    """Build a real .pptx from a list of {"title", "body", "notes"} dicts
+    (each key optional) using python-pptx's default "Title and Content" layout."""
+    from pptx import Presentation
+
+    prs = Presentation()
+    layout = prs.slide_layouts[1]  # Title and Content
+    for s in slides:
+        slide = prs.slides.add_slide(layout)
+        if s.get("title"):
+            slide.shapes.title.text = s["title"]
+        if s.get("body"):
+            slide.placeholders[1].text_frame.text = s["body"]
+        if s.get("notes"):
+            slide.notes_slide.notes_text_frame.text = s["notes"]
+    buf = io.BytesIO()
+    prs.save(buf)
+    return buf.getvalue()
+
+
 def make_encrypted_pdf(password: str = "secret") -> bytes:
     """A password-protected PDF whose text cannot be extracted without the key."""
     from pypdf import PdfWriter

@@ -44,7 +44,7 @@ export function isAuthenticated(): boolean {
 }
 
 /* ------------------------------- types ---------------------------------- */
-export type QueryMode = "rag" | "direct" | "multihop";
+export type QueryMode = "rag" | "direct" | "multihop" | "compare";
 
 export type Source = {
   n: number;

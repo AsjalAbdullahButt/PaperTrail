@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import logging
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -78,6 +78,67 @@ def _history_dicts(payload: QueryRequest) -> list[dict]:
     return [{"role": t.role, "content": t.content} for t in payload.conversation_history]
 
 
+COMPARE_TOP_K = 4
+
+
+def _retrieve_for_compare(
+    db: Session, current_user: User, document_ids: list[str], question: str
+) -> tuple[dict[str, list[str]], list[dict]]:
+    """Retrieve top-``COMPARE_TOP_K`` chunks per document (not pooled across
+    documents), so every selected document gets a fair shot at contributing
+    passages regardless of how the others rank. Returns
+    (chunks_by_doc keyed by filename, the flattened retrieved list in the
+    same order chunks_by_doc was built — sources/citations line up with
+    llm._build_compare_messages' numbering)."""
+    chunks_by_doc: dict[str, list[str]] = {}
+    all_retrieved: list[dict] = []
+    for doc_id in document_ids:
+        retrieved = hybrid_retrieve(
+            db, current_user.id, question, document_ids=[doc_id], top_k=COMPARE_TOP_K,
+        )
+        if not retrieved:
+            continue
+        doc_name = retrieved[0]["document_name"]
+        chunks_by_doc[doc_name] = [c["text"] for c in retrieved]
+        all_retrieved.extend(retrieved)
+    return chunks_by_doc, all_retrieved
+
+
+def _compute_compare_query(
+    db: Session, current_user: User, payload: QueryRequest, question: str
+) -> QueryResponse:
+    if len(payload.document_ids) < 2:
+        raise HTTPException(
+            status_code=400, detail="Compare mode requires at least 2 selected documents."
+        )
+
+    chunks_by_doc, retrieved = _retrieve_for_compare(
+        db, current_user, payload.document_ids, question
+    )
+    if not retrieved:
+        answer = "There are no relevant passages in the selected documents to compare."
+        return QueryResponse(answer=answer, mode="compare", sources=[], confidence_score=0.0)
+
+    answer = llm.generate_compare_answer(question, chunks_by_doc)
+    sources = _build_sources(retrieved)
+    followups = generate_followup_questions(question, answer, retrieved)
+    unsupported = [
+        UnsupportedSentence(sentence=s["sentence"], source_chunk_id=s["source_chunk_id"])
+        for s in check_answer(answer, retrieved)
+        if not s["supported"]
+    ]
+    confidence = _confidence(retrieved, answer, unsupported)
+
+    return QueryResponse(
+        answer=answer,
+        mode="compare",
+        sources=sources,
+        confidence_score=confidence,
+        followup_questions=followups,
+        unsupported_sentences=unsupported,
+    )
+
+
 def _compute_query(
     db: Session, current_user: User, payload: QueryRequest, question: str, mode: str
 ) -> QueryResponse:
@@ -85,6 +146,9 @@ def _compute_query(
     if mode == "direct":
         answer = llm.generate_answer(question, [], "direct", history)
         return QueryResponse(answer=answer, mode=mode, sources=[], confidence_score=0.0)
+
+    if mode == "compare":
+        return _compute_compare_query(db, current_user, payload, question)
 
     document_ids = payload.document_ids or None
     collection_id = payload.collection_id
@@ -112,7 +176,6 @@ def _compute_query(
     # sequential calls) — see llm.generate_rag_answer_with_followups.
     answer, followups_raw = llm.generate_rag_answer_with_followups(question, context_chunks, history)
 
-    confidence = _confidence(retrieved)
     sources = _build_sources(retrieved)
     followups = parse_followup_questions(followups_raw) if followups_raw else []
     unsupported = [
@@ -120,6 +183,7 @@ def _compute_query(
         for s in check_answer(answer, retrieved)
         if not s["supported"]
     ]
+    confidence = _confidence(retrieved, answer, unsupported)
 
     return QueryResponse(
         answer=answer,
@@ -131,10 +195,37 @@ def _compute_query(
     )
 
 
-def _confidence(retrieved: list[dict]) -> float:
-    """Mean of the top-3 ranked scores, clamped to [0, 1]."""
+def _confidence(retrieved: list[dict], answer: str, unsupported: list) -> float:
+    """Calibrated multi-signal confidence, clamped to [0, 1].
+
+    The old formula (mean of the top-3 ranked scores) is purely relative — a
+    confident-sounding answer generated from off-topic context could still
+    score ~0.7. This blends four signals instead:
+      1. Top-chunk similarity as an absolute quality gate: below 0.4, the best
+         match is likely off-topic, so the score is capped low regardless of
+         how the other signals look.
+      2. Mean of the top-3 ranked scores (the original signal).
+      3. A hallucination penalty from the fraction of unsupported sentences.
+      4. A small bonus for having enough chunks to draw from.
+    """
+    if not retrieved:
+        return 0.0
+
+    top_sim = retrieved[0].get("similarity_score", 0.0)
+    if top_sim < 0.4:
+        return round(min(0.35, top_sim), 4)
+
     top3 = [c["ranked_score"] for c in retrieved[:3]]
-    return round(min(1.0, sum(top3) / len(top3)), 4) if top3 else 0.0
+    retrieval_conf = sum(top3) / len(top3)
+
+    total_sents = max(1, len(answer.split(". ")))
+    unsupported_frac = len(unsupported) / total_sents
+    hallucination_penalty = 1.0 - min(0.5, unsupported_frac * 2)
+
+    coverage_bonus = min(0.1, 0.02 * len(retrieved))
+
+    raw = 0.5 * retrieval_conf + 0.3 * top_sim + 0.2 * hallucination_penalty + coverage_bonus
+    return round(min(1.0, max(0.0, raw)), 4)
 
 
 def _build_sources(retrieved: list[dict]) -> list[SourceOut]:
@@ -225,26 +316,37 @@ def _stream_events(
         yield _sse("done", {"query_id": row.id, "confidence_score": 0.0})
         return
 
-    document_ids = payload.document_ids or None
-    collection_id = payload.collection_id
-
-    if mode == "multihop":
-        retrieved = multihop_retrieve(
-            db, current_user.id, question,
-            document_ids=document_ids, collection_id=collection_id,
+    if mode == "compare":
+        # The <2-documents check runs in query_stream() before this generator
+        # is ever iterated — StreamingResponse commits a 200 as soon as the
+        # body starts streaming, so an HTTPException raised from in here would
+        # arrive too late to become a clean 400.
+        chunks_by_doc, retrieved = _retrieve_for_compare(
+            db, current_user, payload.document_ids, question
         )
     else:
-        retrieved = hybrid_retrieve(
-            db, current_user.id, question,
-            document_ids=document_ids, collection_id=collection_id, top_k=TOP_K,
-        )
+        chunks_by_doc = None
+        document_ids = payload.document_ids or None
+        collection_id = payload.collection_id
+        if mode == "multihop":
+            retrieved = multihop_retrieve(
+                db, current_user.id, question,
+                document_ids=document_ids, collection_id=collection_id,
+            )
+        else:
+            retrieved = hybrid_retrieve(
+                db, current_user.id, question,
+                document_ids=document_ids, collection_id=collection_id, top_k=TOP_K,
+            )
 
     sources = _build_sources(retrieved)
     yield _sse("sources", {"sources": [s.model_dump() for s in sources]})
 
     if not retrieved:
         answer = (
-            "There are no documents (or no relevant passages) to answer that yet. "
+            "There are no relevant passages in the selected documents to compare."
+            if mode == "compare"
+            else "There are no documents (or no relevant passages) to answer that yet. "
             "Upload a document, or widen your selection, and ask again."
         )
         yield _sse("token", {"token": answer})
@@ -255,20 +357,24 @@ def _stream_events(
         yield _sse("done", {"query_id": row.id, "confidence_score": 0.0})
         return
 
-    context_chunks = [c["text"] for c in retrieved]
     parts: list[str] = []
-    for token in llm.stream_rag_answer(question, context_chunks, history):
+    if mode == "compare":
+        token_stream = llm.stream_compare_answer(question, chunks_by_doc)
+    else:
+        context_chunks = [c["text"] for c in retrieved]
+        token_stream = llm.stream_rag_answer(question, context_chunks, history)
+    for token in token_stream:
         parts.append(token)
         yield _sse("token", {"token": token})
     answer = "".join(parts)
 
-    confidence = _confidence(retrieved)
     followups = generate_followup_questions(question, answer, retrieved)
     unsupported = [
         UnsupportedSentence(sentence=s["sentence"], source_chunk_id=s["source_chunk_id"])
         for s in check_answer(answer, retrieved)
         if not s["supported"]
     ]
+    confidence = _confidence(retrieved, answer, unsupported)
 
     response = QueryResponse(
         answer=answer,
@@ -300,6 +406,14 @@ def query_stream(
     answering, then the answer streams in token-by-token."""
     question = payload.question.strip()
     mode = payload.mode
+    # Validated here (before the streaming response starts) rather than
+    # inside _stream_events: StreamingResponse commits a 200 status as soon as
+    # the body begins streaming, so raising after that point can't produce a
+    # clean 400.
+    if mode == "compare" and len(payload.document_ids) < 2:
+        raise HTTPException(
+            status_code=400, detail="Compare mode requires at least 2 selected documents."
+        )
     return StreamingResponse(
         _stream_events(db, current_user, payload, question, mode),
         media_type="text/event-stream",

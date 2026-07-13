@@ -8,6 +8,7 @@ const ACCENT_GRADIENT = "linear-gradient(135deg,var(--accent),var(--accent2))";
 const TYPE_ICON: Record<string, string> = {
   pdf: "PDF",
   docx: "DOC",
+  pptx: "PPT",
   txt: "TXT",
   md: "MD",
   xlsx: "XLS",

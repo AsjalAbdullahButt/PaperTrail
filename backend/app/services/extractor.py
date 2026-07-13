@@ -10,6 +10,9 @@ Supported types:
                  it is OCR'd (best-effort; degrades to empty text if the
                  tesseract binary is unavailable).
   * docx       — python-docx paragraphs, preserving heading styles/levels.
+  * pptx       — python-pptx: one "page" per slide, slide title as a heading,
+                 body text frames as body blocks, speaker notes tagged
+                 section_heading="Notes".
   * xlsx       — openpyxl; each row rendered as "Column: Value, ..." text.
   * csv        — same row rendering as xlsx.
   * txt / md   — split on blank lines.
@@ -27,7 +30,7 @@ from fastapi import HTTPException
 logger = logging.getLogger("papertrail.extractor")
 
 # Types this service can turn into text.
-SUPPORTED_TYPES = {"pdf", "docx", "txt", "md", "xlsx", "csv"}
+SUPPORTED_TYPES = {"pdf", "docx", "pptx", "txt", "md", "xlsx", "csv"}
 
 # Below this many characters of embedded text, a PDF page is treated as scanned
 # and sent to OCR.
@@ -117,6 +120,37 @@ def _extract_docx(data: bytes) -> list[Block]:
     return blocks
 
 
+# ------------------------------- PPTX ----------------------------------- #
+def _extract_pptx(data: bytes) -> list[Block]:
+    from pptx import Presentation
+
+    prs = Presentation(io.BytesIO(data))
+    blocks: list[Block] = []
+    for i, slide in enumerate(prs.slides, start=1):
+        title_shape = slide.shapes.title
+        title_id = title_shape.shape_id if title_shape is not None else None
+        title_text = (title_shape.text or "").strip() if title_shape is not None else ""
+        if title_text:
+            blocks.append(
+                _block(title_text, page=i, heading=title_text, level=1, is_heading=True)
+            )
+
+        for shape in slide.shapes:
+            if title_id is not None and getattr(shape, "shape_id", None) == title_id:
+                continue
+            if not getattr(shape, "has_text_frame", False):
+                continue
+            text = (shape.text_frame.text or "").strip()
+            if text:
+                blocks.append(_block(text, page=i, heading=title_text or None))
+
+        if slide.has_notes_slide:
+            notes_text = (slide.notes_slide.notes_text_frame.text or "").strip()
+            if notes_text:
+                blocks.append(_block(notes_text, page=i, heading="Notes"))
+    return blocks
+
+
 # --------------------------- XLSX / CSV -------------------------------- #
 def _row_to_text(headers: list[str], values: list) -> str:
     parts = []
@@ -174,6 +208,7 @@ def _extract_txt(data: bytes) -> list[Block]:
 _EXTRACTORS = {
     "pdf": _extract_pdf,
     "docx": _extract_docx,
+    "pptx": _extract_pptx,
     "xlsx": _extract_xlsx,
     "csv": _extract_csv,
     "txt": _extract_txt,
@@ -188,7 +223,7 @@ def validate_content(data: bytes, file_type: str) -> bool:
     head = data[:1024].lstrip()
     if ft == "pdf":
         return head[:5] == b"%PDF-"
-    if ft in {"docx", "xlsx"}:
+    if ft in {"docx", "xlsx", "pptx"}:
         # OOXML files are ZIP archives -> begin with the local-file-header magic.
         return data[:4] in (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08")
     if ft in {"txt", "md", "csv"}:
