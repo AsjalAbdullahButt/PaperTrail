@@ -36,9 +36,9 @@ services:
       - key: S3_SECRET_ACCESS_KEY
         sync: false
       - key: CORS_ORIGINS
-        sync: false
+        value: "https://paper-trail-theta.vercel.app"
       - key: FRONTEND_BASE_URL
-        sync: false
+        value: "https://paper-trail-theta.vercel.app"
       - key: JWT_SECRET
         generateValue: true
       - key: COOKIE_SECURE
