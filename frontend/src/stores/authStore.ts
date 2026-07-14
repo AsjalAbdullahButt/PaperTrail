@@ -103,6 +103,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     async restoreSession() {
+      if (get().isAuthenticated) {
+        set({ ready: true });
+        return;
+      }
       const ok = await get().refreshToken();
       if (ok) {
         try {
