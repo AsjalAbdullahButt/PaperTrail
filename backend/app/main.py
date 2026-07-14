@@ -82,6 +82,7 @@ app.state.limiter = limiter
 
 # Env-driven CORS: origins come from config (not hardcoded). Methods/headers
 # are scoped to what the frontend actually uses instead of "*".
+logger.warning("CORS_ORIGINS configured as: %r", settings.cors_origins_list)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
