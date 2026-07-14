@@ -8,6 +8,7 @@ anywhere in the app.
 from functools import lru_cache
 from urllib.parse import quote_plus
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -116,6 +117,31 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    @field_validator(
+        "openai_api_key", "openai_embedding_model", "openai_chat_model",
+        "groq_api_key", "groq_chat_model", "groq_base_url",
+        "db_host", "db_user", "db_password", "db_name", "db_ssl_ca",
+        "uploads_dir", "storage_backend", "s3_bucket", "s3_region",
+        "s3_endpoint_url", "s3_access_key_id", "s3_secret_access_key",
+        "chunking_strategy", "cors_origins", "frontend_base_url",
+        "jwt_secret", "jwt_algorithm", "refresh_cookie_name",
+        "redis_url", "rate_limit_query", "rate_limit_upload",
+        "rate_limit_login", "rate_limit_register", "rate_limit_export",
+        "rate_limit_default",
+        mode="before",
+    )
+    @classmethod
+    def _strip_whitespace(cls, v: str | None) -> str | None:
+        """Defensively strip leading/trailing whitespace from every string env
+        var. Hosting dashboards (Render, Railway, etc.) frequently inject a
+        trailing space or newline on paste, which botocore's endpoint
+        validator rejects with a misleading 'Invalid endpoint' error that
+        gives no hint the real problem is whitespace. Stripping here means a
+        pasted value can never silently break the app again."""
+        if isinstance(v, str):
+            return v.strip()
+        return v
 
     @property
     def database_url(self) -> str:
