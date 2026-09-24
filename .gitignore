@@ -60,7 +60,9 @@ Thumbs.db
 
 # --- Docs ---
 # Keep README.md tracked; ignore every other Markdown file (deployment notes,
-# scratch docs, etc).
+# scratch docs, etc). eval/ is exempted: its Markdown files are eval data
+# and deliverables (dataset corpus, report), not scratch notes.
 *.md
 !README.md
 !**/README.md
+!eval/**/*.md
