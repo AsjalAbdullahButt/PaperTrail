@@ -94,7 +94,7 @@ def main() -> int:
 
         if item["type"] == "unanswerable":
             for term in item.get("absent_terms", []):
-                hits = [d for d, doc in docs.items() if re.search(r"(?<!w)" + re.escape(norm(term)) + r"(?!w)", doc.text)]
+                hits = [d for d, doc in docs.items() if re.search(r"(?<!\w)" + re.escape(norm(term)) + r"(?!\w)", doc.text)]
                 if hits:
                     errors.append(f"{qid}: absent term {term!r} appears in {hits}")
             if not item.get("absent_terms"):

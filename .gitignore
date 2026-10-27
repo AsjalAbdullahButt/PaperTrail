@@ -77,3 +77,7 @@ eval/dataset/manifest.csv
 # input data, not deliverables: only the 10 numbered project docs are tracked.
 eval/dataset/*.md
 !eval/dataset/[0-9][0-9]-*.md
+
+# Eval: source PDFs are re-fetchable via `python eval/build_dataset.py --download`; caches are local-only
+eval/dataset/raw/*.pdf
+eval/.cache/

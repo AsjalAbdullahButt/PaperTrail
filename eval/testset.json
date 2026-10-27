@@ -1,143 +1,946 @@
 [
   {
     "id": "q01",
-    "question": "What is the default character-based chunk size and overlap used by PaperTrail's chunking pipeline?",
-    "expected_answer": "800 characters per chunk with 150 characters of overlap between consecutive chunks.",
-    "source_document": "02-ingestion-and-chunking.md",
-    "source_section": "Character-based chunking"
+    "type": "factual",
+    "question": "How many parallel attention heads does the base Transformer use, and what is the dimension of each head's keys and values?",
+    "expected_answer": "It uses h = 8 parallel attention heads, with d_k = d_v = d_model/h = 64 per head.",
+    "evidence": [
+      {
+        "document": "transformer",
+        "quote": "we employ h = 8 parallel attention layers, or heads. For each of these we use dk = dv = dmodel/h = 64",
+        "section": "3.2.2 Multi-Head Attention",
+        "page": "5"
+      }
+    ],
+    "source_document": "transformer",
+    "source_section": "3.2.2 Multi-Head Attention",
+    "source_documents": [
+      "transformer"
+    ],
+    "source_page": "5"
   },
   {
     "id": "q02",
-    "question": "How many sentences of overlap does the sentence-boundary (semantic) chunking strategy use between consecutive chunks by default?",
-    "expected_answer": "2 sentences.",
-    "source_document": "02-ingestion-and-chunking.md",
-    "source_section": "Sentence-boundary (semantic) chunking"
+    "type": "factual",
+    "question": "What BLEU score does the Transformer reach on the WMT 2014 English-to-German translation task?",
+    "expected_answer": "28.4 BLEU, improving over the previous best results (including ensembles) by over 2 BLEU.",
+    "evidence": [
+      {
+        "document": "transformer",
+        "quote": "Our model achieves 28.4 BLEU on the WMT 2014",
+        "section": "Abstract",
+        "page": "1"
+      }
+    ],
+    "source_document": "transformer",
+    "source_section": "Abstract",
+    "source_documents": [
+      "transformer"
+    ],
+    "source_page": "1"
   },
   {
     "id": "q03",
-    "question": "Roughly how many characters does the default semantic chunking token budget correspond to, and how does that compare to the character strategy's window size?",
-    "expected_answer": "About 3,200 characters (800 tokens times 4 characters per token), roughly four times larger than the character strategy's 800-character window.",
-    "source_document": "02-ingestion-and-chunking.md",
-    "source_section": "Sentence-boundary (semantic) chunking"
+    "type": "factual",
+    "question": "Which optimizer and hyperparameters were used to train the Transformer?",
+    "expected_answer": "The Adam optimizer with beta1 = 0.9, beta2 = 0.98 and epsilon = 1e-9, with a warmup learning-rate schedule.",
+    "evidence": [
+      {
+        "document": "transformer",
+        "quote": "We used the Adam optimizer",
+        "section": "5.3 Optimizer",
+        "page": "7"
+      }
+    ],
+    "source_document": "transformer",
+    "source_section": "5.3 Optimizer",
+    "source_documents": [
+      "transformer"
+    ],
+    "source_page": "7"
   },
   {
     "id": "q04",
-    "question": "What weights does PaperTrail's hybrid retriever assign to the dense score, the sparse (BM25) score, and the importance boost?",
-    "expected_answer": "Dense weight 0.6, sparse weight 0.4, and an importance boost weight of 0.2 applied on top of the fused dense+sparse score.",
-    "source_document": "03-hybrid-retrieval.md",
-    "source_section": "The three signals"
+    "type": "factual",
+    "question": "Why did the Transformer authors choose sinusoidal positional encodings over learned positional embeddings?",
+    "expected_answer": "Both gave nearly identical results, but the sinusoidal version may let the model extrapolate to sequence lengths longer than those seen in training.",
+    "evidence": [
+      {
+        "document": "transformer",
+        "quote": "We chose the sinusoidal version because it may allow the model to extrapolate to sequence lengths longer than the ones encountered during training",
+        "section": "3.5 Positional Encoding",
+        "page": "6"
+      }
+    ],
+    "source_document": "transformer",
+    "source_section": "3.5 Positional Encoding",
+    "source_documents": [
+      "transformer"
+    ],
+    "source_page": "6"
   },
   {
     "id": "q05",
-    "question": "What does PaperTrail fall back to for approximate nearest neighbor search if the usearch library is unavailable?",
-    "expected_answer": "scipy's cKDTree, used for exact nearest-neighbor search.",
-    "source_document": "03-hybrid-retrieval.md",
-    "source_section": "Approximate nearest neighbor indexing"
+    "type": "factual",
+    "question": "How many identical layers does the Transformer encoder stack contain, and what are the two sub-layers of each?",
+    "expected_answer": "N = 6 identical layers; each has a multi-head self-attention sub-layer and a position-wise fully connected feed-forward sub-layer.",
+    "evidence": [
+      {
+        "document": "transformer",
+        "quote": "The encoder is composed of a stack of N = 6 identical layers",
+        "section": "3.1 Encoder and Decoder Stacks",
+        "page": "3"
+      }
+    ],
+    "source_document": "transformer",
+    "source_section": "3.1 Encoder and Decoder Stacks",
+    "source_documents": [
+      "transformer"
+    ],
+    "source_page": "3"
   },
   {
     "id": "q06",
-    "question": "What is the hard ceiling on how many of a user's chunks a single query will scan, and what is its default value?",
-    "expected_answer": "MAX_QUERY_CHUNKS, which defaults to 5000.",
-    "source_document": "03-hybrid-retrieval.md",
-    "source_section": "Query-scoped safety ceiling"
+    "type": "factual",
+    "question": "What are the two unsupervised pre-training tasks used by BERT?",
+    "expected_answer": "Masked language modeling (predicting masked tokens) and next sentence prediction (NSP).",
+    "evidence": [
+      {
+        "document": "bert",
+        "quote": "Task #2: Next Sentence Prediction (NSP)",
+        "section": "3.1 Pre-training BERT",
+        "page": "4"
+      }
+    ],
+    "source_document": "bert",
+    "source_section": "3.1 Pre-training BERT",
+    "source_documents": [
+      "bert"
+    ],
+    "source_page": "4"
   },
   {
     "id": "q07",
-    "question": "In what order does PaperTrail try providers for chat generation, and what happens if none are configured?",
-    "expected_answer": "OpenAI first, then Groq, then an offline extractive fallback if neither hosted provider is configured or both fail.",
-    "source_document": "04-llm-provider-and-generation-modes.md",
-    "source_section": "Provider fallback order"
+    "type": "factual",
+    "question": "What fraction of WordPiece tokens does BERT mask at random for its masked language model objective?",
+    "expected_answer": "15% of all WordPiece tokens in each sequence.",
+    "evidence": [
+      {
+        "document": "bert",
+        "quote": "we mask 15% of all WordPiece tokens in each sequence at random",
+        "section": "3.1 Pre-training BERT",
+        "page": "4"
+      }
+    ],
+    "source_document": "bert",
+    "source_section": "3.1 Pre-training BERT",
+    "source_documents": [
+      "bert"
+    ],
+    "source_page": "4"
   },
   {
     "id": "q08",
-    "question": "Why can Groq never be used for PaperTrail's embeddings, only for chat generation?",
-    "expected_answer": "Because Groq does not offer an embeddings endpoint at all.",
-    "source_document": "04-llm-provider-and-generation-modes.md",
-    "source_section": "Provider fallback order"
+    "type": "factual",
+    "question": "What are the layer count, hidden size, attention heads and total parameters of BERT-base?",
+    "expected_answer": "L=12 layers, H=768 hidden size, A=12 attention heads, about 110M parameters.",
+    "evidence": [
+      {
+        "document": "bert",
+        "quote": "BERTBASE (L=12, H=768, A=12, Total Parameters=110M)",
+        "section": "2.3 Transfer Learning from Supervised Data",
+        "page": "3"
+      }
+    ],
+    "source_document": "bert",
+    "source_section": "2.3 Transfer Learning from Supervised Data",
+    "source_documents": [
+      "bert"
+    ],
+    "source_page": "3"
   },
   {
     "id": "q09",
-    "question": "How many dimensions does PaperTrail's offline deterministic embedding fallback use, and how is each word mapped into that space?",
-    "expected_answer": "512 dimensions; each lowercased word token is hashed with MD5 and mapped into one of the 512 dimensions, with a sign determined by another bit of the same hash, then the vector is L2-normalized.",
-    "source_document": "04-llm-provider-and-generation-modes.md",
-    "source_section": "The offline fallback"
+    "type": "factual",
+    "question": "By how much does Sentence-BERT reduce the time to find the most similar pair among 10,000 sentences compared with BERT?",
+    "expected_answer": "From about 65 hours with BERT/RoBERTa to about 5 seconds with SBERT.",
+    "evidence": [
+      {
+        "document": "sentence-bert",
+        "quote": "This reduces the effort for finding the most similar pair from 65 hours with BERT / RoBERTa to about 5 seconds with SBERT",
+        "section": "Abstract",
+        "page": "1"
+      }
+    ],
+    "source_document": "sentence-bert",
+    "source_section": "Abstract",
+    "source_documents": [
+      "sentence-bert"
+    ],
+    "source_page": "1"
   },
   {
     "id": "q10",
-    "question": "How many retrieval rounds does PaperTrail's multi-hop mode use, and how is the second round's query produced?",
-    "expected_answer": "Exactly two hybrid_retrieve rounds; the second round's query is a refined query generated by the language model (via complete_text) from the original question plus a preview of what the first round retrieved, falling back to the original question if refinement produces nothing useful.",
-    "source_document": "05-multihop-and-hallucination-guard.md",
-    "source_section": "How multi-hop retrieval works"
+    "type": "factual",
+    "question": "Which pooling strategy is Sentence-BERT's default for deriving a fixed-size sentence embedding?",
+    "expected_answer": "MEAN pooling (the mean of all output token vectors).",
+    "evidence": [
+      {
+        "document": "sentence-bert",
+        "quote": "Our default pooling strategy is MEAN",
+        "section": "3.1 Training Details",
+        "page": "4"
+      }
+    ],
+    "source_document": "sentence-bert",
+    "source_section": "3.1 Training Details",
+    "source_documents": [
+      "sentence-bert"
+    ],
+    "source_page": "4"
   },
   {
     "id": "q11",
-    "question": "How many shared key terms must a generated sentence have with a retrieved chunk for the hallucination guard to mark it as supported?",
-    "expected_answer": "At least three shared key terms.",
-    "source_document": "05-multihop-and-hallucination-guard.md",
-    "source_section": "The hallucination guard"
+    "type": "factual",
+    "question": "In the Sentence-BERT classification objective, what is fed to the softmax classifier?",
+    "expected_answer": "The concatenation of the two sentence embeddings u and v with their element-wise difference |u-v|.",
+    "evidence": [
+      {
+        "document": "sentence-bert",
+        "quote": "concatenate the sentence embeddings u and v with the element-wise difference",
+        "section": "3 Model",
+        "page": "3"
+      }
+    ],
+    "source_document": "sentence-bert",
+    "source_section": "3 Model",
+    "source_documents": [
+      "sentence-bert"
+    ],
+    "source_page": "3"
   },
   {
     "id": "q12",
-    "question": "Why is the hallucination guard implemented as a lexical check instead of a second LLM call?",
-    "expected_answer": "Because a second LLM call per answer would double generation latency and cost, while a lexical check is fast, free, and deliberately conservative.",
-    "source_document": "05-multihop-and-hallucination-guard.md",
-    "source_section": "The hallucination guard"
+    "type": "factual",
+    "question": "Which negative-passage scheme gave Dense Passage Retrieval (DPR) its best model?",
+    "expected_answer": "Using gold passages from the same mini-batch (in-batch negatives) plus one BM25 negative passage per question.",
+    "evidence": [
+      {
+        "document": "dpr",
+        "quote": "Our best model uses gold passages from the same mini-batch and one BM25 negative passage",
+        "section": "3.2 Training",
+        "page": "3"
+      }
+    ],
+    "source_document": "dpr",
+    "source_section": "3.2 Training",
+    "source_documents": [
+      "dpr"
+    ],
+    "source_page": "3"
   },
   {
     "id": "q13",
-    "question": "What is the default lifetime of a PaperTrail access token, and what is the default lifetime of a refresh token?",
-    "expected_answer": "The access token defaults to 30 minutes (JWT_EXPIRE_MINUTES); the refresh token defaults to 7 days (REFRESH_EXPIRE_DAYS).",
-    "source_document": "06-authentication-and-sessions.md",
-    "source_section": "Refresh tokens and rotation"
+    "type": "factual",
+    "question": "How many Wikipedia passages make up DPR's retrieval corpus in its experiments?",
+    "expected_answer": "About 21 million passages.",
+    "evidence": [
+      {
+        "document": "dpr",
+        "quote": "21 million passages in our experiments",
+        "section": "3 Dense Passage Retriever (DPR)",
+        "page": "2"
+      }
+    ],
+    "source_document": "dpr",
+    "source_section": "3 Dense Passage Retriever (DPR)",
+    "source_documents": [
+      "dpr"
+    ],
+    "source_page": "2"
   },
   {
     "id": "q14",
-    "question": "Under what specific condition does PaperTrail refuse to start the application?",
-    "expected_answer": "When COOKIE_SECURE=true is set while JWT_SECRET is still the default insecure development value, the app raises a RuntimeError during startup and refuses to start.",
-    "source_document": "06-authentication-and-sessions.md",
-    "source_section": "The insecure default secret and the production safety check"
+    "type": "factual",
+    "question": "By how much does DPR outperform a Lucene-BM25 system in top-20 passage retrieval accuracy?",
+    "expected_answer": "By 9%-19% absolute.",
+    "evidence": [
+      {
+        "document": "dpr",
+        "quote": "greatly by 9%-19% absolute in terms of top-20 passage retrieval accuracy",
+        "section": "Abstract",
+        "page": "1"
+      }
+    ],
+    "source_document": "dpr",
+    "source_section": "Abstract",
+    "source_documents": [
+      "dpr"
+    ],
+    "source_page": "1"
   },
   {
     "id": "q15",
-    "question": "What happens if CORS_ORIGINS is left pointing at localhost after deploying, versus if FRONTEND_BASE_URL is left stale instead?",
-    "expected_answer": "A stale CORS_ORIGINS causes the browser to silently reject the backend's API responses due to a CORS policy violation; a stale FRONTEND_BASE_URL causes generated links, such as the password-reset link, to point at the wrong host.",
-    "source_document": "06-authentication-and-sessions.md",
-    "source_section": "CORS and the frontend base URL"
+    "type": "factual",
+    "question": "What is the difference between the RAG-Sequence and RAG-Token formulations?",
+    "expected_answer": "RAG-Sequence conditions on the same retrieved passages across the whole generated sequence; RAG-Token can use different passages per token.",
+    "evidence": [
+      {
+        "document": "rag",
+        "quote": "one which conditions on the same retrieved passages across the whole generated sequence, and another which can use different passages per token",
+        "section": "Abstract",
+        "page": "1"
+      }
+    ],
+    "source_document": "rag",
+    "source_section": "Abstract",
+    "source_documents": [
+      "rag"
+    ],
+    "source_page": "1"
   },
   {
     "id": "q16",
-    "question": "Which four managed services does PaperTrail's production deployment span, and what is each one responsible for?",
-    "expected_answer": "Vercel (frontend), Render (backend, as a Docker container), Aiven (MySQL database, TLS required), and Cloudflare R2 (file storage, via an S3-compatible client).",
-    "source_document": "07-deployment-topology.md",
-    "source_section": "The four managed services"
+    "type": "factual",
+    "question": "Which Wikipedia dump does RAG use as its knowledge source, and how is it split into documents?",
+    "expected_answer": "The December 2018 Wikipedia dump, split into disjoint 100-word chunks.",
+    "evidence": [
+      {
+        "document": "rag",
+        "quote": "we use the December 2018 dump. Each Wikipedia article is split into disjoint 100-word chunks",
+        "section": "3 Experiments",
+        "page": "4"
+      }
+    ],
+    "source_document": "rag",
+    "source_section": "3 Experiments",
+    "source_documents": [
+      "rag"
+    ],
+    "source_page": "4"
   },
   {
     "id": "q17",
-    "question": "What manual step is required in the Vercel dashboard/CLI before the @papertrail_api_url reference in vercel.json resolves to anything?",
-    "expected_answer": "Running `vercel env add papertrail_api_url production` once, with the value set to the deployed Render backend's URL.",
-    "source_document": "07-deployment-topology.md",
-    "source_section": "Manual steps that cannot be avoided"
+    "type": "factual",
+    "question": "What learning signal does REALM use to pre-train its knowledge retriever without supervision?",
+    "expected_answer": "Masked language modeling, backpropagating through a retrieval step over millions of documents.",
+    "evidence": [
+      {
+        "document": "realm",
+        "quote": "using masked language modeling as the learning signal and backpropagating through a retrieval step",
+        "section": "Abstract",
+        "page": "1"
+      }
+    ],
+    "source_document": "realm",
+    "source_section": "Abstract",
+    "source_documents": [
+      "realm"
+    ],
+    "source_page": "1"
   },
   {
     "id": "q18",
-    "question": "What is the documented Recovery Point Objective (RPO) for PaperTrail's MySQL backups, and how can it be improved?",
-    "expected_answer": "One hour under the hourly-dump backup cadence, improvable to as low as 5 minutes with binary-log point-in-time recovery configured.",
-    "source_document": "09-observability-and-backups.md",
-    "source_section": "Recovery targets"
+    "type": "factual",
+    "question": "How does REALM keep its document index from going stale during pre-training?",
+    "expected_answer": "It refreshes the index by asynchronously re-embedding and re-indexing all documents every several hundred training steps.",
+    "evidence": [
+      {
+        "document": "realm",
+        "quote": "asynchronously re-embedding and re-indexing all documents every several hundred training steps",
+        "section": "3.3. Training",
+        "page": "4"
+      }
+    ],
+    "source_document": "realm",
+    "source_section": "3.3. Training",
+    "source_documents": [
+      "realm"
+    ],
+    "source_page": "4"
   },
   {
     "id": "q19",
-    "question": "What is the difference between the /api/health/live and /api/health/ready endpoints?",
-    "expected_answer": "/api/health/live (also aliased as /api/health) is a liveness check that only confirms the process is running; /api/health/ready only returns 200 when the backend can actually reach MySQL (and Redis if configured), and is the one that should be wired to a load balancer's health check.",
-    "source_document": "09-observability-and-backups.md",
-    "source_section": "Health endpoints"
+    "type": "factual",
+    "question": "How does ColBERT compute the relevance score between a query and a document?",
+    "expected_answer": "Late interaction: each query embedding is matched to the document embeddings by a MaxSim operator (maximum cosine similarity) and the scores are summed across query terms.",
+    "evidence": [
+      {
+        "document": "colbert",
+        "quote": "every query embedding interacts with all document embeddings via a MaxSim operator",
+        "section": "INTRODUCTION",
+        "page": "2"
+      }
+    ],
+    "source_document": "colbert",
+    "source_section": "INTRODUCTION",
+    "source_documents": [
+      "colbert"
+    ],
+    "source_page": "2"
   },
   {
     "id": "q20",
-    "question": "The production deployment guidance and the application's internal settings suggest two different default values for the query rate limit. What are they, and which document gives which value?",
-    "expected_answer": "The production deployment guidance (08-production-environment-variables.md) documents RATE_LIMIT_QUERY defaulting to 60/minute, while the application's actual internal default described in 10-rate-limiting-caching-and-testing.md is 20/minute.",
-    "source_document": "10-rate-limiting-caching-and-testing.md",
-    "source_section": "Default per-action limits",
-    "notes": "Deliberately cross-document / conflicting-values question: a good retriever must surface both 08 and 10 for a complete answer; this also stress-tests whether the LLM-judge penalizes an answer that only cites one of the two documents."
+    "type": "factual",
+    "question": "What efficiency gains does ColBERT report relative to existing BERT-based ranking models?",
+    "expected_answer": "Two orders of magnitude faster and four orders of magnitude fewer FLOPs per query.",
+    "evidence": [
+      {
+        "document": "colbert",
+        "quote": "executing two orders-of-magnitude faster and requiring four orders-of-magnitude fewer FLOPs per query",
+        "section": "ABSTRACT",
+        "page": "1"
+      }
+    ],
+    "source_document": "colbert",
+    "source_section": "ABSTRACT",
+    "source_documents": [
+      "colbert"
+    ],
+    "source_page": "1"
+  },
+  {
+    "id": "q21",
+    "type": "factual",
+    "question": "What does the BEIR benchmark find about BM25 and about which models perform best zero-shot on average?",
+    "expected_answer": "BM25 is a robust baseline; re-ranking and late-interaction models achieve the best zero-shot performance on average, at high computational cost.",
+    "evidence": [
+      {
+        "document": "beir",
+        "quote": "Our results show BM25 is a robust baseline and re-ranking and late-interaction based models on average achieve the best zeroshot performances",
+        "section": "Abstract",
+        "page": "1"
+      }
+    ],
+    "source_document": "beir",
+    "source_section": "Abstract",
+    "source_documents": [
+      "beir"
+    ],
+    "source_page": "1"
+  },
+  {
+    "id": "q22",
+    "type": "factual",
+    "question": "On the BEIR benchmark, on how many datasets does the unsupervised Contriever model beat BM25 in Recall@100?",
+    "expected_answer": "On 11 out of 15 datasets.",
+    "evidence": [
+      {
+        "document": "contriever",
+        "quote": "our unsupervised model outperforms BM25 on 11 out of 15 datasets for the Recall@100",
+        "section": "Abstract",
+        "page": "1"
+      }
+    ],
+    "source_document": "contriever",
+    "source_section": "Abstract",
+    "source_documents": [
+      "contriever"
+    ],
+    "source_page": "1"
+  },
+  {
+    "id": "q23",
+    "type": "factual",
+    "question": "What does HyDE do to a query before retrieval?",
+    "expected_answer": "It zero-shot instructs an instruction-following language model (e.g. InstructGPT) to generate a hypothetical document, which is then embedded and used for retrieval.",
+    "evidence": [
+      {
+        "document": "hyde",
+        "quote": "HyDE first zero-shot instructs an instruction-following language model (e.g. InstructGPT) to generate a hypothetical document",
+        "section": "Abstract",
+        "page": "1"
+      }
+    ],
+    "source_document": "hyde",
+    "source_section": "Abstract",
+    "source_documents": [
+      "hyde"
+    ],
+    "source_page": "1"
+  },
+  {
+    "id": "q24",
+    "type": "factual",
+    "question": "How does language model performance vary with the position of the relevant information in a long input context, according to 'Lost in the Middle'?",
+    "expected_answer": "Performance is highest when the relevant information is at the very beginning or end of the context and degrades significantly in the middle (a U-shaped curve).",
+    "evidence": [
+      {
+        "document": "lost-in-the-middle",
+        "quote": "language model performance is highest when relevant information occurs at the very beginning (primacy bias) or end of its input context (recency bias)",
+        "section": "1 Introduction",
+        "page": "2"
+      }
+    ],
+    "source_document": "lost-in-the-middle",
+    "source_section": "1 Introduction",
+    "source_documents": [
+      "lost-in-the-middle"
+    ],
+    "source_page": "2"
+  },
+  {
+    "id": "q25",
+    "type": "factual",
+    "question": "Which three quality aspects does RAGAS evaluate?",
+    "expected_answer": "Faithfulness, answer relevance and context relevance.",
+    "evidence": [
+      {
+        "document": "ragas",
+        "quote": "We focus in particular three quality aspects, which we argue are of central importance",
+        "section": "3 Evaluation Strategies",
+        "page": "3"
+      }
+    ],
+    "source_document": "ragas",
+    "source_section": "3 Evaluation Strategies",
+    "source_documents": [
+      "ragas"
+    ],
+    "source_page": "3"
+  },
+  {
+    "id": "q26",
+    "type": "factual",
+    "question": "Which reflection tokens does Self-RAG use to decide on retrieval and to critique passages and generations?",
+    "expected_answer": "Retrieve, ISREL (relevance), ISSUP (support) and ISUSE (usefulness).",
+    "evidence": [
+      {
+        "document": "self-rag",
+        "quote": "M predicts ISSUP and ISUSE given x, yt, d for each d",
+        "section": "RELATED WORK",
+        "page": "4"
+      }
+    ],
+    "source_document": "self-rag",
+    "source_section": "RELATED WORK",
+    "source_documents": [
+      "self-rag"
+    ],
+    "source_page": "4"
+  },
+  {
+    "id": "q27",
+    "type": "factual",
+    "question": "Which three RAG paradigms does the 'Retrieval-Augmented Generation for Large Language Models' survey describe?",
+    "expected_answer": "Naive RAG, Advanced RAG and Modular RAG.",
+    "evidence": [
+      {
+        "document": "rag-survey",
+        "quote": "encompassing the Naive RAG, the Advanced RAG, and the Modular RAG",
+        "section": "1 Retrieval-Augmented Generation for Large",
+        "page": "1"
+      }
+    ],
+    "source_document": "rag-survey",
+    "source_section": "1 Retrieval-Augmented Generation for Large",
+    "source_documents": [
+      "rag-survey"
+    ],
+    "source_page": "1"
+  },
+  {
+    "id": "q28",
+    "type": "multi_hop",
+    "question": "Which earlier retriever is used to initialize the retriever in RAG, and what negative-sampling scheme did that retriever's best model use?",
+    "expected_answer": "RAG initializes its retriever with the pre-trained DPR bi-encoder; DPR's best model used in-batch gold passages as negatives plus one BM25 negative passage per question.",
+    "evidence": [
+      {
+        "document": "rag",
+        "quote": "We use a pre-trained bi-encoder from DPR to initialize our retriever",
+        "section": "2.2 Retriever: DPR",
+        "page": "3"
+      },
+      {
+        "document": "dpr",
+        "quote": "Our best model uses gold passages from the same mini-batch and one BM25 negative passage",
+        "section": "3.2 Training",
+        "page": "3"
+      }
+    ],
+    "source_document": "rag",
+    "source_section": "2.2 Retriever: DPR",
+    "source_documents": [
+      "rag",
+      "dpr"
+    ],
+    "source_page": "3"
+  },
+  {
+    "id": "q29",
+    "type": "multi_hop",
+    "question": "How does ColBERT's representation of a passage differ from DPR's?",
+    "expected_answer": "DPR encodes a passage into a single d-dimensional dense vector scored by inner product; ColBERT encodes it into a bag of contextualized token embeddings scored with late interaction (MaxSim).",
+    "evidence": [
+      {
+        "document": "dpr",
+        "quote": "maps any text passage to a ddimensional real-valued vectors",
+        "section": "3.1 Overview",
+        "page": "2"
+      },
+      {
+        "document": "colbert",
+        "quote": "encodes each query or document into a bag of embeddings",
+        "section": "3.2 Qery & Document Encoders",
+        "page": "4"
+      }
+    ],
+    "source_document": "dpr",
+    "source_section": "3.1 Overview",
+    "source_documents": [
+      "dpr",
+      "colbert"
+    ],
+    "source_page": "2"
+  },
+  {
+    "id": "q30",
+    "type": "multi_hop",
+    "question": "Why is plain BERT unsuitable for finding similar sentence pairs in a large collection, and how does SBERT fix that?",
+    "expected_answer": "BERT needs both sentences fed into the network together (a cross-encoder), so 10,000 sentences require about 50 million inference computations (~65 hours); SBERT uses siamese networks to produce independent sentence embeddings compared with cosine similarity (~5 seconds).",
+    "evidence": [
+      {
+        "document": "bert",
+        "quote": "Sentence pairs are packed together into a single sequence",
+        "section": "2.3 Transfer Learning from Supervised Data",
+        "page": "4"
+      },
+      {
+        "document": "sentence-bert",
+        "quote": "Finding the most similar pair in a collection of 10,000 sentences requires about 50 million inference computations",
+        "section": "Abstract",
+        "page": "1"
+      }
+    ],
+    "source_document": "bert",
+    "source_section": "2.3 Transfer Learning from Supervised Data",
+    "source_documents": [
+      "bert",
+      "sentence-bert"
+    ],
+    "source_page": "4"
+  },
+  {
+    "id": "q31",
+    "type": "multi_hop",
+    "question": "What kind of encoder does HyDE use to embed its generated document, and how is that encoder trained in its own paper?",
+    "expected_answer": "HyDE uses an unsupervised contrastively learned encoder such as Contriever; Contriever is trained with contrastive learning (using MoCo) without labeled data.",
+    "evidence": [
+      {
+        "document": "hyde",
+        "quote": "an unsupervised contrastively learned encoder (e.g. Contriever) encodes the document into an embedding vector",
+        "section": "Abstract",
+        "page": "1"
+      },
+      {
+        "document": "contriever",
+        "quote": "we explore the limits of contrastive learning as a way to train unsupervised dense retrievers",
+        "section": "Abstract",
+        "page": "1"
+      }
+    ],
+    "source_document": "hyde",
+    "source_section": "Abstract",
+    "source_documents": [
+      "hyde",
+      "contriever"
+    ],
+    "source_page": "1"
+  },
+  {
+    "id": "q32",
+    "type": "multi_hop",
+    "question": "How does the timing of retrieval in Self-RAG differ from the original RAG model?",
+    "expected_answer": "The original RAG always retrieves the top-K documents for every input via MIPS, whereas Self-RAG retrieves adaptively, on demand, as decided by a Retrieve reflection token.",
+    "evidence": [
+      {
+        "document": "self-rag",
+        "quote": "adaptively retrieves passages on-demand",
+        "section": "ABSTRACT",
+        "page": "1"
+      },
+      {
+        "document": "rag",
+        "quote": "For query x, we use Maximum Inner Product Search (MIPS) to find the top-K documents",
+        "section": "1 Introduction",
+        "page": "2"
+      }
+    ],
+    "source_document": "self-rag",
+    "source_section": "ABSTRACT",
+    "source_documents": [
+      "self-rag",
+      "rag"
+    ],
+    "source_page": "1"
+  },
+  {
+    "id": "q33",
+    "type": "multi_hop",
+    "question": "What does BEIR conclude about dense retrieval models in the zero-shot setting, and which dense retriever was trained mainly on NQ-style open-domain QA data?",
+    "expected_answer": "BEIR finds dense and sparse retrieval models are computationally efficient but often underperform other approaches (including the robust BM25 baseline) in generalization; DPR is the dense retriever trained on open-domain QA data such as Natural Questions.",
+    "evidence": [
+      {
+        "document": "beir",
+        "quote": "dense and sparse-retrieval models are computationally more efficient but often underperform other approaches",
+        "section": "Abstract",
+        "page": "1"
+      },
+      {
+        "document": "dpr",
+        "quote": "Our dense passage retriever (DPR) uses a dense encoder",
+        "section": "3.1 Overview",
+        "page": "2"
+      }
+    ],
+    "source_document": "beir",
+    "source_section": "Abstract",
+    "source_documents": [
+      "beir",
+      "dpr"
+    ],
+    "source_page": "1"
+  },
+  {
+    "id": "q34",
+    "type": "multi_hop",
+    "question": "How do REALM and RAG differ in how they update the document encoder and index during training?",
+    "expected_answer": "REALM pre-trains the retriever and periodically refreshes (re-embeds and re-indexes) the document index asynchronously; RAG does not update the document encoder (to avoid periodic re-indexing) and only fine-tunes the query encoder and generator.",
+    "evidence": [
+      {
+        "document": "realm",
+        "quote": "asynchronously re-embedding and re-indexing all documents every several hundred training steps",
+        "section": "3.3. Training",
+        "page": "4"
+      },
+      {
+        "document": "rag",
+        "quote": "Updating the document encoder BERTd during training is costly",
+        "section": "2.4 Training",
+        "page": "4"
+      }
+    ],
+    "source_document": "realm",
+    "source_section": "3.3. Training",
+    "source_documents": [
+      "realm",
+      "rag"
+    ],
+    "source_page": "4"
+  },
+  {
+    "id": "q35",
+    "type": "multi_hop",
+    "question": "Which part of the original Transformer architecture does BERT use, and how many layers does BERT-base have compared with the base Transformer's encoder?",
+    "expected_answer": "BERT uses the Transformer encoder (a multi-layer bidirectional Transformer encoder); BERT-base has 12 layers versus 6 in the original Transformer encoder.",
+    "evidence": [
+      {
+        "document": "bert",
+        "quote": "model architecture is a multi-layer bidirectional Transformer encoder",
+        "section": "2.3 Transfer Learning from Supervised Data",
+        "page": "3"
+      },
+      {
+        "document": "transformer",
+        "quote": "The encoder is composed of a stack of N = 6 identical layers",
+        "section": "3.1 Encoder and Decoder Stacks",
+        "page": "3"
+      }
+    ],
+    "source_document": "bert",
+    "source_section": "2.3 Transfer Learning from Supervised Data",
+    "source_documents": [
+      "bert",
+      "transformer"
+    ],
+    "source_page": "3"
+  },
+  {
+    "id": "q36",
+    "type": "multi_hop",
+    "question": "What three quality scores does the RAG survey list for evaluating RAG, and how does RAGAS define answer relevance?",
+    "expected_answer": "The survey lists context relevance, answer faithfulness and answer relevance; RAGAS defines answer relevance as the generated answer addressing the actual question that was provided.",
+    "evidence": [
+      {
+        "document": "rag-survey",
+        "quote": "Quality scores include context relevance, answer faithfulness, and answer relevance",
+        "section": "C. Evaluation Aspects",
+        "page": "12"
+      },
+      {
+        "document": "ragas",
+        "quote": "Answer Relevance refers to the idea that the generated answer should address the actual question that was provided",
+        "section": "3 Evaluation Strategies",
+        "page": "3"
+      }
+    ],
+    "source_document": "rag-survey",
+    "source_section": "C. Evaluation Aspects",
+    "source_documents": [
+      "rag-survey",
+      "ragas"
+    ],
+    "source_page": "12"
+  },
+  {
+    "id": "q37",
+    "type": "multi_hop",
+    "question": "What problem does 'Lost in the Middle' identify with relevant information in long inputs, and how does the RAG survey relate it to context curation?",
+    "expected_answer": "Models use information at the start and end of long contexts better than the middle; the RAG survey notes overly long contexts lead to the 'lost in the middle' problem, so retrieved context should be curated.",
+    "evidence": [
+      {
+        "document": "lost-in-the-middle",
+        "quote": "language model performance is highest when relevant information occurs at the very beginning (primacy bias) or end of its input context (recency bias)",
+        "section": "1 Introduction",
+        "page": "2"
+      },
+      {
+        "document": "rag-survey",
+        "quote": "overly long contexts can also lead LLM to the",
+        "section": "A. Context Curation",
+        "page": "10"
+      }
+    ],
+    "source_document": "lost-in-the-middle",
+    "source_section": "1 Introduction",
+    "source_documents": [
+      "lost-in-the-middle",
+      "rag-survey"
+    ],
+    "source_page": "2"
+  },
+  {
+    "id": "q38",
+    "type": "multi_hop",
+    "question": "Which benchmark is Contriever evaluated on zero-shot, and how many datasets does that benchmark contain in total?",
+    "expected_answer": "Contriever is evaluated on BEIR, which contains 18 datasets (Contriever reports on 15 of them).",
+    "evidence": [
+      {
+        "document": "contriever",
+        "quote": "On the BEIR benchmark our unsupervised model outperforms BM25",
+        "section": "Abstract",
+        "page": "1"
+      },
+      {
+        "document": "beir",
+        "quote": "careful selection of 18 publicly available datasets",
+        "section": "Abstract",
+        "page": "1"
+      }
+    ],
+    "source_document": "contriever",
+    "source_section": "Abstract",
+    "source_documents": [
+      "contriever",
+      "beir"
+    ],
+    "source_page": "1"
+  },
+  {
+    "id": "q39",
+    "type": "unanswerable",
+    "question": "What is the dollar cost of pre-training BERT-large on cloud TPUs?",
+    "expected_answer": "Not answerable from the corpus; the system should say the documents do not contain this information.",
+    "source_document": "",
+    "source_section": "",
+    "source_documents": [],
+    "evidence": [],
+    "absent_terms": [
+      "dollar cost",
+      "cost in dollars"
+    ]
+  },
+  {
+    "id": "q40",
+    "type": "unanswerable",
+    "question": "Which HNSW efConstruction setting does the RAGAS paper recommend for its vector index?",
+    "expected_answer": "Not answerable from the corpus; the system should say the documents do not contain this information.",
+    "source_document": "",
+    "source_section": "",
+    "source_documents": [],
+    "evidence": [],
+    "absent_terms": [
+      "efconstruction",
+      "qdrant"
+    ]
+  },
+  {
+    "id": "q41",
+    "type": "unanswerable",
+    "question": "What BLEU score does the Transformer achieve on the WMT 2019 English-to-German task?",
+    "expected_answer": "Not answerable from the corpus; the system should say the documents do not contain this information.",
+    "source_document": "",
+    "source_section": "",
+    "source_documents": [],
+    "evidence": [],
+    "absent_terms": [
+      "wmt 2019",
+      "wmt19"
+    ]
+  },
+  {
+    "id": "q42",
+    "type": "unanswerable",
+    "question": "How does Self-RAG perform on the Chinese CMRC reading-comprehension benchmark?",
+    "expected_answer": "Not answerable from the corpus; the system should say the documents do not contain this information.",
+    "source_document": "",
+    "source_section": "",
+    "source_documents": [],
+    "evidence": [],
+    "absent_terms": [
+      "cmrc"
+    ]
+  },
+  {
+    "id": "q43",
+    "type": "unanswerable",
+    "question": "How many kWh of energy did fine-tuning Sentence-BERT consume?",
+    "expected_answer": "Not answerable from the corpus; the system should say the documents do not contain this information.",
+    "source_document": "",
+    "source_section": "",
+    "source_documents": [],
+    "evidence": [],
+    "absent_terms": [
+      "kwh"
+    ]
+  },
+  {
+    "id": "q44",
+    "type": "unanswerable",
+    "question": "What is the maximum context window of GPT-5 reported in these papers?",
+    "expected_answer": "Not answerable from the corpus; the system should say the documents do not contain this information.",
+    "source_document": "",
+    "source_section": "",
+    "source_documents": [],
+    "evidence": [],
+    "absent_terms": [
+      "gpt-5"
+    ]
+  },
+  {
+    "id": "q45",
+    "type": "unanswerable",
+    "question": "What query latency does ColBERT achieve on a Raspberry Pi?",
+    "expected_answer": "Not answerable from the corpus; the system should say the documents do not contain this information.",
+    "source_document": "",
+    "source_section": "",
+    "source_documents": [],
+    "evidence": [],
+    "absent_terms": [
+      "raspberry"
+    ]
+  },
+  {
+    "id": "q46",
+    "type": "unanswerable",
+    "question": "What F1 does any paper report on the Korean KorQuAD benchmark?",
+    "expected_answer": "Not answerable from the corpus; the system should say the documents do not contain this information.",
+    "source_document": "",
+    "source_section": "",
+    "source_documents": [],
+    "evidence": [],
+    "absent_terms": [
+      "korquad"
+    ]
   }
 ]
