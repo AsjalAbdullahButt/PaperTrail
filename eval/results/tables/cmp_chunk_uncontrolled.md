@@ -4,5 +4,8 @@ A = character windows (~800 chars); B = production sentence chunker at its defau
 
 | A | B | Δ Evidence Recall@5 (B−A) | Δ Doc Recall@5 (B−A) |
 |---|---|---|---|
+| _not run_ | _not run_ | — | — |
+
+_The configurations for this comparison were not part of this run._
 
 `*` = the paired-bootstrap 95% interval excludes 0.

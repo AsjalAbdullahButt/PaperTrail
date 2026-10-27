@@ -42,6 +42,14 @@ from app.services.bm25_index import BM25Index  # noqa: E402
 from app.services.importance import score_chunks  # noqa: E402
 from app.similarity import top_k_by_similarity  # noqa: E402
 
+# ``Settings`` reads ``.env`` relative to the current directory, so running from
+# ``eval/`` would silently ignore ``backend/.env`` (and its API keys). Reload the
+# shared settings object from the backend's .env regardless of the cwd.
+_env_file = _BACKEND_DIR / ".env"
+if _env_file.exists():
+    for _name, _value in type(settings)(_env_file=_env_file).model_dump().items():
+        setattr(settings, _name, _value)
+
 EVAL_DIR = pathlib.Path(__file__).resolve().parent
 DATASET_DIR = EVAL_DIR / "dataset"
 CACHE_DIR = EVAL_DIR / ".cache"
