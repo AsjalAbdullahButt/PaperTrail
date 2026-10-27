@@ -16,6 +16,17 @@ Upload PDFs, Word docs, spreadsheets, or text files. PaperTrail chunks, embeds, 
 
 ---
 
+## 🎓 NLP course project: evidence-grounded QA over an NLP research-paper corpus
+
+This repository is also the submission for an NLP course project in the category **"RAG Bot for a Niche Domain"**:
+**PaperTrail — Evidence-Grounded Research-Paper Question Answering over an NLP Corpus using Hybrid RAG.**
+The niche domain is 14 research papers on NLP techniques (transformers, embeddings, dense/late-interaction retrieval, RAG and its evaluation).
+Everything for the evaluation lives in [`eval/`](eval/): the corpus builder, a 46-question verified test set, the harness that measures
+retrieval and answer quality on the **same production modules** the app uses, the report and the presentation outline. Start with
+[`eval/README.md`](eval/README.md) and [`eval/REPORT.md`](eval/REPORT.md).
+
+---
+
 ## ✨ What it does
 
 - 🔍 **Retrieval-Augmented Generation (RAG)** — answers are grounded in the exact passages retrieved from your documents, cited inline as `[1] [2] [3]`.

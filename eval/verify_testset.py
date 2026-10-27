@@ -112,6 +112,10 @@ def main() -> int:
                 errors.append(f"{qid}: quote not found in {ev['document']}: {ev['quote'][:70]!r}")
                 continue
             ev["section"], ev["page"] = loc
+            tokens = " ".join(re.findall(r"[a-z0-9]+", doc.text))
+            for phrase in ev.get("any_of", []):
+                if f" {phrase} " not in f" {tokens} ":
+                    errors.append(f"{qid}: any_of phrase not in {ev['document']}: {phrase!r}")
             if first:
                 item["source_document"] = ev["document"]
                 item["source_section"], item["source_page"] = loc
