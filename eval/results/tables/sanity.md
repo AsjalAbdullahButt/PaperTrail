@@ -1,0 +1,2 @@
+- LLM-judge abstention verdict agrees with a regex abstention heuristic on 93% of 46 answers.
+- Pearson correlation between the hallucination guard's unsupported-sentence rate and the judge's faithfulness score: -0.04 (n=38). A strongly negative value means the lexical guard tracks the judge; the guard is a heuristic, not a proof of grounding.

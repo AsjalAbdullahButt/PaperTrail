@@ -1,13 +1,13 @@
 {
-  "started": "2026-10-28 00:43",
+  "started": "2026-10-28 00:47",
   "chat_model": "groq:openai/gpt-oss-120b",
   "judge_model": "groq:openai/gpt-oss-20b",
   "openai_embedding_model": "text-embedding-3-small",
   "hf_embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
   "top_k": 5,
   "n_questions": 46,
-  "generation": false,
-  "llm_fallback_warnings": 0,
+  "generation": true,
+  "llm_fallback_warnings": 5,
   "judge_parse_failures": 0,
   "notes": []
 }

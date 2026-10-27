@@ -34,21 +34,31 @@ pip install -r requirements-dev.txt                       # includes sentence-tr
 
 ### Environment (`backend/.env`)
 
-A submission-grade run needs **real embeddings and a real LLM**:
+The default grid needs **no paid API**: embeddings are two local Hugging Face models, and generation + judging run on the Groq free tier.
 
 | Variable | Needed for | Example |
 |---|---|---|
-| `OPENAI_API_KEY` | OpenAI embeddings (`text-embedding-3-small`), answer generation, LLM judge | `sk-...` (a real key; placeholders are rejected) |
-| `GROQ_API_KEY` | *Alternative* generation + judge (no embeddings endpoint) | `gsk_...` |
-| `OPENAI_CHAT_MODEL` / `GROQ_CHAT_MODEL` | Optional model override | `gpt-4o-mini` (default) |
+| `GROQ_API_KEY` | Answer generation and LLM-as-judge | `gsk_...` (free key from console.groq.com) |
+| `GROQ_CHAT_MODEL` | Generator model — must be one your key can access | `openai/gpt-oss-120b` |
+| `OPENAI_API_KEY` | *Optional*: only for the extra `…__openai` configurations | `sk-...` (placeholders are rejected) |
 
-Hugging Face embeddings (`sentence-transformers/all-MiniLM-L6-v2`) run locally and need no key. The eval switches
-embedder per configuration; `EMBEDDING_PROVIDER` in `.env` only affects the live app and defaults to `openai`.
+Embedders (`hf` = `sentence-transformers/all-MiniLM-L6-v2`, `bge` = `BAAI/bge-small-en-v1.5`) run locally and need no key.
+The eval switches embedder per configuration; `EMBEDDING_PROVIDER` in `.env` only affects the live app and defaults to `openai`.
 
-`--require-online` is **on by default**: `run_eval.py` aborts with a clear message if an OpenAI-embedding configuration
-has no valid OpenAI key, if HF embeddings are requested without `sentence-transformers`, if answer generation is requested
-with neither an OpenAI nor a Groq key, or if production's silent offline fallback ever produced a wrong-dimension vector or an
-`[offline mode]` answer. Pass `--no-require-online` only for debugging; never report those numbers.
+`--require-online` is **on by default**: `run_eval.py` aborts with a clear message if HF embeddings are requested without
+`sentence-transformers`, if answer generation is requested with neither a Groq nor an OpenAI key, or if production's silent
+offline fallback ever produced a wrong-dimension vector or an `[offline mode]` answer. Pass `--no-require-online` only for
+debugging; never report those numbers.
+
+### Groq free-tier limits (important)
+
+Groq's free tier caps each model at roughly 200,000 tokens per day, which is far less than a full 10-configuration
+generation + judge run needs (about 80–120k tokens per configuration per model). The harness is built around that:
+
+* retrieval metrics (no LLM) run for **all** configurations at any time;
+* generation and judging use **two different models** (`--gen-model`, `--judge-model`) so each draws on its own daily budget, and the generator does not grade its own answers;
+* every LLM call is cached and results accumulate in `results/raw_<config>.csv`: when a limit is hit the run stops cleanly, and re-running the same command later resumes without re-spending tokens;
+* `summary.md` and the tables always cover every configuration on disk and state exactly which ones have answer-quality scores.
 
 ## Running
 
@@ -56,13 +66,13 @@ with neither an OpenAI nor a Groq key, or if production's silent offline fallbac
 cd eval
 python build_dataset.py --download     # fetch PDFs by arXiv id (skip --download if dataset/raw/ already has them) and build the corpus .md files + manifest
 python verify_testset.py               # sanity-check the test set against the corpus
-python run_eval.py                     # full grid: 10 configurations, retrieval + generation + judge
+python run_eval.py --no-generate       # retrieval metrics for all 10 configurations (no LLM needed)
+python run_eval.py --configs character__dense__hf character__hybrid__hf \n    --gen-model openai/gpt-oss-120b --judge-model openai/gpt-oss-20b --pace 1   # answers + judge; resumable
 ```
 
 Useful variations:
 
 ```bash
-python run_eval.py --no-generate                                  # retrieval metrics only (HF configs need no API key)
 python run_eval.py --configs character__hybrid__hf --limit 5      # quick smoke test
 python ask.py --embedder hf --retrieval-only "What is MaxSim?"    # interactive query
 ```
@@ -77,7 +87,7 @@ A configuration is `chunker__retrieval__embedder`:
 * chunker: `character` (legacy 800-char windows), `sentence` (production default sentence chunker, ~3,000 chars),
   `sentence800` (the same sentence chunker capped at ~800 chars — the size-controlled variant);
 * retrieval: `dense` (cosine only) or `hybrid` (production fusion: 0.6 dense + 0.4 BM25, × (1 + 0.2 · importance));
-* embedder: `openai` or `hf`. HF MiniLM truncates input at 256 word-pieces, so it is only paired with the ~800-char chunkers.
+* embedder: `hf` (MiniLM, 256-word-piece window), `bge` (BGE-small, 512-word-piece window), or optionally `openai`. MiniLM is only paired with the ~800-char chunkers; BGE also covers the ~3,000-char `sentence` chunker but truncates it to its first ~2,000 characters (stated wherever that comparison appears).
 
 ## Metrics
 
@@ -97,4 +107,5 @@ All intervals are bootstrap 95% CIs over questions; comparisons use paired boots
 1. `retrieve_hybrid` re-implements `services/retriever.hybrid_retrieve`'s *scoring* on in-memory arrays because the production function is bound to SQLAlchemy sessions and per-user caches. Weights, the importance multiplier and `_minmax` are imported from the production module so they cannot drift. Dense candidates use exact cosine instead of production's approximate USearch/KD-tree index.
 2. Sections: production PDF extraction yields one block per page and no headings; `build_dataset.py` adds heading detection and page markers when writing the markdown corpus.
 3. References sections are stripped from the corpus (bibliographic noise for lexical matching).
-4. Generator and judge are the same model family by default, so LLM-judge scores can be biased towards the generator's own style; treat them as relative, not absolute.
+4. Generator and judge are different models of the same family (`gpt-oss-120b` / `gpt-oss-20b`), so some shared-style bias remains; treat judge scores as relative, not absolute. The judge calls Groq directly (low reasoning effort, larger output cap) because reasoning models otherwise exhaust their output budget and return empty text through production's `complete_text`.
+5. The corpus `.md` files are git-ignored and regenerated by `build_dataset.py`; if another tool cleans ignored files, rebuild before running.
