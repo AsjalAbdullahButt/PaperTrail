@@ -73,10 +73,9 @@ eval/dataset/manifest.csv
 !README.md
 !**/README.md
 !eval/**/*.md
-# ...but the extracted third-party paper texts in eval/dataset/ are generated
-# input data, not deliverables: only the 10 numbered project docs are tracked.
+# ...but the extracted paper texts in eval/dataset/ are generated input data,
+# rebuilt from eval/dataset/raw/*.pdf by `python eval/build_dataset.py`.
 eval/dataset/*.md
-!eval/dataset/[0-9][0-9]-*.md
 
 # Eval: source PDFs are re-fetchable via `python eval/build_dataset.py --download`; caches are local-only
 eval/dataset/raw/*.pdf

@@ -14,16 +14,15 @@ routes, the database, storage or auth.
 |---|---|
 | `dataset/sources.csv` | Curated list of the 14 papers (arXiv id, short name, title, authors, year). |
 | `dataset/raw/` | Source PDFs, named `<arxiv_id>.pdf` (git-ignored; re-fetchable). |
+| `dataset/*.md` | The cleaned paper texts. Generated and git-ignored: not in the repo until you run `build_dataset.py`. |
 | `build_dataset.py` | PDFs → cleaned markdown in `dataset/` + `dataset/manifest.csv` (provenance), using the production extractor. |
 | `dataset/manifest.csv` | `doc_id, title, authors, year, arxiv_id_or_url, n_words, n_pages, source_pdf`. |
 | `testset.json` | 46 questions (factual / multi-hop / unanswerable) with verbatim evidence quotes. |
 | `verify_testset.py` | Checks every evidence quote exists in the corpus and every unanswerable question's key terms are absent. |
 | `pipeline.py` | `load → chunk → embed → retrieve (dense / hybrid) → generate`, each a callable stage. |
 | `run_eval.py` | Runs the experiment grid, computes all metrics, writes `results/`. |
-| `render_docs.py` | Injects the generated tables into `REPORT.md`, `chunking_comparison.md`, `PRESENTATION.md`. |
 | `ask.py` | Ask the corpus a question from the CLI (live-demo helper). |
-| `results/` | `raw_<config>.csv` per configuration, `summary.md`, `tables/*.md`, `run_meta.json`. |
-| `REPORT.md`, `chunking_comparison.md`, `PRESENTATION.md` | Written deliverables (tables are generated, never typed). |
+| `results/` | `raw_<config>.csv` per configuration and `run_meta.json`. `run_eval.py` also (re)generates `summary.md` and `tables/*.md` (every metric table) on each run; they are not committed. |
 
 ## Setup
 
@@ -55,10 +54,9 @@ with neither an OpenAI nor a Groq key, or if production's silent offline fallbac
 
 ```bash
 cd eval
-python build_dataset.py --download     # one-time: fetch PDFs by arXiv id and build the corpus + manifest
+python build_dataset.py --download     # fetch PDFs by arXiv id (skip --download if dataset/raw/ already has them) and build the corpus .md files + manifest
 python verify_testset.py               # sanity-check the test set against the corpus
 python run_eval.py                     # full grid: 10 configurations, retrieval + generation + judge
-python render_docs.py                  # refresh the tables inside REPORT.md / chunking_comparison.md / PRESENTATION.md
 ```
 
 Useful variations:
@@ -99,4 +97,4 @@ All intervals are bootstrap 95% CIs over questions; comparisons use paired boots
 1. `retrieve_hybrid` re-implements `services/retriever.hybrid_retrieve`'s *scoring* on in-memory arrays because the production function is bound to SQLAlchemy sessions and per-user caches. Weights, the importance multiplier and `_minmax` are imported from the production module so they cannot drift. Dense candidates use exact cosine instead of production's approximate USearch/KD-tree index.
 2. Sections: production PDF extraction yields one block per page and no headings; `build_dataset.py` adds heading detection and page markers when writing the markdown corpus.
 3. References sections are stripped from the corpus (bibliographic noise for lexical matching).
-4. Generator and judge are the same model family by default; see the limitations in `REPORT.md`.
+4. Generator and judge are the same model family by default, so LLM-judge scores can be biased towards the generator's own style; treat them as relative, not absolute.

@@ -83,7 +83,9 @@ _ABSTAIN_RE = re.compile(
     r"no (?:relevant )?information|not (?:in|present in|covered in) the (?:provided )?(?:documents|context|passages))",
     re.IGNORECASE,
 )
-_CITE_RE = re.compile(r"\[(\d+)\]")
+# Accept "[1]" and the full-width "【1】" style some models (e.g. gpt-oss) emit instead.
+_CITE_RE = re.compile(r"[\[【](\d+)(?:[^\]】]*)[\]】]")
+PACE_SECONDS = 0.0
 
 
 # --------------------------------------------------------------------------- #
@@ -219,14 +221,15 @@ def _chat_model_name() -> str:
     return "offline"
 
 
-def _retry(fn, *, attempts: int = 4, what: str = "LLM call"):
+def _retry(fn, *, attempts: int = 6, what: str = "LLM call"):
     last = ""
     for i in range(attempts):
+        time.sleep(PACE_SECONDS)
         out = fn()
         if out and not out.startswith("[offline mode]"):
             return out
         last = out
-        time.sleep(3 * (i + 1))
+        time.sleep(5 * (i + 1))
     raise RuntimeError(f"{what} kept returning an empty/offline response ({last[:80]!r}); check API keys and rate limits.")
 
 
@@ -448,8 +451,7 @@ def comparison_block(
 
 
 def write_summary(results: dict[str, list[Row]], meta: RunMeta, testset: list[dict]) -> pathlib.Path:
-    """Write ``summary.md`` plus one snippet file per table under ``results/tables/``
-    (``render_docs.py`` injects those snippets into REPORT.md / PRESENTATION.md)."""
+    """Write ``summary.md`` plus one snippet file per table under ``results/tables/``."""
     configs = list(results)
     types = {t: sum(1 for i in testset if i["type"] == t) for t in ("factual", "multi_hop", "unanswerable")}
     tables: dict[str, list[str]] = {}
@@ -462,7 +464,7 @@ def write_summary(results: dict[str, list[Row]], meta: RunMeta, testset: list[di
             f"- Embeddings: OpenAI `{meta.openai_embedding_model}` (1536-d) vs Hugging Face `{meta.hf_embedding_model}` (384-d).",
             f"- Configurations evaluated in this run: {len(configs)}."]
     if meta.generation:
-        head += [f"- Generator + judge: `{meta.chat_model}` (same model for both; see limitations in REPORT.md).",
+        head += [f"- Generator + judge: `{meta.chat_model}` (same model for both; see the deviations/limitations in eval/README.md).",
                  f"- Production-fallback warnings during the run: {meta.llm_fallback_warnings}; "
                  f"unparseable judge outputs: {meta.judge_parse_failures}."]
     else:
@@ -615,9 +617,12 @@ def main() -> int:
     ap.add_argument("--no-generate", action="store_true", help="retrieval metrics only (no LLM answers/judging)")
     ap.add_argument("--require-online", action=argparse.BooleanOptionalAction, default=True,
                     help="abort instead of falling back to offline embeddings/answers (default: on)")
+    ap.add_argument("--pace", type=float, default=0.0, help="seconds to wait before each LLM call (rate limits)")
     ap.add_argument("--limit", type=int, default=0, help="only the first N questions (debugging)")
     args = ap.parse_args()
 
+    global PACE_SECONDS
+    PACE_SECONDS = args.pace
     generate = not args.no_generate
     bad = [c for c in args.configs if c not in ALL_CONFIGS]
     if bad:
