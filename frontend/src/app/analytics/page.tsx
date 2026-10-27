@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type CSSProperties } from "react";
-import PageShell from "@/components/PageShell";
+import AuthenticatedPageLayout from "@/components/layout/AuthenticatedPageLayout";
 import {
   getAnalyticsOverview,
   getCoverageGaps,
@@ -11,7 +11,7 @@ import {
   type CoverageGap,
   type DocumentUsage,
   type TopQuery,
-} from "@/lib/api";
+} from "@/api/backendClient";
 
 const card: CSSProperties = {
   padding: "18px 20px", borderRadius: 18, background: "var(--card-bg)",
@@ -25,9 +25,9 @@ const label: CSSProperties = {
 
 export default function AnalyticsPage() {
   return (
-    <PageShell>
+    <AuthenticatedPageLayout>
       <AnalyticsInner />
-    </PageShell>
+    </AuthenticatedPageLayout>
   );
 }
 

@@ -23,8 +23,8 @@ afterEach(() => {
 
 // Deliberately does NOT import/reset Zustand stores (useAuthStore,
 // useQueryStore) here: importing them in this shared setup file binds their
-// internal `import * as api from "@/lib/api"` to the *real* api module before
-// each test file's own hoisted vi.mock("@/lib/api", ...) takes effect,
+// internal `import * as api from "@/api/backendClient"` to the *real* api module before
+// each test file's own hoisted vi.mock("@/api/backendClient", ...) takes effect,
 // silently breaking every test file that mocks the API layer. Store resets
 // belong in each test file instead (see authStore.test.ts's beforeEach and
 // page.test.tsx's afterEach), where they run after that file's own mocks.

@@ -9,7 +9,7 @@ type AuthSlice = {
   restoreSession: () => void;
   logout: () => Promise<void>;
 };
-vi.mock("@/stores/authStore", () => ({
+vi.mock("@/state/authStore", () => ({
   useAuthStore: (selector: (s: AuthSlice) => unknown) =>
     selector({
       isAuthenticated: true,
@@ -23,8 +23,8 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
 }));
 
-vi.mock("@/lib/api", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
+vi.mock("@/api/backendClient", async () => {
+  const actual = await vi.importActual<typeof import("@/api/backendClient")>("@/api/backendClient");
   return {
     ...actual,
     askQuery: vi.fn(),
@@ -40,8 +40,8 @@ import {
   listDocuments,
   uploadDocument,
   type QueryStreamEvent,
-} from "@/lib/api";
-import { useQueryStore } from "@/stores/queryStore";
+} from "@/api/backendClient";
+import { useQueryStore } from "@/state/queryStore";
 
 const initialQueryState = useQueryStore.getState();
 

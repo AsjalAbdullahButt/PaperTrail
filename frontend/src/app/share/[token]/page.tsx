@@ -3,10 +3,10 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ApiError, getSharedQuery, type SharedQuery } from "@/lib/api";
-import { THEMES, useTheme } from "@/lib/theme";
-import Logo from "@/components/Logo";
-import { renderAnswerWithCitations } from "@/components/Citations";
+import { ApiError, getSharedQuery, type SharedQuery } from "@/api/backendClient";
+import { THEMES, useTheme } from "@/theme/themes";
+import PaperTrailLogo from "@/components/layout/PaperTrailLogo";
+import { renderAnswerWithCitations } from "@/components/query/AnswerCitations";
 
 const MODE_LABEL: Record<string, string> = {
   rag: "Retrieved answer",
@@ -14,7 +14,7 @@ const MODE_LABEL: Record<string, string> = {
   direct: "Direct answer",
 };
 
-/** Public, unauthenticated view of a shared query — no PageShell (no nav,
+/** Public, unauthenticated view of a shared query — no AuthenticatedPageLayout (no nav,
  * no auth redirect): this is the one page in the app meant to be opened by
  * people who have never signed in. */
 export default function SharedQueryPage() {
@@ -56,7 +56,7 @@ export default function SharedQueryPage() {
     <div style={{ position: "relative", minHeight: "100vh", background: "var(--bg)", ...t } as CSSProperties}>
       <div style={{ position: "relative", zIndex: 1, maxWidth: 720, margin: "0 auto", padding: "28px 24px 80px" }}>
         <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 11, textDecoration: "none", marginBottom: 30 }}>
-          <Logo />
+          <PaperTrailLogo />
           <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: "-.02em", color: "var(--text)" }}>PaperTrail</span>
         </Link>
 

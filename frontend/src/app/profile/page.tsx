@@ -3,7 +3,7 @@
 import { useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import PageShell from "@/components/PageShell";
+import AuthenticatedPageLayout from "@/components/layout/AuthenticatedPageLayout";
 import {
   ApiError,
   changePassword,
@@ -12,13 +12,13 @@ import {
   resolveApiUrl,
   updateProfile,
   uploadAvatar,
-} from "@/lib/api";
-import { useAuthStore } from "@/stores/authStore";
+} from "@/api/backendClient";
+import { useAuthStore } from "@/state/authStore";
 import {
   PasswordInput,
   PasswordStrengthMeter,
   passwordComplexityError,
-} from "@/components/PasswordField";
+} from "@/components/ui/PasswordField";
 
 const cardStyle: CSSProperties = {
   padding: "22px 24px",
@@ -445,8 +445,8 @@ function ProfilePageContent() {
 
 export default function ProfilePage() {
   return (
-    <PageShell>
+    <AuthenticatedPageLayout>
       <ProfilePageContent />
-    </PageShell>
+    </AuthenticatedPageLayout>
   );
 }

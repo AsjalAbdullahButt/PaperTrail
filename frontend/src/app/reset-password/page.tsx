@@ -3,9 +3,9 @@
 import { Suspense, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ApiError, resetPassword } from "@/lib/api";
+import { ApiError, resetPassword } from "@/api/backendClient";
 import { AuthShell, fieldErrorStyle, inputStyle, labelStyle, linkStyle } from "../login/page";
-import { PasswordInput, PasswordStrengthMeter, passwordComplexityError } from "@/components/PasswordField";
+import { PasswordInput, PasswordStrengthMeter, passwordComplexityError } from "@/components/ui/PasswordField";
 
 function ResetPasswordForm() {
   const router = useRouter();

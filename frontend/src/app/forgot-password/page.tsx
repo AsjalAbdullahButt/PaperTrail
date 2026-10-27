@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { ApiError, forgotPassword } from "@/lib/api";
+import { ApiError, forgotPassword } from "@/api/backendClient";
 import { AuthShell, fieldErrorStyle, inputStyle, labelStyle, linkStyle } from "../login/page";
 
 export default function ForgotPasswordPage() {

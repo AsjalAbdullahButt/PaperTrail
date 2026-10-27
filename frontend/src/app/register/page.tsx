@@ -3,10 +3,10 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ApiError } from "@/lib/api";
-import { useAuthStore } from "@/stores/authStore";
+import { ApiError } from "@/api/backendClient";
+import { useAuthStore } from "@/state/authStore";
 import { AuthShell, fieldErrorStyle, inputStyle, labelStyle, linkStyle } from "../login/page";
-import { PasswordInput, PasswordStrengthMeter, passwordComplexityError } from "@/components/PasswordField";
+import { PasswordInput, PasswordStrengthMeter, passwordComplexityError } from "@/components/ui/PasswordField";
 
 export default function RegisterPage() {
   const router = useRouter();

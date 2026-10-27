@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import dynamic from "next/dynamic";
 import toast from "react-hot-toast";
-import PageShell from "@/components/PageShell";
-import Select from "@/components/Select";
-import Timeline from "@/components/Timeline";
+import AuthenticatedPageLayout from "@/components/layout/AuthenticatedPageLayout";
+import DropdownSelect from "@/components/ui/DropdownSelect";
 import {
   addToCollection,
   addTags,
@@ -19,7 +19,10 @@ import {
   type CoverageCell,
   type DocumentInfo,
   type QueryHistoryItem,
-} from "@/lib/api";
+} from "@/api/backendClient";
+
+// Loaded only when a document's timeline is opened.
+const DocumentTimeline = dynamic(() => import("@/components/documents/DocumentTimeline"));
 
 const TYPE_ICON: Record<string, string> = {
   pdf: "PDF", docx: "DOC", pptx: "PPT", txt: "TXT", md: "MD", xlsx: "XLS", csv: "CSV",
@@ -37,9 +40,9 @@ const label: CSSProperties = {
 
 export default function LibraryPage() {
   return (
-    <PageShell>
+    <AuthenticatedPageLayout>
       <LibraryInner />
-    </PageShell>
+    </AuthenticatedPageLayout>
   );
 }
 
@@ -145,7 +148,7 @@ function LibraryInner() {
                 placeholder="Search by name…"
                 style={{ flex: "1 1 200px", padding: "10px 12px", borderRadius: 12, background: "var(--card-bg)", border: "1px solid var(--card-border)", color: "var(--text)", fontFamily: "inherit", fontSize: 14, outline: "none" }}
               />
-              <Select
+              <DropdownSelect
                 value={typeFilter}
                 onChange={setTypeFilter}
                 placeholder="All types"
@@ -238,7 +241,7 @@ function DocumentCard({ doc, collections, onChanged }: { doc: DocumentInfo; coll
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
         <input value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleAddTag(); }} placeholder="add tag" style={{ flex: "1 1 100px", minWidth: 0, padding: "6px 9px", borderRadius: 9, background: "var(--seg-bg)", border: "1px solid var(--card-border)", color: "var(--text)", fontFamily: "inherit", fontSize: 12, outline: "none" }} />
-        <Select
+        <DropdownSelect
           value=""
           onChange={async (v) => { if (v) await addToCollection(v, [doc.id]); }}
           placeholder="+ collection"
@@ -255,7 +258,7 @@ function DocumentCard({ doc, collections, onChanged }: { doc: DocumentInfo; coll
       </div>
 
       {coverage && <CoverageHeatmap cells={coverage} />}
-      {showTimeline && <Timeline documentId={doc.id} />}
+      {showTimeline && <DocumentTimeline documentId={doc.id} />}
     </div>
   );
 }

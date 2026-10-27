@@ -1,6 +1,6 @@
 node_modules
 .next
-e2e
+end-to-end-tests
 playwright-report
 playwright/.cache
 coverage

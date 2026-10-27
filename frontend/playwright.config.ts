@@ -7,7 +7,7 @@ import { defineConfig, devices } from "@playwright/test";
  * Run:  npm run build && npx playwright install chromium && npm run test:e2e
  */
 export default defineConfig({
-  testDir: "./e2e",
+  testDir: "./end-to-end-tests",
   timeout: 30_000,
   fullyParallel: false,
   use: {

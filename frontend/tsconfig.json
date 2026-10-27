@@ -37,6 +37,6 @@
     "vitest.config.ts",
     "vitest.setup.ts",
     "playwright.config.ts",
-    "e2e/**"
+    "end-to-end-tests/**"
   ]
 }

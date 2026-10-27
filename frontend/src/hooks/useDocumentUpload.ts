@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, type ChangeEvent } from "react";
-import { ApiError, uploadDocument, type UploadResult } from "@/lib/api";
+import { ApiError, uploadDocument, type UploadResult } from "@/api/backendClient";
 
 export function useDocumentUpload(opts: {
   onUnauthorized: () => void;

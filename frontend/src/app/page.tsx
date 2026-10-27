@@ -1,25 +1,29 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useAuthStore } from "@/stores/authStore";
-import { useQueryStore } from "@/stores/queryStore";
+import { useAuthStore } from "@/state/authStore";
+import { useQueryStore } from "@/state/queryStore";
 import { useToast } from "@/hooks/useToast";
 import { useDocumentUpload } from "@/hooks/useDocumentUpload";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
-import { useParallax } from "@/hooks/useParallax";
-import { useOnboarding } from "@/hooks/useOnboarding";
-import { THEMES, useTheme } from "@/lib/theme";
-import AmbientBackground from "@/components/AmbientBackground";
-import Header from "@/components/Header";
-import QueryPanel from "@/components/QueryPanel";
-import MindMap from "@/components/MindMap";
-import DocumentManager from "@/components/DocumentManager";
-import ChatHistoryPanel from "@/components/ChatHistoryPanel";
-import UploadReadyCard from "@/components/UploadReadyCard";
-import CommandPalette from "@/components/CommandPalette";
-import OnboardingModal from "@/components/OnboardingModal";
-import ToastViewport from "@/components/ToastViewport";
+import { useMouseParallax } from "@/hooks/useMouseParallax";
+import { useOnboardingHint } from "@/hooks/useOnboardingHint";
+import { THEMES, useTheme } from "@/theme/themes";
+import AmbientBackground from "@/components/layout/AmbientBackground";
+import HomeHeader from "@/components/layout/HomeHeader";
+import QueryPanel from "@/components/query/QueryPanel";
+import DocumentListDrawer from "@/components/documents/DocumentListDrawer";
+import ChatHistoryPanel from "@/components/query/ChatHistoryPanel";
+import UploadReadyCard from "@/components/documents/UploadReadyCard";
+import CommandPalette from "@/components/ui/CommandPalette";
+import ToastViewport from "@/components/ui/ToastViewport";
+
+// Only rendered after a first answer / on a first login, so keep them out of
+// the initial bundle.
+const QueryMindMap = dynamic(() => import("@/components/query/QueryMindMap"));
+const OnboardingModal = dynamic(() => import("@/components/ui/OnboardingModal"));
 
 export default function Home() {
   const router = useRouter();
@@ -40,8 +44,8 @@ export default function Home() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [docRefreshKey, setDocRefreshKey] = useState(0);
   const queryInputRef = useRef<HTMLInputElement>(null);
-  const parallax = useParallax();
-  const { showOnboarding, dismissOnboarding } = useOnboarding(authed);
+  const parallax = useMouseParallax();
+  const { showOnboarding, dismissOnboarding } = useOnboardingHint(authed);
 
   const { toast, showToast } = useToast();
   const setQuery = useQueryStore((s) => s.setQuery);
@@ -91,7 +95,7 @@ export default function Home() {
       <div style={{ position: "relative", zIndex: 1, maxWidth: 1200, margin: "0 auto", padding: "22px 28px 80px" }}>
         {authed === true && (
           <>
-            <Header
+            <HomeHeader
               isDark={isDark}
               onToggleTheme={() => setTheme(isDark ? "light" : "dark")}
               onDocsOpen={() => setDocsOpen(true)}
@@ -107,14 +111,14 @@ export default function Home() {
             {lastUpload && !hasAnswer && (
               <UploadReadyCard result={lastUpload} onDismiss={() => setLastUpload(null)} />
             )}
-            {hasAnswer && answerMode !== "direct" && queryId && <MindMap queryId={queryId} />}
+            {hasAnswer && answerMode !== "direct" && queryId && <QueryMindMap queryId={queryId} />}
           </>
         )}
       </div>
 
       {authed === true && (
         <>
-          <DocumentManager open={docsOpen} onClose={() => setDocsOpen(false)} refreshKey={docRefreshKey} onChanged={() => setDocRefreshKey((k) => k + 1)} onUnauthorized={handleUnauthorized} />
+          <DocumentListDrawer open={docsOpen} onClose={() => setDocsOpen(false)} refreshKey={docRefreshKey} onChanged={() => setDocRefreshKey((k) => k + 1)} onUnauthorized={handleUnauthorized} />
           <ChatHistoryPanel open={historyOpen} onClose={() => setHistoryOpen(false)} refreshKey={docRefreshKey} onUnauthorized={handleUnauthorized} />
           <CommandPalette
             open={paletteOpen}

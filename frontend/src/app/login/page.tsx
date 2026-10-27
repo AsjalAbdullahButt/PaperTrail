@@ -3,11 +3,11 @@
 import { useState, type CSSProperties, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ApiError } from "@/lib/api";
-import { useAuthStore } from "@/stores/authStore";
-import { THEMES, useTheme } from "@/lib/theme";
-import { PasswordInput } from "@/components/PasswordField";
-import Logo from "@/components/Logo";
+import { ApiError } from "@/api/backendClient";
+import { useAuthStore } from "@/state/authStore";
+import { THEMES, useTheme } from "@/theme/themes";
+import { PasswordInput } from "@/components/ui/PasswordField";
+import PaperTrailLogo from "@/components/layout/PaperTrailLogo";
 
 const ACCENT_GRADIENT = "linear-gradient(135deg,var(--accent),var(--accent2))";
 
@@ -218,7 +218,7 @@ export function AuthShell({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 6 }}>
-          <Logo />
+          <PaperTrailLogo />
           <span
             style={{
               fontWeight: 800,
