@@ -8,6 +8,9 @@
       {
         "document": "transformer",
         "quote": "we employ h = 8 parallel attention layers, or heads. For each of these we use dk = dv = dmodel/h = 64",
+        "any_of": [
+          "8 parallel attention layers"
+        ],
         "section": "3.2.2 Multi-Head Attention",
         "page": "5"
       }
@@ -28,6 +31,9 @@
       {
         "document": "transformer",
         "quote": "Our model achieves 28.4 BLEU on the WMT 2014",
+        "any_of": [
+          "28 4 bleu"
+        ],
         "section": "Abstract",
         "page": "1"
       }
@@ -48,6 +54,9 @@
       {
         "document": "transformer",
         "quote": "We used the Adam optimizer",
+        "any_of": [
+          "we used the adam optimizer"
+        ],
         "section": "5.3 Optimizer",
         "page": "7"
       }
@@ -68,6 +77,9 @@
       {
         "document": "transformer",
         "quote": "We chose the sinusoidal version because it may allow the model to extrapolate to sequence lengths longer than the ones encountered during training",
+        "any_of": [
+          "sinusoidal version"
+        ],
         "section": "3.5 Positional Encoding",
         "page": "6"
       }
@@ -88,6 +100,9 @@
       {
         "document": "transformer",
         "quote": "The encoder is composed of a stack of N = 6 identical layers",
+        "any_of": [
+          "stack of n 6 identical layers"
+        ],
         "section": "3.1 Encoder and Decoder Stacks",
         "page": "3"
       }
@@ -108,6 +123,9 @@
       {
         "document": "bert",
         "quote": "Task #2: Next Sentence Prediction (NSP)",
+        "any_of": [
+          "next sentence prediction"
+        ],
         "section": "3.1 Pre-training BERT",
         "page": "4"
       }
@@ -128,6 +146,9 @@
       {
         "document": "bert",
         "quote": "we mask 15% of all WordPiece tokens in each sequence at random",
+        "any_of": [
+          "15 of all wordpiece tokens"
+        ],
         "section": "3.1 Pre-training BERT",
         "page": "4"
       }
@@ -148,6 +169,9 @@
       {
         "document": "bert",
         "quote": "BERTBASE (L=12, H=768, A=12, Total Parameters=110M)",
+        "any_of": [
+          "110m"
+        ],
         "section": "2.3 Transfer Learning from Supervised Data",
         "page": "3"
       }
@@ -168,6 +192,9 @@
       {
         "document": "sentence-bert",
         "quote": "This reduces the effort for finding the most similar pair from 65 hours with BERT / RoBERTa to about 5 seconds with SBERT",
+        "any_of": [
+          "65 hours"
+        ],
         "section": "Abstract",
         "page": "1"
       }
@@ -188,6 +215,10 @@
       {
         "document": "sentence-bert",
         "quote": "Our default pooling strategy is MEAN",
+        "any_of": [
+          "default pooling strategy is mean",
+          "default configuration is mean"
+        ],
         "section": "3.1 Training Details",
         "page": "4"
       }
@@ -208,6 +239,9 @@
       {
         "document": "sentence-bert",
         "quote": "concatenate the sentence embeddings u and v with the element-wise difference",
+        "any_of": [
+          "element wise difference"
+        ],
         "section": "3 Model",
         "page": "3"
       }
@@ -228,6 +262,9 @@
       {
         "document": "dpr",
         "quote": "Our best model uses gold passages from the same mini-batch and one BM25 negative passage",
+        "any_of": [
+          "one bm25 negative passage"
+        ],
         "section": "3.2 Training",
         "page": "3"
       }
@@ -248,6 +285,9 @@
       {
         "document": "dpr",
         "quote": "21 million passages in our experiments",
+        "any_of": [
+          "21 million"
+        ],
         "section": "3 Dense Passage Retriever (DPR)",
         "page": "2"
       }
@@ -268,6 +308,9 @@
       {
         "document": "dpr",
         "quote": "greatly by 9%-19% absolute in terms of top-20 passage retrieval accuracy",
+        "any_of": [
+          "9 19 absolute"
+        ],
         "section": "Abstract",
         "page": "1"
       }
@@ -288,6 +331,10 @@
       {
         "document": "rag",
         "quote": "one which conditions on the same retrieved passages across the whole generated sequence, and another which can use different passages per token",
+        "any_of": [
+          "same retrieved passages",
+          "same retrieved document to generate the complete sequence"
+        ],
         "section": "Abstract",
         "page": "1"
       }
@@ -308,6 +355,9 @@
       {
         "document": "rag",
         "quote": "we use the December 2018 dump. Each Wikipedia article is split into disjoint 100-word chunks",
+        "any_of": [
+          "december 2018 dump"
+        ],
         "section": "3 Experiments",
         "page": "4"
       }
@@ -328,6 +378,9 @@
       {
         "document": "realm",
         "quote": "using masked language modeling as the learning signal and backpropagating through a retrieval step",
+        "any_of": [
+          "masked language modeling as the learning signal"
+        ],
         "section": "Abstract",
         "page": "1"
       }
@@ -348,6 +401,9 @@
       {
         "document": "realm",
         "quote": "asynchronously re-embedding and re-indexing all documents every several hundred training steps",
+        "any_of": [
+          "asynchronously re embedding"
+        ],
         "section": "3.3. Training",
         "page": "4"
       }
@@ -368,6 +424,9 @@
       {
         "document": "colbert",
         "quote": "every query embedding interacts with all document embeddings via a MaxSim operator",
+        "any_of": [
+          "maxsim operator"
+        ],
         "section": "INTRODUCTION",
         "page": "2"
       }
@@ -388,6 +447,9 @@
       {
         "document": "colbert",
         "quote": "executing two orders-of-magnitude faster and requiring four orders-of-magnitude fewer FLOPs per query",
+        "any_of": [
+          "four orders of magnitude fewer flops"
+        ],
         "section": "ABSTRACT",
         "page": "1"
       }
@@ -408,6 +470,9 @@
       {
         "document": "beir",
         "quote": "Our results show BM25 is a robust baseline and re-ranking and late-interaction based models on average achieve the best zeroshot performances",
+        "any_of": [
+          "bm25 is a robust baseline"
+        ],
         "section": "Abstract",
         "page": "1"
       }
@@ -428,6 +493,9 @@
       {
         "document": "contriever",
         "quote": "our unsupervised model outperforms BM25 on 11 out of 15 datasets for the Recall@100",
+        "any_of": [
+          "11 out of 15 datasets"
+        ],
         "section": "Abstract",
         "page": "1"
       }
@@ -448,6 +516,9 @@
       {
         "document": "hyde",
         "quote": "HyDE first zero-shot instructs an instruction-following language model (e.g. InstructGPT) to generate a hypothetical document",
+        "any_of": [
+          "hypothetical document"
+        ],
         "section": "Abstract",
         "page": "1"
       }
@@ -468,6 +539,9 @@
       {
         "document": "lost-in-the-middle",
         "quote": "language model performance is highest when relevant information occurs at the very beginning (primacy bias) or end of its input context (recency bias)",
+        "any_of": [
+          "primacy bias"
+        ],
         "section": "1 Introduction",
         "page": "2"
       }
@@ -488,6 +562,9 @@
       {
         "document": "ragas",
         "quote": "We focus in particular three quality aspects, which we argue are of central importance",
+        "any_of": [
+          "three quality aspects"
+        ],
         "section": "3 Evaluation Strategies",
         "page": "3"
       }
@@ -508,6 +585,10 @@
       {
         "document": "self-rag",
         "quote": "M predicts ISSUP and ISUSE given x, yt, d for each d",
+        "any_of": [
+          "isrel",
+          "issup"
+        ],
         "section": "RELATED WORK",
         "page": "4"
       }
@@ -528,6 +609,9 @@
       {
         "document": "rag-survey",
         "quote": "encompassing the Naive RAG, the Advanced RAG, and the Modular RAG",
+        "any_of": [
+          "naive rag advanced rag and modular rag"
+        ],
         "section": "1 Retrieval-Augmented Generation for Large",
         "page": "1"
       }
@@ -548,12 +632,18 @@
       {
         "document": "rag",
         "quote": "We use a pre-trained bi-encoder from DPR to initialize our retriever",
+        "any_of": [
+          "pre trained bi encoder from dpr"
+        ],
         "section": "2.2 Retriever: DPR",
         "page": "3"
       },
       {
         "document": "dpr",
         "quote": "Our best model uses gold passages from the same mini-batch and one BM25 negative passage",
+        "any_of": [
+          "one bm25 negative passage"
+        ],
         "section": "3.2 Training",
         "page": "3"
       }
@@ -575,12 +665,19 @@
       {
         "document": "dpr",
         "quote": "maps any text passage to a ddimensional real-valued vectors",
+        "any_of": [
+          "maps any text passage"
+        ],
         "section": "3.1 Overview",
         "page": "2"
       },
       {
         "document": "colbert",
         "quote": "encodes each query or document into a bag of embeddings",
+        "any_of": [
+          "bag of embeddings",
+          "bag of fixed size embeddings"
+        ],
         "section": "3.2 Qery & Document Encoders",
         "page": "4"
       }
@@ -602,12 +699,19 @@
       {
         "document": "bert",
         "quote": "Sentence pairs are packed together into a single sequence",
+        "any_of": [
+          "packed together into a single sequence"
+        ],
         "section": "2.3 Transfer Learning from Supervised Data",
         "page": "4"
       },
       {
         "document": "sentence-bert",
         "quote": "Finding the most similar pair in a collection of 10,000 sentences requires about 50 million inference computations",
+        "any_of": [
+          "50 million inference computations",
+          "65 hours"
+        ],
         "section": "Abstract",
         "page": "1"
       }
@@ -629,12 +733,18 @@
       {
         "document": "hyde",
         "quote": "an unsupervised contrastively learned encoder (e.g. Contriever) encodes the document into an embedding vector",
+        "any_of": [
+          "contrastively learned encoder"
+        ],
         "section": "Abstract",
         "page": "1"
       },
       {
         "document": "contriever",
         "quote": "we explore the limits of contrastive learning as a way to train unsupervised dense retrievers",
+        "any_of": [
+          "explore the limits of contrastive learning"
+        ],
         "section": "Abstract",
         "page": "1"
       }
@@ -656,12 +766,19 @@
       {
         "document": "self-rag",
         "quote": "adaptively retrieves passages on-demand",
+        "any_of": [
+          "adaptively retrieves",
+          "on demand"
+        ],
         "section": "ABSTRACT",
         "page": "1"
       },
       {
         "document": "rag",
         "quote": "For query x, we use Maximum Inner Product Search (MIPS) to find the top-K documents",
+        "any_of": [
+          "maximum inner product search"
+        ],
         "section": "1 Introduction",
         "page": "2"
       }
@@ -683,12 +800,18 @@
       {
         "document": "beir",
         "quote": "dense and sparse-retrieval models are computationally more efficient but often underperform other approaches",
+        "any_of": [
+          "often underperform other approaches"
+        ],
         "section": "Abstract",
         "page": "1"
       },
       {
         "document": "dpr",
         "quote": "Our dense passage retriever (DPR) uses a dense encoder",
+        "any_of": [
+          "dense passage retriever dpr uses a dense encoder"
+        ],
         "section": "3.1 Overview",
         "page": "2"
       }
@@ -710,12 +833,18 @@
       {
         "document": "realm",
         "quote": "asynchronously re-embedding and re-indexing all documents every several hundred training steps",
+        "any_of": [
+          "asynchronously re embedding"
+        ],
         "section": "3.3. Training",
         "page": "4"
       },
       {
         "document": "rag",
         "quote": "Updating the document encoder BERTd during training is costly",
+        "any_of": [
+          "updating the document encoder"
+        ],
         "section": "2.4 Training",
         "page": "4"
       }
@@ -737,12 +866,18 @@
       {
         "document": "bert",
         "quote": "model architecture is a multi-layer bidirectional Transformer encoder",
+        "any_of": [
+          "multi layer bidirectional transformer encoder"
+        ],
         "section": "2.3 Transfer Learning from Supervised Data",
         "page": "3"
       },
       {
         "document": "transformer",
         "quote": "The encoder is composed of a stack of N = 6 identical layers",
+        "any_of": [
+          "stack of n 6 identical layers"
+        ],
         "section": "3.1 Encoder and Decoder Stacks",
         "page": "3"
       }
@@ -764,12 +899,18 @@
       {
         "document": "rag-survey",
         "quote": "Quality scores include context relevance, answer faithfulness, and answer relevance",
+        "any_of": [
+          "quality scores include context relevance"
+        ],
         "section": "C. Evaluation Aspects",
         "page": "12"
       },
       {
         "document": "ragas",
         "quote": "Answer Relevance refers to the idea that the generated answer should address the actual question that was provided",
+        "any_of": [
+          "answer relevance refers to the idea"
+        ],
         "section": "3 Evaluation Strategies",
         "page": "3"
       }
@@ -791,12 +932,18 @@
       {
         "document": "lost-in-the-middle",
         "quote": "language model performance is highest when relevant information occurs at the very beginning (primacy bias) or end of its input context (recency bias)",
+        "any_of": [
+          "primacy bias"
+        ],
         "section": "1 Introduction",
         "page": "2"
       },
       {
         "document": "rag-survey",
         "quote": "overly long contexts can also lead LLM to the",
+        "any_of": [
+          "lost in the middle"
+        ],
         "section": "A. Context Curation",
         "page": "10"
       }
@@ -818,12 +965,18 @@
       {
         "document": "contriever",
         "quote": "On the BEIR benchmark our unsupervised model outperforms BM25",
+        "any_of": [
+          "on the beir benchmark"
+        ],
         "section": "Abstract",
         "page": "1"
       },
       {
         "document": "beir",
         "quote": "careful selection of 18 publicly available datasets",
+        "any_of": [
+          "18 publicly available datasets"
+        ],
         "section": "Abstract",
         "page": "1"
       }
