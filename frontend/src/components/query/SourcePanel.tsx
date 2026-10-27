@@ -23,7 +23,7 @@ function SourceCard({ src }: { src: Source }) {
         border: `1px solid ${hover ? "var(--accent)" : "var(--card-border)"}`,
         backdropFilter: "blur(18px) saturate(140%)",
         WebkitBackdropFilter: "blur(18px) saturate(140%)",
-        boxShadow: "0 8px 24px var(--cardShadow)",
+        boxShadow: "var(--elev-1)",
         transition: "border-color .15s ease",
       }}
     >
@@ -93,7 +93,7 @@ export default function SourcePanel({
 }) {
   if (sources.length === 0) return null;
   return (
-    <div style={{ flex: "1 1 300px", minWidth: 270, maxWidth: 380 }}>
+    <div style={{ flex: "1 1 300px", minWidth: "min(270px, 100%)", maxWidth: 380 }}>
       {mode !== "direct" && !isStreaming && (
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 12, padding: "12px 0", borderRadius: 16, background: "var(--card-bg)", border: "1px solid var(--card-border)" }}>
           <ConfidenceGauge value={confidenceScore} />

@@ -113,10 +113,10 @@ export default function DropdownSelect({
           ref={menuRef}
           role="listbox"
           style={{
-            position: "fixed", top: rect.bottom + 6, left: rect.left, width: Math.max(rect.width, 160),
+            position: "fixed", top: rect.bottom + 6, left: `min(${rect.left}px, calc(100vw - ${Math.max(rect.width, 160) + 8}px))`, width: Math.max(rect.width, 160),
             maxHeight: 280, overflowY: "auto", padding: 6, borderRadius: 12,
             background: "var(--menu-bg)", border: "1px solid var(--card-border)",
-            boxShadow: "0 18px 40px var(--cardShadow)", zIndex: 1000,
+            boxShadow: "var(--elev-2)", zIndex: 1000,
             animation: "rise .12s ease both",
           }}
         >

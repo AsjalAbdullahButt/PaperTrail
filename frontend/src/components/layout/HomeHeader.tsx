@@ -164,9 +164,10 @@ function ExportMenu({
           ref={menuRef}
           role="menu"
           style={{
-            position: "fixed", top: rect.bottom + 8, left: rect.right - 250, width: 250, padding: 6, borderRadius: 14,
+            // Right-align to the trigger but never spill past either viewport edge on a phone.
+            position: "fixed", top: rect.bottom + 8, left: `clamp(8px, ${rect.right - 250}px, calc(100vw - 258px))`, width: "min(250px, calc(100vw - 16px))", padding: 6, borderRadius: 14,
             background: "var(--menu-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px) saturate(150%)",
-            WebkitBackdropFilter: "blur(22px) saturate(150%)", boxShadow: "0 18px 40px var(--cardShadow)", zIndex: 1000,
+            WebkitBackdropFilter: "blur(22px) saturate(150%)", boxShadow: "var(--elev-2)", zIndex: 1000,
             animation: "rise .15s ease both",
           }}
         >

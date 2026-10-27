@@ -17,7 +17,7 @@ export default function ToastViewport({ toast }: { toast: Toast | null }) {
             border: `1px solid ${toast.kind === "ok" ? "var(--chip-border)" : "rgba(255,120,120,.4)"}`,
             backdropFilter: "blur(18px) saturate(150%)",
             WebkitBackdropFilter: "blur(18px) saturate(150%)",
-            boxShadow: "0 10px 30px var(--cardShadow)",
+            boxShadow: "var(--elev-2)",
             animation: "rise .3s ease both",
           }}
         >

@@ -53,7 +53,7 @@ export default function ConfidenceGauge({ value }: { value: number }) {
         {v > 0 && (
           <path d={arcPath(180, end)} fill="none" stroke="url(#conf-grad)" strokeWidth={9} strokeLinecap="round" />
         )}
-        <text x={CX} y={CY - 6} textAnchor="middle" fontSize={18} fontWeight={800} fill="var(--text)">
+        <text className="tabular-nums" x={CX} y={CY - 6} textAnchor="middle" fontSize={18} fontWeight={800} fill="var(--text)">
           {pct}%
         </text>
       </svg>

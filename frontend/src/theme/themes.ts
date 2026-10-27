@@ -34,6 +34,13 @@ export const THEMES: Record<ThemeName, ThemeVars> = {
     // Near-opaque (unlike --card-bg) so floating menus/tooltips stay legible
     // over whatever they overlap even where backdrop-filter isn't rendered.
     "--menu-bg": "rgba(17,19,25,.98)",
+    // Polish tokens: focus ring + scrollbar are consumed by globals.css, the
+    // elevation pair by component box-shadows (cards = 1, floating layers = 2).
+    "--ring": "rgba(52,211,153,.55)",
+    "--scrollbar": "rgba(255,255,255,.14)",
+    "--scrollbar-hover": "rgba(255,255,255,.26)",
+    "--elev-1": "0 1px 2px rgba(0,0,0,.40), 0 4px 16px rgba(0,0,0,.34)",
+    "--elev-2": "0 10px 44px rgba(0,0,0,.55)",
   },
   light: {
     "--bg": "radial-gradient(1200px 800px at 15% -5%, #ffffff 0%, #f4f5f2 55%, #eef0ec 100%)",
@@ -57,6 +64,11 @@ export const THEMES: Record<ThemeName, ThemeVars> = {
     "--cardShadow": "rgba(30,40,60,.12)",
     "--sel": "rgba(13,148,136,.2)",
     "--menu-bg": "rgba(255,255,255,.98)",
+    "--ring": "rgba(13,148,136,.45)",
+    "--scrollbar": "rgba(20,25,35,.18)",
+    "--scrollbar-hover": "rgba(20,25,35,.32)",
+    "--elev-1": "0 1px 2px rgba(30,40,60,.08), 0 4px 16px rgba(30,40,60,.10)",
+    "--elev-2": "0 12px 44px rgba(30,40,60,.16)",
   },
 };
 

@@ -31,7 +31,7 @@ const TYPE_ICON: Record<string, string> = {
 const card: CSSProperties = {
   padding: "16px 18px", borderRadius: 16, background: "var(--card-bg)",
   border: "1px solid var(--card-border)", backdropFilter: "blur(18px) saturate(140%)",
-  boxShadow: "0 8px 24px var(--cardShadow)",
+  boxShadow: "var(--elev-1)",
 };
 const label: CSSProperties = {
   fontSize: 11.5, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase",
@@ -99,7 +99,7 @@ function LibraryInner() {
   return (
     <div style={{ display: "flex", gap: 22, alignItems: "flex-start", flexWrap: "wrap" }}>
       {/* Sidebar */}
-      <aside style={{ flex: "0 0 240px", minWidth: 200, display: "flex", flexDirection: "column", gap: 8 }}>
+      <aside style={{ flex: "0 0 240px", minWidth: "min(200px, 100%)", display: "flex", flexDirection: "column", gap: 8 }}>
         <SidebarItem active={view.kind === "all"} label="All Documents" onClick={() => setView({ kind: "all" })} />
         <SidebarItem active={view.kind === "bookmarks"} label="★ Bookmarks" onClick={() => setView({ kind: "bookmarks" })} />
         <div style={{ ...label, marginTop: 14, padding: "0 4px" }}>Collections</div>
@@ -129,7 +129,7 @@ function LibraryInner() {
       </aside>
 
       {/* Main */}
-      <main style={{ flex: "1 1 520px", minWidth: 300 }}>
+      <main style={{ flex: "1 1 520px", minWidth: "min(300px, 100%)" }}>
         {duplicates.length > 0 && view.kind !== "bookmarks" && (
           <div style={{ ...card, marginBottom: 16, borderColor: "rgba(224,165,58,.4)", background: "rgba(224,165,58,.08)", color: "#e0a53a", fontSize: 13.5 }}>
             ⚠ {duplicates.length} document{duplicates.length === 1 ? "" : "s"} look like duplicates of existing uploads.

@@ -70,7 +70,7 @@ export default function GlobalNotifications() {
             borderRadius: 12,
             fontSize: 13.5,
             backdropFilter: "blur(18px) saturate(140%)",
-            boxShadow: "0 12px 34px var(--cardShadow)",
+            boxShadow: "var(--elev-2)",
           },
           success: { iconTheme: { primary: "var(--accent)", secondary: "var(--onAccent)" } },
           error: { iconTheme: { primary: "#ff8a80", secondary: "var(--onAccent)" } },

@@ -113,3 +113,119 @@ a {
 ::placeholder {
   color: var(--muted);
 }
+
+/* ===========================================================================
+   UI polish layer — base-element rules only, so it never fights component
+   inline styles (except where noted with !important). Reads the --ring /
+   --scrollbar tokens from theme/themes.ts, mirrored onto :root by
+   GlobalNotifications so portalled UI (menus, toasts) sees them too.
+   =========================================================================== */
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  text-rendering: optimizeLegibility;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Numbers in metrics / gauges / tables line up and don't jitter while streaming */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Keyboard focus ring — visible for keyboard users only, never on mouse click. */
+:focus-visible {
+  outline: 2px solid var(--ring, var(--accent));
+  outline-offset: 2px;
+}
+:focus:not(:focus-visible) {
+  outline: none;
+}
+/* Form fields set `outline: none` inline (they draw their own border), which
+   would beat the rule above and leave keyboard users with no indicator. */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--ring, var(--accent)) !important;
+  outline-offset: 2px;
+}
+/* Borderless inputs that live inside a styled container: the container shows
+   the ring instead (data-ring-host), or none at all where the input is always
+   focused (command palette). */
+input[data-bare]:focus-visible {
+  outline: none !important;
+}
+[data-ring-host]:has(input:focus-visible) {
+  outline: 2px solid var(--ring, var(--accent));
+  outline-offset: 2px;
+}
+
+/* Gentle, consistent interaction feel on native controls (inline styles still
+   win on anything a component sets explicitly). */
+button,
+[role="button"],
+a,
+input,
+textarea,
+select {
+  transition: color 0.18s ease, background-color 0.18s ease,
+    border-color 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease;
+}
+button:not(:disabled):active,
+[role="button"]:active {
+  transform: translateY(0.5px) scale(0.995);
+}
+
+/* Themed, slim scrollbars. Chromium 121+ and Firefox honour the standard
+   properties; the -webkit rules cover older Chromium and Safari. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar, rgba(128, 128, 128, 0.3)) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar, rgba(128, 128, 128, 0.3));
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-hover, rgba(128, 128, 128, 0.5));
+  background-clip: content-box;
+}
+
+/* Phones: the ambient blobs are 420–620px with a 90–110px blur filter, which
+   is both wider than the viewport and costly to repaint. Shrink them. */
+@media (max-width: 640px) {
+  .ambient-blob {
+    width: 320px !important;
+    height: 320px !important;
+    filter: blur(60px) !important;
+  }
+}
+
+/* Reduced motion: stop the decorative ambient drift and the smooth scroll and
+   shorten transitions. Spinners, the streaming cursor and skeleton pulses are
+   deliberately left running — they communicate loading state. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .ambient-blob {
+    animation: none !important;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.001ms !important;
+  }
+}

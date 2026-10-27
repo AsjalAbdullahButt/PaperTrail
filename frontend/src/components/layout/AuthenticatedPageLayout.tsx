@@ -40,18 +40,18 @@ export default function AuthenticatedPageLayout({ children }: { children: ReactN
   return (
     <div style={{ position: "relative", minHeight: "100vh", background: "var(--bg)", ...t } as CSSProperties}>
       <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none", zIndex: 0 }}>
-        <div style={{ position: "absolute", top: -140, left: -120, width: 560, height: 560, borderRadius: "50%", background: "var(--blob1)", filter: "blur(90px)", opacity: "var(--blobOp)" as unknown as number, animation: "floatA 18s ease-in-out infinite" }} />
-        <div style={{ position: "absolute", bottom: -180, right: -120, width: 620, height: 620, borderRadius: "50%", background: "var(--blob2)", filter: "blur(100px)", opacity: "var(--blobOp)" as unknown as number, animation: "floatB 22s ease-in-out infinite" }} />
+        <div className="ambient-blob" style={{ position: "absolute", top: -140, left: -120, width: 560, height: 560, borderRadius: "50%", background: "var(--blob1)", filter: "blur(90px)", opacity: "var(--blobOp)" as unknown as number, animation: "floatA 18s ease-in-out infinite" }} />
+        <div className="ambient-blob" style={{ position: "absolute", bottom: -180, right: -120, width: 620, height: 620, borderRadius: "50%", background: "var(--blob2)", filter: "blur(100px)", opacity: "var(--blobOp)" as unknown as number, animation: "floatB 22s ease-in-out infinite" }} />
       </div>
 
-      <div style={{ position: "relative", zIndex: 1, maxWidth: 1200, margin: "0 auto", padding: "22px 28px 80px" }}>
+      <div style={{ position: "relative", zIndex: 1, maxWidth: 1200, margin: "0 auto", padding: "22px clamp(14px, 4vw, 28px) 80px" }}>
         <nav style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 16px", borderRadius: 18, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(18px) saturate(140%)", WebkitBackdropFilter: "blur(18px) saturate(140%)", flexWrap: "wrap" }}>
           <Link href="/" style={{ display: "flex", alignItems: "center", gap: 11, textDecoration: "none" }}>
             <PaperTrailLogo />
             <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: "-.02em", color: "var(--text)" }}>PaperTrail</span>
           </Link>
 
-          <div style={{ display: "flex", gap: 4, marginLeft: 10 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginLeft: 10 }}>
             {NAV.map((n) => {
               const active = pathname === n.href;
               return (

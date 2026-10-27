@@ -208,13 +208,13 @@ export function AuthShell({
         style={{
           width: "100%",
           maxWidth: 400,
-          padding: "34px 32px",
+          padding: "clamp(24px, 6vw, 34px) clamp(20px, 5vw, 32px)",
           borderRadius: 22,
           background: "var(--card-bg)",
           border: "1px solid var(--card-border)",
           backdropFilter: "blur(22px) saturate(150%)",
           WebkitBackdropFilter: "blur(22px) saturate(150%)",
-          boxShadow: "0 18px 50px var(--cardShadow)",
+          boxShadow: "var(--elev-2)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 6 }}>

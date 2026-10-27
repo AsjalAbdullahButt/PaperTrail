@@ -54,7 +54,7 @@ export default function SharedQueryPage() {
 
   return (
     <div style={{ position: "relative", minHeight: "100vh", background: "var(--bg)", ...t } as CSSProperties}>
-      <div style={{ position: "relative", zIndex: 1, maxWidth: 720, margin: "0 auto", padding: "28px 24px 80px" }}>
+      <div style={{ position: "relative", zIndex: 1, maxWidth: 720, margin: "0 auto", padding: "28px clamp(14px, 4vw, 24px) 80px" }}>
         <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 11, textDecoration: "none", marginBottom: 30 }}>
           <PaperTrailLogo />
           <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: "-.02em", color: "var(--text)" }}>PaperTrail</span>
@@ -81,9 +81,9 @@ export default function SharedQueryPage() {
         {!loading && data && (
           <div
             style={{
-              padding: "30px 32px", borderRadius: 22, background: "var(--card-bg)",
+              padding: "clamp(20px, 5vw, 30px) clamp(18px, 5vw, 32px)", borderRadius: 22, background: "var(--card-bg)",
               border: "1px solid var(--card-border)", backdropFilter: "blur(22px) saturate(150%)",
-              WebkitBackdropFilter: "blur(22px) saturate(150%)", boxShadow: "0 18px 50px var(--cardShadow)",
+              WebkitBackdropFilter: "blur(22px) saturate(150%)", boxShadow: "var(--elev-2)",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 10 }}>

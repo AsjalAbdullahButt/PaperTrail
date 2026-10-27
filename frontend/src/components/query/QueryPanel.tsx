@@ -55,7 +55,8 @@ function ModeButton({ mode, active, onClick }: { mode: QueryMode; active: boolea
           style={{
             position: "fixed",
             top: rect.bottom + 10,
-            left: rect.left + rect.width / 2,
+            // Keep the 220px tooltip fully inside the viewport (110px = half its width + margin).
+            left: `clamp(118px, ${rect.left + rect.width / 2}px, calc(100vw - 118px))`,
             transform: "translateX(-50%)",
             width: 220,
             padding: "10px 13px",
@@ -68,7 +69,7 @@ function ModeButton({ mode, active, onClick }: { mode: QueryMode; active: boolea
             fontWeight: 500,
             textAlign: "center",
             zIndex: 1000,
-            boxShadow: "0 12px 30px var(--cardShadow)",
+            boxShadow: "var(--elev-2)",
             backdropFilter: "blur(18px) saturate(140%)",
             WebkitBackdropFilter: "blur(18px) saturate(140%)",
             pointerEvents: "none",
@@ -98,7 +99,7 @@ function SuggestionChip({ q, onPick }: { q: string; onPick: () => void }) {
       onClick={onPick}
       style={{
         display: "inline-flex", alignItems: "center", gap: 9, padding: "11px 17px", borderRadius: 14,
-        cursor: "pointer", fontFamily: "inherit", fontWeight: 500, fontSize: 14, color: "var(--text)",
+        maxWidth: "100%", textAlign: "left", cursor: "pointer", fontFamily: "inherit", fontWeight: 500, fontSize: 14, color: "var(--text)",
         background: "var(--card-bg)", border: "1px solid var(--card-border)",
         backdropFilter: "blur(14px) saturate(140%)", WebkitBackdropFilter: "blur(14px)",
       }}
@@ -125,12 +126,12 @@ function BlinkingCursor() {
 function SkeletonCard() {
   return (
     <div style={{ display: "flex", gap: 22, flexWrap: "wrap", alignItems: "flex-start" }}>
-      <div style={{ flex: "1 1 520px", minWidth: 300, padding: "30px 32px", borderRadius: 22, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px)" }}>
+      <div style={{ flex: "1 1 520px", minWidth: "min(300px, 100%)", padding: "clamp(20px, 5vw, 30px) clamp(18px, 5vw, 32px)", borderRadius: 22, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px)" }}>
         {[92, 88, 80, 60].map((w, i) => (
           <div key={i} style={{ height: 14, width: `${w}%`, borderRadius: 7, margin: "0 0 14px", background: "var(--seg-bg)", animation: "pulse 1.2s ease-in-out infinite", animationDelay: `${i * 0.1}s` }} />
         ))}
       </div>
-      <div style={{ flex: "1 1 300px", minWidth: 270, maxWidth: 380, display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ flex: "1 1 300px", minWidth: "min(270px, 100%)", maxWidth: 380, display: "flex", flexDirection: "column", gap: 12 }}>
         {[0, 1].map((i) => (
           <div key={i} style={{ height: 92, borderRadius: 16, background: "var(--card-bg)", border: "1px solid var(--card-border)", animation: "pulse 1.2s ease-in-out infinite", animationDelay: `${i * 0.15}s` }} />
         ))}
@@ -186,17 +187,18 @@ export default function QueryPanel({
   return (
     <>
       <div style={{ marginTop: 40 }}>
-        <div role="group" aria-label="Answer mode" style={{ display: "flex", gap: 3, padding: 4, borderRadius: 13, background: "var(--seg-bg)", border: "1px solid var(--card-border)", marginBottom: 14, width: "fit-content" }}>
+        <div role="group" aria-label="Answer mode" style={{ display: "flex", gap: 3, padding: 4, borderRadius: 13, background: "var(--seg-bg)", border: "1px solid var(--card-border)", marginBottom: 14, width: "fit-content", maxWidth: "100%", flexWrap: "wrap" }}>
           <ModeButton mode="rag" active={mode === "rag"} onClick={() => setMode("rag")} />
           <ModeButton mode="multihop" active={mode === "multihop"} onClick={() => setMode("multihop")} />
           <ModeButton mode="direct" active={mode === "direct"} onClick={() => setMode("direct")} />
           <ModeButton mode="compare" active={mode === "compare"} onClick={() => setMode("compare")} />
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px 9px 16px", borderRadius: 20, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px) saturate(150%)", WebkitBackdropFilter: "blur(22px) saturate(150%)", boxShadow: "0 14px 40px var(--cardShadow)" }}>
+        <div data-ring-host style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px 9px 16px", borderRadius: 20, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px) saturate(150%)", WebkitBackdropFilter: "blur(22px) saturate(150%)", boxShadow: "var(--elev-2)" }}>
           <MagnifierIcon />
           <input
             ref={queryInputRef}
+            data-bare
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !compareBlocked) ask(query || SUGGESTIONS[0]); }}
@@ -264,12 +266,12 @@ export default function QueryPanel({
       )}
 
       {!hasAnswer && !asking && (
-        <div style={{ textAlign: "center", marginTop: 90, animation: "rise .5s ease both" }}>
+        <div style={{ textAlign: "center", marginTop: "clamp(40px, 12vw, 90px)", animation: "rise .5s ease both" }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 13px", borderRadius: 20, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(14px)", fontSize: 12.5, fontWeight: 600, color: "var(--muted)", letterSpacing: ".01em" }}>
             <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--accent)", boxShadow: "0 0 8px var(--accent)" }} />
             Grounded in your documents
           </div>
-          <h1 style={{ margin: "22px auto 0", maxWidth: 640, fontSize: 44, lineHeight: 1.08, letterSpacing: "-.03em", fontWeight: 800, color: "var(--text)" }}>
+          <h1 style={{ margin: "22px auto 0", maxWidth: 640, fontSize: "clamp(30px, 8vw, 44px)", lineHeight: 1.08, letterSpacing: "-.03em", fontWeight: 800, color: "var(--text)" }}>
             Answers you can trace back<br />to the source.
           </h1>
           <p style={{ margin: "16px auto 0", maxWidth: 500, fontSize: 16, lineHeight: 1.55, color: "var(--muted)" }}>
@@ -291,19 +293,19 @@ export default function QueryPanel({
 
       {hasAnswer && (
         <div style={{ display: "flex", gap: 22, marginTop: 34, flexWrap: "wrap", alignItems: "flex-start", animation: "rise .45s ease both" }}>
-          <div style={{ flex: "1 1 520px", minWidth: 300, padding: "30px 32px", borderRadius: 22, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px) saturate(150%)", WebkitBackdropFilter: "blur(22px) saturate(150%)", boxShadow: "0 18px 50px var(--cardShadow)" }}>
+          <div style={{ flex: "1 1 520px", minWidth: "min(300px, 100%)", padding: "clamp(20px, 5vw, 30px) clamp(18px, 5vw, 32px)", borderRadius: 22, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px) saturate(150%)", WebkitBackdropFilter: "blur(22px) saturate(150%)", boxShadow: "var(--elev-2)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 18 }}>
               <div style={{ width: 22, height: 22, borderRadius: 7, background: ACCENT_GRADIENT, flex: "none" }} />
               <span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--muted)" }}>
                 {answerMode === "direct" ? "Direct answer" : answerMode === "multihop" ? "Multi-hop answer" : answerMode === "compare" ? "Comparison answer" : "Retrieved answer"}
               </span>
               {answerMode !== "direct" && (
-                <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 700, color: "var(--accent)", background: "var(--chip-bg)", border: "1px solid var(--chip-border)" }}>
+                <span className="tabular-nums" style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 700, color: "var(--accent)", background: "var(--chip-bg)", border: "1px solid var(--chip-border)" }}>
                   {isStreaming ? "Answering…" : `${confPct}% confidence`}
                 </span>
               )}
             </div>
-            <div style={{ fontSize: 19, lineHeight: 1.62, letterSpacing: "-.01em", color: "var(--text)", fontWeight: 400, whiteSpace: isStreaming ? "pre-wrap" : undefined }}>
+            <div style={{ fontSize: "clamp(16px, 4.2vw, 19px)", lineHeight: 1.62, letterSpacing: "-.01em", color: "var(--text)", fontWeight: 400, whiteSpace: isStreaming ? "pre-wrap" : undefined }}>
               {isStreaming ? (
                 <>
                   {currentAnswer}

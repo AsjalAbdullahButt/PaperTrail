@@ -37,7 +37,7 @@ export default function UploadReadyCard({
         border: "1px solid var(--card-border)",
         backdropFilter: "blur(22px) saturate(150%)",
         WebkitBackdropFilter: "blur(22px) saturate(150%)",
-        boxShadow: "0 14px 40px var(--cardShadow)",
+        boxShadow: "var(--elev-2)",
         animation: "rise .4s ease both",
       }}
     >

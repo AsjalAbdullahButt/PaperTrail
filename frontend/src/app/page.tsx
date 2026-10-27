@@ -92,7 +92,7 @@ export default function Home() {
     <div style={{ position: "relative", minHeight: "100vh", background: "var(--bg)", transition: "background .4s ease", ...THEMES[theme] } as CSSProperties}>
       <AmbientBackground parallax={parallax} />
 
-      <div style={{ position: "relative", zIndex: 1, maxWidth: 1200, margin: "0 auto", padding: "22px 28px 80px" }}>
+      <div style={{ position: "relative", zIndex: 1, maxWidth: 1200, margin: "0 auto", padding: "22px clamp(14px, 4vw, 28px) 80px" }}>
         {authed === true && (
           <>
             <HomeHeader

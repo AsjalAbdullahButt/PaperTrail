@@ -16,7 +16,7 @@ import {
 const card: CSSProperties = {
   padding: "18px 20px", borderRadius: 18, background: "var(--card-bg)",
   border: "1px solid var(--card-border)", backdropFilter: "blur(18px) saturate(140%)",
-  boxShadow: "0 8px 24px var(--cardShadow)",
+  boxShadow: "var(--elev-1)",
 };
 const label: CSSProperties = {
   fontSize: 11.5, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase",
@@ -87,7 +87,7 @@ function AnalyticsInner() {
 
       <div style={{ display: "flex", gap: 22, flexWrap: "wrap", alignItems: "flex-start" }}>
         {/* Document usage table */}
-        <div style={{ ...card, flex: "1 1 460px", minWidth: 320 }}>
+        <div style={{ ...card, flex: "1 1 460px", minWidth: "min(320px, 100%)" }}>
           <div style={label}>Document usage</div>
           {!sortedUsage ? (
             <Skeleton height={120} />
@@ -107,8 +107,8 @@ function AnalyticsInner() {
                   {sortedUsage.map((u) => (
                     <tr key={u.document_id} style={{ borderTop: "1px solid var(--card-border)", color: "var(--text)" }}>
                       <td style={{ padding: "8px 6px" }}>{u.name}</td>
-                      <td style={{ padding: "8px 6px" }}>{u.total_retrievals}</td>
-                      <td style={{ padding: "8px 6px" }}>{Math.round(u.avg_similarity * 100)}%</td>
+                      <td className="tabular-nums" style={{ padding: "8px 6px" }}>{u.total_retrievals}</td>
+                      <td className="tabular-nums" style={{ padding: "8px 6px" }}>{Math.round(u.avg_similarity * 100)}%</td>
                     </tr>
                   ))}
                 </tbody>
@@ -118,7 +118,7 @@ function AnalyticsInner() {
         </div>
 
         {/* Coverage gaps */}
-        <div style={{ ...card, flex: "1 1 300px", minWidth: 260 }}>
+        <div style={{ ...card, flex: "1 1 300px", minWidth: "min(260px, 100%)" }}>
           <div style={label}>Coverage gaps</div>
           {!gaps ? (
             <Skeleton height={120} />
@@ -165,7 +165,7 @@ function Metric({ title, value, small }: { title: string; value?: number | strin
       {value === undefined ? (
         <Skeleton height={30} />
       ) : (
-        <div style={{ marginTop: 8, fontSize: small ? 16 : 28, fontWeight: 800, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div className="tabular-nums" style={{ marginTop: 8, fontSize: small ? 16 : 28, fontWeight: 800, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {value}
         </div>
       )}

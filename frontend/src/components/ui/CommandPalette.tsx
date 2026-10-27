@@ -85,10 +85,11 @@ export default function CommandPalette({
           else if (e.key === "Enter" && filtered[active]) { e.preventDefault(); choose(filtered[active]); }
           else if (e.key === "Escape") { onClose(); }
         }}
-        style={{ width: "min(560px, 92vw)", maxHeight: "70vh", overflow: "hidden", display: "flex", flexDirection: "column", borderRadius: 18, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(24px) saturate(150%)", boxShadow: "0 24px 60px var(--cardShadow)" }}
+        style={{ width: "min(560px, 92vw)", maxHeight: "70vh", overflow: "hidden", display: "flex", flexDirection: "column", borderRadius: 18, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(24px) saturate(150%)", boxShadow: "var(--elev-2)" }}
       >
         <input
           ref={inputRef}
+          data-bare
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search documents, collections, queries…"

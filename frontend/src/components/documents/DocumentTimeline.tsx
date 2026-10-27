@@ -44,7 +44,7 @@ export default function DocumentTimeline({ documentId }: { documentId: string })
           const left = i % 2 === 0;
           return (
             <div key={i} style={{ display: "flex", justifyContent: left ? "flex-start" : "flex-end" }}>
-              <div style={{ width: "46%", padding: "12px 14px", borderRadius: 14, background: "var(--card-bg)", border: "1px solid var(--card-border)", boxShadow: "0 6px 18px var(--cardShadow)" }}>
+              <div style={{ width: "46%", padding: "12px 14px", borderRadius: 14, background: "var(--card-bg)", border: "1px solid var(--card-border)", boxShadow: "var(--elev-1)" }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: "var(--accent)" }}>{ev.date}</div>
                 <div style={{ fontSize: 13, color: "var(--text)", marginTop: 4, lineHeight: 1.45 }}>{ev.event}</div>
               </div>

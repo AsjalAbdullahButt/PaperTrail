@@ -26,7 +26,7 @@ const cardStyle: CSSProperties = {
   background: "var(--card-bg)",
   border: "1px solid var(--card-border)",
   backdropFilter: "blur(18px) saturate(140%)",
-  boxShadow: "0 12px 34px var(--cardShadow)",
+  boxShadow: "var(--elev-1)",
 };
 
 const labelStyle: CSSProperties = {
