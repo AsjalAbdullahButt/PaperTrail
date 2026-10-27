@@ -55,8 +55,12 @@ MODES = ["dense", "hybrid"]
 # HF MiniLM truncates at 256 word-pieces (~1,000 chars), so it is only paired
 # with ~800-char chunkers; pairing it with the ~3,000-char sentence chunker
 # would silently embed only the first third of each chunk.
-EMBEDDERS_FOR = {"character": ["openai", "hf"], "sentence": ["openai"], "sentence800": ["openai", "hf"]}
+# Default grid needs no paid embedding API: two local Hugging Face models. "hf" is
+# all-MiniLM-L6-v2 (256-word-piece window), "bge" is BAAI/bge-small-en-v1.5 (512).
+EMBEDDERS_FOR = {"character": ["hf", "bge"], "sentence": ["bge"], "sentence800": ["hf", "bge"]}
 ALL_CONFIGS = [f"{c}__{m}__{e}" for c in CHUNKERS for m in MODES for e in EMBEDDERS_FOR[c]]
+# Optional OpenAI-embedding configurations (need a real OPENAI_API_KEY); not in the default grid.
+OPENAI_CONFIGS = [f"{c}__{m}__openai" for c in ("character", "sentence800") for m in MODES]
 
 _JUDGE_SYSTEM = (
     "You are a strict evaluator of a retrieval-augmented QA system. You are given a question, a "
@@ -86,6 +90,7 @@ _ABSTAIN_RE = re.compile(
 # Accept "[1]" and the full-width "【1】" style some models (e.g. gpt-oss) emit instead.
 _CITE_RE = re.compile(r"[\[【](\d+)(?:[^\]】]*)[\]】]")
 PACE_SECONDS = 0.0
+LAST_LLM_ERROR = ""  # most recent production llm.py fallback warning (e.g. a Groq 429)
 
 
 # --------------------------------------------------------------------------- #
@@ -116,6 +121,8 @@ class Row:
     n_correct_citations: int | None = None
     guard_unsupported_frac: float | None = None
     judge_rationale: str = ""
+    generator: str = ""
+    judge_model: str = ""
     manual_score: str = ""                   # left blank for the human grader
 
 
@@ -142,7 +149,9 @@ class _WarningCounter(logging.Handler):
         self.count = 0
 
     def emit(self, record: logging.LogRecord) -> None:
+        global LAST_LLM_ERROR
         self.count += 1
+        LAST_LLM_ERROR = record.getMessage()[:400]
 
 
 # --------------------------------------------------------------------------- #
@@ -221,7 +230,41 @@ def _chat_model_name() -> str:
     return "offline"
 
 
-def _retry(fn, *, attempts: int = 6, what: str = "LLM call"):
+JUDGE_MODEL = ""  # Groq model id used for judging (empty = same as the generator)
+
+
+def _judge_name() -> str:
+    return f"groq:{JUDGE_MODEL}" if JUDGE_MODEL and not settings.openai_ready else _chat_model_name()
+
+
+def _complete_as_judge(prompt: str) -> str:
+    """Judge call. With OpenAI configured this is production's ``complete_text``.
+    On Groq the judge talks to the API directly (it is eval code, not production):
+    reasoning models such as gpt-oss otherwise burn their whole output budget on
+    hidden reasoning and return empty content (finish_reason=length), so we cap
+    reasoning effort and raise the output limit. The judge may be a different
+    model than the generator (``--judge-model``): separate daily token budget, and
+    the generator no longer grades its own answers."""
+    if settings.openai_ready or not settings.groq_ready:
+        return p.llm.complete_text(prompt, system=_JUDGE_SYSTEM, temperature=0.0)
+    from openai import OpenAI
+
+    model = JUDGE_MODEL or settings.groq_chat_model
+    extra = {"reasoning_effort": "low"} if model.startswith("openai/gpt-oss") else {}
+    try:
+        resp = OpenAI(api_key=settings.groq_api_key, base_url=settings.groq_base_url).chat.completions.create(
+            model=model,
+            messages=[{"role": "system", "content": _JUDGE_SYSTEM}, {"role": "user", "content": prompt}],
+            temperature=0.0, max_completion_tokens=4096, extra_body=extra,
+        )
+    except Exception as exc:  # noqa: BLE001 - surfaced via LAST_LLM_ERROR, retried by _retry
+        global LAST_LLM_ERROR
+        LAST_LLM_ERROR = f"judge call to {model} failed: {str(exc)[:300]}"
+        return ""
+    return (resp.choices[0].message.content or "").strip()
+
+
+def _retry(fn, *, attempts: int = 4, what: str = "LLM call"):
     last = ""
     for i in range(attempts):
         time.sleep(PACE_SECONDS)
@@ -230,7 +273,7 @@ def _retry(fn, *, attempts: int = 6, what: str = "LLM call"):
             return out
         last = out
         time.sleep(5 * (i + 1))
-    raise RuntimeError(f"{what} kept returning an empty/offline response ({last[:80]!r}); check API keys and rate limits.")
+    raise RuntimeError(f"{what} kept returning an empty/offline response ({last[:80]!r}); check API keys and rate limits. Last provider error: {LAST_LLM_ERROR or 'none logged'}")
 
 
 def generate_answer(cache: LLMCache, question: str, retrieved: list[p.Retrieved]) -> str:
@@ -244,10 +287,10 @@ def judge(cache: LLMCache, meta: RunMeta, item: dict, retrieved: list[p.Retrieve
         f"Question: {item['question']}\n\nReference answer: {item['expected_answer']}\n\n"
         f"Retrieved context:\n{context}\n\nGenerated answer:\n{answer}"
     )
-    key = cache.key(_chat_model_name(), "judge", prompt)
+    key = cache.key(_judge_name(), "judge", prompt)
 
     def call() -> str:
-        return _retry(lambda: p.llm.complete_text(prompt, system=_JUDGE_SYSTEM, temperature=0.0), what="Judge call")
+        return _retry(lambda: _complete_as_judge(prompt), what="Judge call")
 
     for attempt in range(2):
         raw = cache.get_or_compute(key, call)
@@ -301,6 +344,8 @@ def score_generation(
     item: dict, retrieved: list[p.Retrieved], answer: str, row: Row, cache: LLMCache, meta: RunMeta
 ) -> None:
     row.generated_answer = answer
+    row.generator = _chat_model_name()
+    row.judge_model = _judge_name()
     verdict = judge(cache, meta, item, retrieved, answer)
     if verdict:
         row.correctness = int(verdict["correctness"])
@@ -395,6 +440,7 @@ def retrieval_table(results: dict[str, list[Row]], configs: list[str]) -> list[s
 
 
 def generation_table(results: dict[str, list[Row]], configs: list[str]) -> list[str]:
+    configs = [c for c in configs if any(r.correctness is not None for r in results[c])]
     lines = [
         "| Config | Correctness (1-5) | Faithfulness (1-5) | Relevance (1-5) | Citation accuracy | Citation coverage | Unanswerable handling | Guard unsupported-sentence rate |",
         "|---|---|---|---|---|---|---|---|",
@@ -461,11 +507,17 @@ def write_summary(results: dict[str, list[Row]], meta: RunMeta, testset: list[di
             "`raw_<config>.csv` files; nothing is hand-edited._", "",
             f"- Questions: {meta.n_questions} ({types['factual']} factual, {types['multi_hop']} multi-hop, "
             f"{types['unanswerable']} unanswerable); top-k = {meta.top_k}.",
-            f"- Embeddings: OpenAI `{meta.openai_embedding_model}` (1536-d) vs Hugging Face `{meta.hf_embedding_model}` (384-d).",
-            f"- Configurations evaluated in this run: {len(configs)}."]
+            "- Embeddings (local Hugging Face models, no paid API): "
+            + ", ".join(f"`{k}` = `{p.embedder_label(k)}`" for k in ("hf", "bge")) + ".",
+            f"- Configurations in this summary: {len(configs)} (all folded in from `raw_<config>.csv`)."]
+    gen_cfgs = [c for c in configs if any(r.correctness is not None for r in results[c])]
     if meta.generation:
-        head += [f"- Generator + judge: `{meta.chat_model}` (same model for both; see the deviations/limitations in eval/README.md).",
-                 f"- Production-fallback warnings during the run: {meta.llm_fallback_warnings}; "
+        gens = sorted({r.generator for c in gen_cfgs for r in results[c] if r.generator})
+        judges = sorted({r.judge_model for c in gen_cfgs for r in results[c] if r.judge_model})
+        head += [f"- Answer generation + LLM-as-judge ran for {len(gen_cfgs)} of {len(configs)} configurations "
+                 f"({', '.join(f'`{c}`' for c in gen_cfgs)}); the rest are retrieval-only because of the Groq free-tier daily token limit.",
+                 f"- Generator: {', '.join(f'`{g}`' for g in gens)}; judge: {', '.join(f'`{j}`' for j in judges)}.",
+                 f"- Production-fallback warnings in the last run: {meta.llm_fallback_warnings}; "
                  f"unparseable judge outputs: {meta.judge_parse_failures}."]
     else:
         head += ["- **Retrieval-only run** (`--no-generate`): answer-quality metrics (correctness, faithfulness, "
@@ -493,18 +545,20 @@ def write_summary(results: dict[str, list[Row]], meta: RunMeta, testset: list[di
     cmp("cmp_dense_hybrid", "3.1 Dense-only vs. hybrid retrieval",
         "Same chunks, same embeddings; B adds BM25 fusion and the importance boost (production weights 0.6 dense / 0.4 sparse, ×(1+0.2·importance)).",
         [(f"{c}__dense__{e}", f"{c}__hybrid__{e}") for c in CHUNKERS for e in EMBEDDERS_FOR[c]])
-    cmp("cmp_embedding", "3.2 Embedding model: OpenAI vs. Hugging Face MiniLM",
-        "Same chunks and retrieval mode; B swaps OpenAI `text-embedding-3-small` for the local `all-MiniLM-L6-v2` (A = OpenAI).",
-        [(f"{c}__{m}__openai", f"{c}__{m}__hf") for c in ("character", "sentence800") for m in MODES])
+    cmp("cmp_embedding", "3.2 Embedding model: MiniLM vs. BGE-small",
+        "Same chunks and retrieval mode; A = `all-MiniLM-L6-v2` (384-d, 256 word-piece window), B = `BAAI/bge-small-en-v1.5` "
+        "(384-d, 512 word-piece window). Both are local Hugging Face models run through `llm.embed_texts(provider=hf)`.",
+        [(f"{c}__{m}__hf", f"{c}__{m}__bge") for c in ("character", "sentence800") for m in MODES])
     cmp("cmp_chunk_uncontrolled", "3.3a Chunking ablation — UNCONTROLLED (the original, size-confounded comparison)",
-        "A = character windows (~800 chars); B = production sentence chunker at its default size (~3,000 chars). "
+        "A = character windows (~800 chars); B = production sentence chunker at its default size (~3,000 chars); embedder BGE-small. "
+        "(BGE's 512-word-piece window covers only the first ~2,000 characters of a ~3,000-character chunk.) "
         "Boundary strategy and chunk size differ at once, so differences cannot be attributed to boundary alignment alone.",
-        [(f"character__{m}__openai", f"sentence__{m}__openai") for m in MODES])
+        [(f"character__{m}__bge", f"sentence__{m}__bge") for m in MODES])
     cmp("cmp_chunk_controlled", "3.3b Chunking ablation — SIZE-CONTROLLED (boundary strategy isolated)",
         "A = character windows (~800 chars); B = sentence-boundary chunks capped at ~800 chars "
         "(`chunk_blocks_semantic(chunk_size=200)`). Chunk size is held (approximately) constant, so any difference is due to "
         "where chunk boundaries fall.",
-        [(f"character__{m}__{e}", f"sentence800__{m}__{e}") for m in MODES for e in ("openai", "hf")])
+        [(f"character__{m}__{e}", f"sentence800__{m}__{e}") for m in MODES for e in ("hf", "bge")])
 
     stats = ["| Chunker | # chunks | mean chars | median chars |", "|---|---|---|---|"]
     docs = p.load_documents()
@@ -561,13 +615,13 @@ def preflight(configs: list[str], generate: bool, require_online: bool) -> None:
     embedders = {c.split("__")[2] for c in configs}
     if "openai" in embedders and not settings.openai_ready:
         errors.append("OpenAI embeddings requested but OPENAI_API_KEY is missing/placeholder in backend/.env.")
-    if "hf" in embedders:
+    if embedders & {"hf", "bge"}:
         try:
             import sentence_transformers  # noqa: F401
         except ImportError:
             errors.append("HF embeddings requested but sentence-transformers is not installed (pip install -r backend/requirements-dev.txt).")
     if generate and not (settings.openai_ready or settings.groq_ready):
-        errors.append("No LLM configured: set OPENAI_API_KEY (sk-...) or GROQ_API_KEY (gsk_...) in backend/.env, "
+        errors.append("No LLM configured: set GROQ_API_KEY (gsk_...) or OPENAI_API_KEY (sk-...) in backend/.env, "
                       "or pass --no-generate for a retrieval-only run.")
     if errors:
         print("Refusing to run (--require-online):")
@@ -583,6 +637,31 @@ def write_csv(config: str, rows: list[Row]) -> None:
         w.writeheader()
         for r in rows:
             w.writerow(asdict(r))
+
+
+def load_rows(config: str) -> list[Row] | None:
+    """Reload a previously written raw CSV so results accumulate across runs."""
+    path = RESULTS_DIR / f"raw_{config}.csv"
+    if not path.exists():
+        return None
+
+    def conv(name: str, raw: str):
+        if raw == "":
+            return None
+        typ = Row.__dataclass_fields__[name].type
+        if "bool" in typ:
+            return raw == "True"
+        if "int" in typ:
+            return int(float(raw))
+        if "float" in typ:
+            return float(raw)
+        return raw
+
+    rows = []
+    with path.open(encoding="utf-8", newline="") as f:
+        for rec in csv.DictReader(f):
+            rows.append(Row(**{k: conv(k, v) for k, v in rec.items() if k in Row.__dataclass_fields__}))
+    return rows
 
 
 def run_config(config: str, documents, testset, generate: bool, cache: LLMCache, meta: RunMeta, indexes: dict) -> list[Row]:
@@ -613,18 +692,23 @@ def run_config(config: str, documents, testset, generate: bool, cache: LLMCache,
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--configs", nargs="*", default=ALL_CONFIGS, help=f"subset of: {', '.join(ALL_CONFIGS)}")
+    ap.add_argument("--configs", nargs="*", default=ALL_CONFIGS, help=f"subset of: {', '.join(ALL_CONFIGS)} (plus optional OpenAI configs: {', '.join(OPENAI_CONFIGS)})")
     ap.add_argument("--no-generate", action="store_true", help="retrieval metrics only (no LLM answers/judging)")
     ap.add_argument("--require-online", action=argparse.BooleanOptionalAction, default=True,
                     help="abort instead of falling back to offline embeddings/answers (default: on)")
+    ap.add_argument("--gen-model", default="", help="Groq model for answer generation (default: GROQ_CHAT_MODEL)")
+    ap.add_argument("--judge-model", default="", help="Groq model for judging; a different model than --gen-model uses its own daily token budget")
     ap.add_argument("--pace", type=float, default=0.0, help="seconds to wait before each LLM call (rate limits)")
     ap.add_argument("--limit", type=int, default=0, help="only the first N questions (debugging)")
     args = ap.parse_args()
 
-    global PACE_SECONDS
+    global PACE_SECONDS, JUDGE_MODEL
     PACE_SECONDS = args.pace
+    JUDGE_MODEL = args.judge_model
+    if args.gen_model:
+        settings.groq_chat_model = args.gen_model
     generate = not args.no_generate
-    bad = [c for c in args.configs if c not in ALL_CONFIGS]
+    bad = [c for c in args.configs if c not in ALL_CONFIGS + OPENAI_CONFIGS]
     if bad:
         ap.error(f"unknown config(s): {bad}")
     preflight(args.configs, generate, args.require_online)
@@ -639,25 +723,43 @@ def main() -> int:
     logging.getLogger("papertrail.llm").addHandler(counter)
     meta = RunMeta(
         started=dt.datetime.now().strftime("%Y-%m-%d %H:%M"), chat_model=_chat_model_name() if generate else "",
-        judge_model=_chat_model_name() if generate else "", openai_embedding_model=settings.openai_embedding_model,
+        judge_model=_judge_name() if generate else "", openai_embedding_model=settings.openai_embedding_model,
         hf_embedding_model=settings.hf_embedding_model, n_questions=len(testset), generation=generate,
     )
     cache = LLMCache("llm_outputs")
 
     results: dict[str, list[Row]] = {}
     indexes: dict = {}
+    stopped = False
     for config in args.configs:
         print(f"Config {config}", flush=True)
-        results[config] = run_config(config, documents, testset, generate, cache, meta, indexes)
-        write_csv(config, results[config])
+        try:
+            rows = run_config(config, documents, testset, generate, cache, meta, indexes)
+        except RuntimeError as exc:  # LLM budget / rate limit: keep finished configs, resume later
+            print(f"STOPPED at {config}: {exc}\n"
+                  "Finished configs are saved and every completed LLM call is cached; "
+                  "rerun the same command later (e.g. after the daily token limit resets) to resume.")
+            stopped = True
+            break
+        results[config] = rows
+        write_csv(config, rows)
+
+    if not args.limit:  # fold in configs finished by earlier runs so the summary covers everything
+        for config in ALL_CONFIGS + OPENAI_CONFIGS:
+            if config not in results and (prior := load_rows(config)) is not None:
+                results[config] = prior
+        results = {c: results[c] for c in ALL_CONFIGS + OPENAI_CONFIGS if c in results}
+    meta.generation = any(r.correctness is not None for rows in results.values() for r in rows)
 
     meta.llm_fallback_warnings = counter.count
     if args.require_online and generate and counter.count:
         print(f"WARNING: {counter.count} production fallback warning(s) were logged during generation; see summary.")
+    if not results:
+        return 1
     summary = write_summary(results, meta, testset)
     (RESULTS_DIR / "run_meta.json").write_text(json.dumps(asdict(meta), indent=2), encoding="utf-8")
     print(f"Wrote {summary}")
-    return 0
+    return 1 if stopped else 0
 
 
 if __name__ == "__main__":

@@ -56,7 +56,16 @@ CACHE_DIR = EVAL_DIR / ".cache"
 
 # Expected embedding dimensions, used to detect a silent fall-back to the
 # 512-d offline hashing embedder (``llm.embed_texts`` degrades quietly).
-EXPECTED_DIM = {"openai": 1536, "hf": 384}
+EXPECTED_DIM = {"openai": 1536, "hf": 384, "bge": 384}
+
+# Eval embedder name -> (llm.embed_texts provider, Hugging Face model or None).
+# "hf" is the project's default HF model; "bge" is a second local model so the
+# embedding comparison needs no paid API key.
+EMBEDDERS = {
+    "openai": ("openai", None),
+    "hf": ("hf", "sentence-transformers/all-MiniLM-L6-v2"),
+    "bge": ("hf", "BAAI/bge-small-en-v1.5"),
+}
 
 _PAGE_RE = re.compile(r"<!--\s*page:\s*(\d+)\s*-->")
 
@@ -199,7 +208,8 @@ def chunk(documents: list[Document], strategy: str) -> list[Chunk]:
 # Stage 3: embed
 # --------------------------------------------------------------------------- #
 def embedder_label(embedder: str) -> str:
-    return settings.openai_embedding_model if embedder == "openai" else settings.hf_embedding_model
+    provider, model = EMBEDDERS[embedder]
+    return settings.openai_embedding_model if provider == "openai" else model
 
 
 def _cache_path(embedder: str) -> pathlib.Path:
@@ -213,7 +223,10 @@ def embed_texts(texts: list[str], embedder: str) -> list[list[float]]:
     ``embedder``, caching vectors on disk (keyed by model + text hash) so reruns
     don't re-pay for unchanged text. Raises if production's silent offline
     fallback kicked in (wrong vector dimension)."""
-    settings.embedding_provider = embedder
+    provider, model = EMBEDDERS[embedder]
+    settings.embedding_provider = provider
+    if model:
+        settings.hf_embedding_model = model
     path = _cache_path(embedder)
     cache: dict[str, list[float]] = json.loads(path.read_text()) if path.exists() else {}
     keys = [hashlib.sha1(t.encode("utf-8")).hexdigest() for t in texts]
