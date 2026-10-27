@@ -78,8 +78,8 @@ class TokenBlacklist(Base):
     """Revoked refresh-token JTIs (populated on logout).
 
     A refresh token is rejected if its ``jti`` is present here. Rows older than
-    the refresh-token lifetime are safe to purge (a background job handles that
-    in Phase 8); until then they simply accumulate harmlessly.
+    the refresh-token lifetime are safe to purge; cleanup.py does that on a
+    schedule (``blacklist_grace_days`` past ``expires_at``).
     """
 
     __tablename__ = "token_blacklist"

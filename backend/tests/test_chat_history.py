@@ -30,3 +30,20 @@ def test_chat_history_pagination_params(client):
 
     assert client.get("/api/chat-history?limit=0").status_code == 422
     assert client.get("/api/chat-history?limit=1000").status_code == 422
+
+
+def test_chat_history_excludes_soft_deleted_queries(client):
+    keep = client.post("/api/query", json={"question": "keep me", "mode": "direct"})
+    drop = client.post("/api/query", json={"question": "delete me", "mode": "direct"})
+    assert keep.status_code == drop.status_code == 200
+
+    # Locate the row to delete via the query-history listing, then soft-delete it.
+    items = client.get("/api/queries").json()["items"]
+    target = next(i for i in items if i["question"] == "delete me")
+    assert client.delete(f"/api/queries/{target['id']}").status_code == 200
+
+    body = client.get("/api/chat-history").json()
+    questions = [i["question"] for i in body["items"]]
+    assert "delete me" not in questions
+    assert "keep me" in questions
+    assert body["total"] == len(questions)

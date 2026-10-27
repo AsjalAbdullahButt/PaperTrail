@@ -24,7 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import llm
-from ..cache import get_or_build_object, retrieval_index_key
+from ..cache import get_or_build_object, index_generation, retrieval_index_key
 from ..config import settings
 from ..models import Chunk, Document
 from .bm25_index import BM25Index
@@ -276,7 +276,15 @@ def _build_user_index(db: Session, user_id: str) -> _UserRetrievalIndex:
 
 def _get_user_index(db: Session, user_id: str) -> _UserRetrievalIndex:
     key = retrieval_index_key(user_id)
-    return cast(_UserRetrievalIndex, get_or_build_object(key, lambda: _build_user_index(db, user_id)))
+    # Generation is shared across workers (Redis); the index itself is
+    # per-process, so without it a delete handled by worker A would leave
+    # workers B..N serving the deleted document's chunks.
+    return cast(
+        _UserRetrievalIndex,
+        get_or_build_object(
+            key, lambda: _build_user_index(db, user_id), index_generation(user_id)
+        ),
+    )
 
 
 def _scope_row_ids(index: _UserRetrievalIndex, doc_scope: set[str]) -> list[int]:

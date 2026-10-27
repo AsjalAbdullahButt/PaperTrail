@@ -77,6 +77,9 @@ def _no_disk_writes(monkeypatch):
     from app.config import settings
 
     monkeypatch.setattr(settings, "store_originals", False, raising=False)
+    # The periodic cleanup task (started by the app lifespan) must never run
+    # against the real database from a test.
+    monkeypatch.setattr(settings, "cleanup_enabled", False, raising=False)
     monkeypatch.setattr(settings, "openai_api_key", "", raising=False)
     monkeypatch.setattr(settings, "groq_api_key", "", raising=False)
     for attr in (

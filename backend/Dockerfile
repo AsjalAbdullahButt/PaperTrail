@@ -19,7 +19,7 @@ RUN pip install -r requirements.txt
 COPY . .
 
 # gunicorn with uvicorn workers for a production process manager. Workers are
-# stateless; shared state lives in MySQL and Redis (see DEPLOYMENT.md).
+# stateless; shared state lives in MySQL and Redis (see README.md, "Deployment & operations").
 RUN pip install "gunicorn==23.0.0"
 
 EXPOSE 8000

@@ -26,10 +26,10 @@ from sqlalchemy.orm import Session
 
 from ..auth import get_current_user
 from ..config import settings
-from ..database import get_db
-from ..models import Document, PasswordResetToken, TokenBlacklist, User
+from ..database import get_db, user_storage_keys
+from ..models import PasswordResetToken, TokenBlacklist, User
 from ..ratelimit import limiter, login_limit, register_limit
-from ..storage import storage
+from ..storage import delete_many, storage
 from ..schemas import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
@@ -351,16 +351,20 @@ def delete_account(
     per-table cleanup code is needed here beyond removing on-disk files, which
     the DB cascade can't reach.
     """
-    storage_keys = [
-        d.storage_key
-        for d in db.query(Document).filter(Document.user_id == current_user.id).all()
-        if d.storage_key
-    ]
+    # Originals AND archived versions: the version rows are the only reference
+    # to the older files and disappear with the cascade below.
     user_id = current_user.id
+    storage_keys = user_storage_keys(db, user_id)
     db.delete(current_user)
     db.commit()
-    for key in storage_keys:
-        storage.delete(key)
+    # The account is already gone, so a storage failure must not turn this
+    # into an error; it is logged with the keys so the files can be removed.
+    failed = delete_many(storage_keys)
+    if failed:
+        logger.error(
+            "Account %s deleted but %d stored file(s) remain: %s",
+            user_id, len(failed), failed,
+        )
     _remove_avatar_file(user_id)
     _clear_refresh_cookie(response)
     return {"detail": "Account deleted."}

@@ -5,6 +5,7 @@ enables env-driven CORS, threads a request ID through every request, returns
 structured JSON errors, and on startup ensures the MySQL database and all
 tables exist.
 """
+import asyncio
 import logging
 import time
 import uuid
@@ -21,7 +22,8 @@ from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .config import settings, validate_production_settings
-from .database import check_db, init_db, purge_soft_deleted
+from .cleanup import cleanup_loop
+from .database import check_db, init_db
 from .observability import (
     configure_logging,
     metrics_middleware,
@@ -52,8 +54,7 @@ _START_TIME = time.monotonic()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """On startup: refuse to run with production-looking config on the dev JWT
-    secret, then ensure schema exists and purge documents/collections/queries
-    whose soft-delete retention window (30 days) has elapsed."""
+    secret, then ensure schema exists and start the periodic data-lifecycle cleanup."""
     try:
         validate_production_settings(settings)
     except RuntimeError as exc:
@@ -65,13 +66,17 @@ async def lifespan(app: FastAPI):
         logger.info("Database initialized (tables ensured).")
     except Exception as exc:  # noqa: BLE001 - keep the API up even if DB is down
         logger.warning("Database init skipped/failed: %s", exc)
+    cleanup_task = None
+    if settings.cleanup_enabled:
+        # Periodic lifecycle cleanup (soft-delete purge, expired tokens, stuck
+        # and failed ingestions) — see cleanup.py. Runs once now, then on an
+        # interval, instead of only at process start.
+        cleanup_task = asyncio.create_task(cleanup_loop())
     try:
-        removed = purge_soft_deleted()
-        if removed:
-            logger.info("Cleanup: purged %d expired soft-deleted record(s).", removed)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Soft-delete cleanup skipped/failed: %s", exc)
-    yield
+        yield
+    finally:
+        if cleanup_task is not None:
+            cleanup_task.cancel()
 
 
 app = FastAPI(title="PaperTrail API", version=VERSION, lifespan=lifespan)

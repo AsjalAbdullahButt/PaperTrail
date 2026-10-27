@@ -497,8 +497,10 @@ def list_documents(
         out = DocumentOut.model_validate(doc)
         out.chunk_count = int(count)
         out.tags = sorted(tags_by_doc.get(doc.id, []))
-        out.is_duplicate = doc.duplicate_of is not None
+        # ``duplicate_of`` has no FK, so the original may have been purged;
+        # only report a duplicate whose original still exists.
         out.duplicate_of_name = dup_names.get(doc.duplicate_of)
+        out.is_duplicate = out.duplicate_of_name is not None
         result.append(out)
     return result
 
@@ -596,9 +598,17 @@ async def upload_version(
     )
     # Blocking file I/O — keep it off the event loop.
     new_key = await run_in_threadpool(_store_original, data, current_user.id, file_type)
-    doc.version_number += 1
-    doc.storage_key = new_key
-    db.commit()
+    try:
+        doc.version_number += 1
+        doc.storage_key = new_key
+        db.commit()
+    except Exception:
+        # Same rule as the upload path: don't leave the just-stored file
+        # behind with nothing referencing it.
+        db.rollback()
+        if new_key:
+            await run_in_threadpool(storage.delete, new_key)
+        raise
     db.refresh(doc)
     out = DocumentOut.model_validate(doc)
     return out

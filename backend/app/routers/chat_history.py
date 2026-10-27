@@ -21,16 +21,14 @@ def list_chat_history(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ):
-    """Return the current user's exchanges, newest first (paginated)."""
-    total = db.execute(
-        select(func.count(ChatHistory.id)).where(
-            ChatHistory.user_id == current_user.id
-        )
-    ).scalar_one()
+    """Return the current user's exchanges, newest first (paginated).
+    Soft-deleted queries are excluded, same as every other history reader."""
+    live = (ChatHistory.user_id == current_user.id, ChatHistory.deleted_at.is_(None))
+    total = db.execute(select(func.count(ChatHistory.id)).where(*live)).scalar_one()
     rows = (
         db.execute(
             select(ChatHistory)
-            .where(ChatHistory.user_id == current_user.id)
+            .where(*live)
             .order_by(ChatHistory.created_at.desc(), ChatHistory.id.desc())
             .limit(limit)
             .offset(offset)

@@ -7,6 +7,8 @@
   runs CREATE DATABASE IF NOT EXISTS so a fresh machine just works.
 - ``init_db`` creates all tables defined on ``Base``.
 """
+import logging
+
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
@@ -37,7 +39,7 @@ def _mysql_connect_args() -> dict:
 #   pool_pre_ping   - cheap liveness check that also guards against stale conns.
 # Effective ceiling of concurrent DB connections per worker = pool_size +
 # max_overflow. Keep (workers * (pool_size + max_overflow)) below MySQL's
-# max_connections. See DEPLOYMENT.md.
+# max_connections. See the README's "Deployment & operations" section.
 engine = create_engine(
     settings.database_url,
     pool_pre_ping=True,
@@ -95,34 +97,99 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
 
 
-def purge_soft_deleted(retention_days: int = 30) -> int:
-    """Hard-delete rows soft-deleted longer than ``retention_days`` ago and
-    remove their on-disk files. Returns the number of documents purged.
+def document_storage_keys(db, document_id: str) -> list[str]:
+    """Every stored file belonging to one document: the current original plus
+    the file of each archived version (``document_versions``). The version rows
+    are the only remaining reference to those files, so they must be read
+    before the document row (and its cascade) is deleted."""
+    from sqlalchemy import select
 
-    Runs on startup (see the app lifespan). Chunks/coverage cascade via FK when
-    a document row is deleted.
+    from .models import Document, DocumentVersion
+
+    keys = list(
+        db.execute(
+            select(DocumentVersion.storage_key).where(
+                DocumentVersion.document_id == document_id
+            )
+        ).scalars().all()
+    )
+    keys.append(db.execute(
+        select(Document.storage_key).where(Document.id == document_id)
+    ).scalar_one_or_none())
+    return [k for k in dict.fromkeys(keys) if k]
+
+
+def user_storage_keys(db, user_id: str) -> list[str]:
+    """Every stored document file (originals + archived versions, including
+    soft-deleted documents) owned by a user."""
+    from sqlalchemy import select
+
+    from .models import Document, DocumentVersion
+
+    current = db.execute(
+        select(Document.storage_key).where(Document.user_id == user_id)
+    ).scalars().all()
+    versions = db.execute(
+        select(DocumentVersion.storage_key)
+        .join(Document, Document.id == DocumentVersion.document_id)
+        .where(Document.user_id == user_id)
+    ).scalars().all()
+    return [k for k in dict.fromkeys([*current, *versions]) if k]
+
+
+def purge_soft_deleted(retention_days: int = 30, session_factory=None) -> int:
+    """Hard-delete rows soft-deleted longer than ``retention_days`` ago and
+    remove their stored files (current original and archived versions).
+    Returns the number of documents purged.
+
+    Each document is purged independently: if any of its files can't be
+    deleted the row is kept (and retried on the next run) instead of aborting
+    the batch, and a database failure for one document doesn't undo the rest.
+    Chunks/coverage/versions cascade via FK when a document row is deleted.
     """
     from datetime import datetime, timedelta, timezone
 
-    from .models import ChatHistory, Collection, Document
-    from .storage import storage
+    from sqlalchemy import select
 
+    from .models import ChatHistory, Collection, Document
+    from .storage import delete_many
+
+    log = logging.getLogger("papertrail.cleanup")
     cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
     purged = 0
-    with SessionLocal() as db:
-        docs = (
-            db.query(Document)
-            .filter(Document.deleted_at.isnot(None), Document.deleted_at < cutoff)
-            .all()
-        )
-        for doc in docs:
-            if doc.storage_key:
-                storage.delete(doc.storage_key)
-            db.delete(doc)
-            purged += 1
+    with (session_factory or SessionLocal)() as db:
+        doc_ids = db.execute(
+            select(Document.id).where(
+                Document.deleted_at.isnot(None), Document.deleted_at < cutoff
+            )
+        ).scalars().all()
+        for doc_id in doc_ids:
+            try:
+                doc = db.get(Document, doc_id)
+                if doc is None:  # already purged by another worker
+                    continue
+                failed = delete_many(document_storage_keys(db, doc_id))
+                if failed:
+                    log.warning(
+                        "Keeping document %s for retry: %d file(s) not deleted",
+                        doc_id, len(failed),
+                    )
+                    continue
+                db.delete(doc)
+                db.commit()
+                purged += 1
+            except Exception as exc:  # noqa: BLE001
+                db.rollback()
+                log.warning("Purge of document %s failed: %s", doc_id, exc)
         for model in (Collection, ChatHistory):
-            db.query(model).filter(
-                model.deleted_at.isnot(None), model.deleted_at < cutoff
-            ).delete(synchronize_session=False)
-        db.commit()
+            try:
+                n = db.query(model).filter(
+                    model.deleted_at.isnot(None), model.deleted_at < cutoff
+                ).delete(synchronize_session=False)
+                db.commit()
+                if n:
+                    log.info("Purged %d expired %s row(s).", n, model.__tablename__)
+            except Exception as exc:  # noqa: BLE001
+                db.rollback()
+                log.warning("Purge of %s failed: %s", model.__tablename__, exc)
     return purged

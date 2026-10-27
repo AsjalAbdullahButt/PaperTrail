@@ -186,3 +186,24 @@ def get_storage() -> StorageBackend:
 
 
 storage = get_storage()
+
+
+def delete_many(keys: list[str]) -> list[str]:
+    """Delete each key independently; return the keys that failed.
+
+    One failing object (S3 outage, permissions) must not stop the remaining
+    deletions or hide that it happened, so callers decide what to do with the
+    failures (log + retry later, or keep the owning DB row).
+    """
+    import logging
+
+    failed: list[str] = []
+    for key in keys:
+        try:
+            storage.delete(key)
+        except Exception as exc:  # noqa: BLE001
+            logging.getLogger("papertrail.storage").error(
+                "Failed to delete storage object %r: %s", key, exc
+            )
+            failed.append(key)
+    return failed

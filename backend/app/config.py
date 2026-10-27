@@ -112,6 +112,20 @@ class Settings(BaseSettings):
     # Query-response cache TTL in seconds (0 disables caching).
     query_cache_ttl_seconds: int = 300
 
+    # --- Data-lifecycle cleanup (see cleanup.py) ---
+    cleanup_enabled: bool = True
+    cleanup_interval_hours: float = 6.0
+    # Revoked refresh-token rows are kept this long past their own expiry.
+    blacklist_grace_days: int = 1
+    # Password-reset token rows (used or expired) are kept this long past expiry.
+    reset_token_retention_days: int = 30
+    # Failed-ingestion document rows (no file, no chunks) are kept this long so
+    # the upload UI can still read their /status.
+    failed_document_retention_days: int = 7
+    # Documents still "processing"/"queued" after this long were interrupted
+    # (worker killed/restarted) and are marked failed.
+    stuck_processing_minutes: int = 60
+
     # --- SQLAlchemy connection pool ---
     db_pool_size: int = 10
     db_max_overflow: int = 20

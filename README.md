@@ -22,8 +22,8 @@ This repository is also the submission for an NLP course project in the category
 **PaperTrail — Evidence-Grounded Research-Paper Question Answering over an NLP Corpus using Hybrid RAG.**
 The niche domain is 14 research papers on NLP techniques (transformers, embeddings, dense/late-interaction retrieval, RAG and its evaluation).
 Everything for the evaluation lives in [`eval/`](eval/): the corpus builder, a 46-question verified test set, the harness that measures
-retrieval and answer quality on the **same production modules** the app uses, the report and the presentation outline. Start with
-[`eval/README.md`](eval/README.md) and [`eval/REPORT.md`](eval/REPORT.md).
+retrieval and answer quality on the **same production modules** the app uses, plus the per-configuration raw results in
+[`eval/results/`](eval/results/). Start with [`eval/README.md`](eval/README.md).
 
 ---
 
@@ -163,13 +163,43 @@ All settings are environment-driven — see `backend/.env.example` and `frontend
 | `REDIS_URL` | Set for multi-worker correctness (shared cache + rate limits); omit for single-worker/local dev |
 | `CORS_ORIGINS` | Comma-separated allowed browser origins |
 | `NEXT_PUBLIC_API_URL` | Frontend → backend base URL (baked in at build time) |
+| `CLEANUP_ENABLED`, `CLEANUP_INTERVAL_HOURS` | Scheduled data-lifecycle cleanup (default: on, every 6 h) — see [Data lifecycle & cleanup](#-data-lifecycle--cleanup) |
+
+---
+
+## 🧹 Data lifecycle & cleanup
+
+Deleting things is soft first, hard later, and nothing is left behind:
+
+| What | Behaviour |
+| --- | --- |
+| Documents, collections, saved queries | Soft-deleted (`deleted_at`) and excluded from every read, including search and `/api/chat-history`. Documents can be restored from the trash for **30 days**; after that they are hard-deleted. |
+| Stored files | Purging a document (or deleting an account) removes the original **and every archived version** file from storage. A document whose file can't be deleted is kept and retried on the next run instead of blocking the batch. |
+| Revoked refresh tokens / reset tokens | Removed once past expiry (`BLACKLIST_GRACE_DAYS`, `RESET_TOKEN_RETENTION_DAYS`). |
+| Failed or interrupted uploads | Documents stuck "processing" longer than `STUCK_PROCESSING_MINUTES` are marked failed; failed rows are removed after `FAILED_DOCUMENT_RETENTION_DAYS`. |
+| Search index | Each worker keeps a per-user in-memory retrieval index. A shared generation counter in Redis makes every worker rebuild it after a document is uploaded, deleted or restored on *any* worker, so a deleted document can't keep appearing in answers. |
+
+The cleanup job (`backend/app/cleanup.py`) runs once at startup and then every `CLEANUP_INTERVAL_HOURS`. Every step is idempotent and
+safe if several workers run it; a Redis lock (when `REDIS_URL` is set) just avoids duplicate work. Defaults:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `CLEANUP_ENABLED` | `true` | Turn the scheduled job off entirely |
+| `CLEANUP_INTERVAL_HOURS` | `6` | How often it runs |
+| `BLACKLIST_GRACE_DAYS` | `1` | Keep revoked-token rows this long past their expiry |
+| `RESET_TOKEN_RETENTION_DAYS` | `30` | Keep password-reset rows this long past their expiry |
+| `FAILED_DOCUMENT_RETENTION_DAYS` | `7` | Keep failed-upload rows this long |
+| `STUCK_PROCESSING_MINUTES` | `60` | Mark an unfinished ingestion as failed after this long |
+
+> The first deploy of this version removes the old expired token rows and failed-upload rows that had accumulated. Take a database backup first (see below).
 
 ---
 
 ## 🧪 Testing
 
 ```bash
-# Backend — 181 tests covering auth, retrieval, ingestion, sharing, rate limits, and more
+# Backend — 269 tests covering auth, retrieval, ingestion, sharing, rate limits, cleanup, and more
+# (162 need a reachable MySQL and are skipped without one; the rest, incl. the cleanup tests, run anywhere)
 cd backend
 pip install -r requirements-dev.txt
 pytest -q
@@ -232,6 +262,36 @@ Redis holds only cache + rate-limit counters — no backup needed, a cold Redis 
 
 Set `JWT_SECRET` (long random), real `DB_*` credentials, `CORS_ORIGINS`, and `REDIS_URL`. The app refuses to start if `COOKIE_SECURE=true` is set alongside the default insecure `JWT_SECRET`.
 
+### Reference deployment (Vercel + Render + Aiven + R2)
+
+Frontend on Vercel, backend on Render (Docker, built from `backend/Dockerfile`, which runs `alembic upgrade head` then gunicorn), MySQL on Aiven (TLS required), Redis on Render Key Value, files on Cloudflare R2. Deployment config is committed: `render.yaml` (backend + Redis) and `frontend/vercel.json`.
+
+1. **Backend + Redis:** Render Dashboard → *New → Blueprint* → select this repo → *Apply*. Then type each variable marked `sync: false` in `render.yaml` into the dashboard (Blueprints define structure, not secrets). Confirm the Key Value field names against Render's current Blueprint docs before deploying.
+2. **Frontend:**
+
+   ```bash
+   cd frontend
+   npm i -g vercel
+   vercel link
+   vercel env add papertrail_api_url production   # your Render backend URL
+   vercel --prod
+   ```
+
+Variables set on the Render service (names match `backend/.env.example`):
+
+| Group | Variables | Notes |
+| --- | --- | --- |
+| AI | `OPENAI_API_KEY` (or `GROQ_API_KEY`), `OPENAI_EMBEDDING_MODEL`, `OPENAI_CHAT_MODEL` | Key is optional only if you accept offline mode |
+| Database | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SSL_MODE=true`, `DB_SSL_CA` | Aiven rejects plain connections; mount its CA cert as a secret file and set `DB_SSL_CA` to its path to verify the server |
+| Storage | `STORAGE_BACKEND=s3`, `S3_BUCKET`, `S3_REGION=auto`, `S3_ENDPOINT_URL`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | R2 endpoint is `https://<account_id>.r2.cloudflarestorage.com` |
+| URLs | `CORS_ORIGINS`, `FRONTEND_BASE_URL` | Both must be the final Vercel URL, or CORS fails and reset links point at the wrong host |
+| Auth | `JWT_SECRET`, `COOKIE_SECURE=true`, `JWT_EXPIRE_MINUTES` (30), `REFRESH_EXPIRE_DAYS` (7) | Generate the secret with `openssl rand -hex 32` |
+| Redis | `REDIS_URL` | Required for multi-worker cache, rate limits, search-index invalidation and the cleanup lock |
+| Limits | `MAX_UPLOAD_MB` (50), `MAX_QUERY_CHUNKS` (5000), `RATE_LIMIT_QUERY` (20/minute), `RATE_LIMIT_UPLOAD` (10/hour), `QUERY_CACHE_TTL_SECONDS` (300) | Defaults in parentheses |
+| DB pool | `DB_POOL_SIZE` (10), `DB_MAX_OVERFLOW` (20), `DB_POOL_TIMEOUT` (30), `DB_POOL_RECYCLE` (1800) | Keep `WEB_CONCURRENCY × (DB_POOL_SIZE + DB_MAX_OVERFLOW)` under the provider's `max_connections` |
+| Process | `WEB_CONCURRENCY` (4), `PORT` | `PORT` is set by Render; don't set it manually |
+| Cleanup | `CLEANUP_*`, `BLACKLIST_GRACE_DAYS`, … | See [Data lifecycle & cleanup](#-data-lifecycle--cleanup) |
+
 </details>
 
 ---
@@ -244,7 +304,10 @@ PaperTrail/
 │   ├── app/
 │   │   ├── main.py           FastAPI app, middleware, router registration
 │   │   ├── config.py         env-driven settings (pydantic-settings)
-│   │   ├── database.py       SQLAlchemy engine/session + schema bootstrap
+│   │   ├── database.py       SQLAlchemy engine/session + schema bootstrap + soft-delete purge
+│   │   ├── cleanup.py        scheduled data-lifecycle cleanup (tokens, failed uploads, purge)
+│   │   ├── cache.py          query cache + cross-worker search-index invalidation (Redis)
+│   │   ├── storage.py        local / S3-compatible file storage abstraction
 │   │   ├── models.py         users, documents, chunks, chat history, collections…
 │   │   ├── schemas.py        Pydantic request/response models
 │   │   ├── llm.py            single AI provider layer (OpenAI/Groq + offline fallback)
@@ -254,15 +317,20 @@ PaperTrail/
 │   │   │                     importance scoring, outline/timeline extraction
 │   │   └── routers/          auth, documents, query, queries, collections,
 │   │                         chat_history, analytics, export, share
-│   ├── tests/                pytest suite (181 tests)
+│   ├── tests/                pytest suite (269 tests)
 │   ├── migrations/           Alembic schema migrations
 │   └── create_tables.py      standalone schema bootstrap
 ├── frontend/
-│   ├── src/app/               pages (App Router)
-│   ├── src/components/        UI components
-│   ├── src/lib/api.ts         typed backend API client
-│   ├── src/hooks/, src/stores/
-│   └── e2e/                   Playwright end-to-end tests
+│   ├── src/app/               pages (App Router; folder names are the URLs)
+│   ├── src/components/        layout/ (shell, header), query/ (answers, sources, mind map),
+│   │                          documents/ (library, upload, timeline), ui/ (shared widgets, dialogs)
+│   ├── src/api/backendClient.ts typed backend API client
+│   ├── src/state/             Zustand stores (auth, query)
+│   ├── src/theme/             theme definitions + useTheme
+│   ├── src/hooks/             reusable React hooks
+│   └── end-to-end-tests/      Playwright end-to-end tests
+├── eval/                      RAG evaluation workstream (corpus, test set, harness, results)
+├── render.yaml                Render Blueprint (backend + Redis)
 ├── docker-compose.yml         MySQL + Redis + backend + frontend, prod-parity
 ├── start-dev.ps1              one-click local dev launcher (Windows)
 └── .github/workflows/ci.yml   backend + frontend CI
