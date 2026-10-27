@@ -18,6 +18,13 @@ class Settings(BaseSettings):
     openai_embedding_model: str = "text-embedding-3-small"
     openai_chat_model: str = "gpt-4o-mini"
 
+    # --- Embedding provider ---
+    # "openai" (production default: OpenAI when ready, else the offline hasher),
+    # "hf" (opt-in local sentence-transformers model; used by the eval to compare
+    # embedding models, requires requirements-dev.txt), or "offline".
+    embedding_provider: str = "openai"
+    hf_embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+
     # --- Groq (OpenAI-compatible chat API; no embeddings endpoint) ---
     # When set, chat generation (RAG + direct answers) uses Groq via the
     # OpenAI-compatible client. Groq has no embeddings API, so embeddings still
@@ -120,6 +127,7 @@ class Settings(BaseSettings):
 
     @field_validator(
         "openai_api_key", "openai_embedding_model", "openai_chat_model",
+        "embedding_provider", "hf_embedding_model",
         "groq_api_key", "groq_chat_model", "groq_base_url",
         "db_host", "db_user", "db_password", "db_name", "db_ssl_ca",
         "uploads_dir", "storage_backend", "s3_bucket", "s3_region",

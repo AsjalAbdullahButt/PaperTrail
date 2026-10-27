@@ -4,3 +4,5 @@
 pytest==9.1.1
 httpx==0.28.1
 moto[s3]==5.1.16
+# Eval-only: opt-in Hugging Face embeddings (EMBEDDING_PROVIDER=hf); not needed in production.
+sentence-transformers==6.2.0

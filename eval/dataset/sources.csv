@@ -1,0 +1,15 @@
+arxiv_id,short_name,title,authors,year
+1706.03762,Transformer,Attention Is All You Need,Vaswani et al.,2017
+1810.04805,BERT,BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding,Devlin et al.,2018
+1908.10084,Sentence-BERT,Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks,Reimers and Gurevych,2019
+2002.08909,REALM,REALM: Retrieval-Augmented Language Model Pre-Training,Guu et al.,2020
+2004.04906,DPR,Dense Passage Retrieval for Open-Domain Question Answering,Karpukhin et al.,2020
+2004.12832,ColBERT,ColBERT: Efficient and Effective Passage Search via Contextualized Late Interaction over BERT,Khattab and Zaharia,2020
+2005.11401,RAG,Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks,Lewis et al.,2020
+2104.08663,BEIR,BEIR: A Heterogeneous Benchmark for Zero-shot Evaluation of Information Retrieval Models,Thakur et al.,2021
+2112.09118,Contriever,Unsupervised Dense Information Retrieval with Contrastive Learning (Contriever),Izacard et al.,2021
+2212.10496,HyDE,Precise Zero-Shot Dense Retrieval without Relevance Labels (HyDE),Gao et al.,2022
+2307.03172,Lost in the Middle,Lost in the Middle: How Language Models Use Long Contexts,Liu et al.,2023
+2309.15217,RAGAS,RAGAS: Automated Evaluation of Retrieval Augmented Generation,Es et al.,2023
+2310.11511,Self-RAG,Self-RAG: Learning to Retrieve Generate and Critique through Self-Reflection,Asai et al.,2023
+2312.10997,RAG Survey,Retrieval-Augmented Generation for Large Language Models: A Survey,Gao et al.,2023

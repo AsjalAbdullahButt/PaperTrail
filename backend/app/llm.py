@@ -3,7 +3,10 @@
 Every embedding and chat-completion call lives here so the provider can be
 swapped by editing only this file.
 
-Two paths:
+Embedding providers (``settings.embedding_provider``): ``openai`` (default),
+``hf`` (opt-in local sentence-transformers model) and ``offline``.
+
+Two generation paths:
   * **OpenAI** (default) when a real ``OPENAI_API_KEY`` is configured.
   * **Offline deterministic fallback** when no valid key is present. It produces
     stable hashing-based embeddings and an extractive answer, so the entire RAG
@@ -33,19 +36,51 @@ _TOKEN_RE = re.compile(r"[a-z0-9]+")
 def embed_texts(texts: list[str]) -> list[list[float]]:
     """Return one embedding vector per input string.
 
-    Empty input -> empty output. On OpenAI failure we log and fall back to the
-    offline embedder so ingestion never hard-crashes.
+    Empty input -> empty output. The backend is chosen by
+    ``settings.embedding_provider``: ``openai`` (default; falls back to the
+    offline embedder when no key is configured or the call fails, so ingestion
+    never hard-crashes), ``hf`` (local sentence-transformers model), or
+    ``offline``.
     """
     if not texts:
         return []
 
-    if settings.openai_ready:
+    provider = (settings.embedding_provider or "openai").lower()
+
+    if provider == "hf":
+        try:
+            return _hf_embed(texts)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("HF embeddings failed (%s); using offline fallback.", exc)
+    elif provider == "openai" and settings.openai_ready:
         try:
             return _openai_embed(texts)
         except Exception as exc:  # noqa: BLE001
             logger.warning("OpenAI embeddings failed (%s); using offline fallback.", exc)
 
     return [_offline_embed(t) for t in texts]
+
+
+_HF_MODELS: dict[str, object] = {}
+
+
+def _hf_embed(texts: list[str]) -> list[list[float]]:
+    """Embed with a local sentence-transformers model, L2-normalized.
+
+    ``sentence-transformers`` is a dev-only dependency (requirements-dev.txt);
+    it is imported lazily so production never needs it. Models are cached per
+    process. Inputs longer than the model's max sequence length are truncated
+    by the model itself.
+    """
+    from sentence_transformers import SentenceTransformer
+
+    name = settings.hf_embedding_model
+    model = _HF_MODELS.get(name)
+    if model is None:
+        model = _HF_MODELS[name] = SentenceTransformer(name)
+    vectors = model.encode(texts, batch_size=64, normalize_embeddings=True,
+                           show_progress_bar=False)
+    return [[float(x) for x in v] for v in vectors]
 
 
 def _openai_embed(texts: list[str]) -> list[list[float]]:

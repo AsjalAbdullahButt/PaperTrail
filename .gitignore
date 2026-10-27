@@ -58,6 +58,13 @@ Thumbs.db
 .vscode/
 .idea/
 
+# --- Documents / input data ---
+# Never commit PDFs or the eval's raw input corpus. The paper corpus is
+# rebuilt locally with `python eval/build_dataset.py --download`.
+*.pdf
+eval/dataset/raw/
+eval/dataset/manifest.csv
+
 # --- Docs ---
 # Keep README.md tracked; ignore every other Markdown file (deployment notes,
 # scratch docs, etc). eval/ is exempted: its Markdown files are eval data
@@ -66,3 +73,7 @@ Thumbs.db
 !README.md
 !**/README.md
 !eval/**/*.md
+# ...but the extracted third-party paper texts in eval/dataset/ are generated
+# input data, not deliverables: only the 10 numbered project docs are tracked.
+eval/dataset/*.md
+!eval/dataset/[0-9][0-9]-*.md
