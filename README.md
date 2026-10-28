@@ -33,6 +33,7 @@ retrieval and answer quality on the **same production modules** the app uses, pl
 - 🧩 **Multi-hop mode** — chains two retrieval rounds together (refining the search from what it finds) to answer questions that need connecting facts across documents.
 - 💬 **Direct mode** — skip retrieval entirely and ask the model directly.
 - 🛡️ **Hallucination guard** — every answer is checked sentence-by-sentence against the retrieved evidence; unsupported claims are flagged.
+- 🧪 **Optional NLP pipeline (toggle per query in the UI)** — cross-encoder **re-ranking**, **HyDE** query expansion, **NLI** (entailment) grounding of every answer sentence, and **abstention** when retrieval confidence is low. A retrieval inspector shows each passage's dense / BM25 / importance / re-rank scores, and badges show exactly which stages produced an answer. All stages are measured in [`eval/`](eval/).
 - 🎯 **Hybrid search** — dense (embedding/ANN) similarity fused with BM25 keyword search and a learned importance boost, so both "meaning" and exact-keyword queries work well.
 - 🗂️ **Document management** — collections, tags, duplicate detection, per-document coverage heatmaps, and an auto-extracted event timeline.
 - 🧠 **Concept mind maps** — every answer can be visualized as a graph of the question and the chunks that informed it.

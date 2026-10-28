@@ -25,6 +25,33 @@ class Settings(BaseSettings):
     embedding_provider: str = "openai"
     hf_embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
 
+    # --- Advanced NLP pipeline (all opt-in; defaults leave behaviour unchanged) ---
+    # Each stage can also be switched per request via QueryRequest.options when the
+    # needed library is installed (see services/pipeline_options.py). The local
+    # models need sentence-transformers (requirements-dev.txt) and are downloaded
+    # from the Hugging Face Hub on first use; if unavailable, the stage is skipped
+    # and the response says so.
+    #
+    # Cross-encoder re-ranking of the hybrid top-N candidates.
+    rerank_enabled: bool = False
+    rerank_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    rerank_candidates: int = 20
+    # NLI (entailment) grounding check instead of the lexical overlap heuristic.
+    grounding_method: str = "lexical"  # "lexical" | "nli"
+    nli_model: str = "cross-encoder/nli-deberta-v3-small"
+    nli_entailment_threshold: float = 0.5
+    # Abstain (skip generation) when the retrieval signal is below a threshold. The
+    # signal is the re-ranker's sigmoid score for the top passage when re-ranking
+    # ran, else the top dense cosine; each has its own threshold (tune them with
+    # eval/analysis.py). A threshold of 0.0 disables the check.
+    abstain_enabled: bool = False
+    abstain_threshold: float = 0.0
+    abstain_threshold_rerank: float = 0.0
+    # Query expansion before retrieval: "none" | "hyde" (hypothetical document).
+    query_expansion: str = "none"
+    # Prepend "<document title> | <section>" to each chunk before embedding.
+    contextual_chunk_headers: bool = False
+
     # --- Groq (OpenAI-compatible chat API; no embeddings endpoint) ---
     # When set, chat generation (RAG + direct answers) uses Groq via the
     # OpenAI-compatible client. Groq has no embeddings API, so embeddings still
@@ -142,6 +169,8 @@ class Settings(BaseSettings):
     @field_validator(
         "openai_api_key", "openai_embedding_model", "openai_chat_model",
         "embedding_provider", "hf_embedding_model",
+        "rerank_model", "grounding_method", "nli_model", "query_expansion",
+        "rerank_model", "grounding_method", "nli_model", "query_expansion",
         "groq_api_key", "groq_chat_model", "groq_base_url",
         "db_host", "db_user", "db_password", "db_name", "db_ssl_ca",
         "uploads_dir", "storage_backend", "s3_bucket", "s3_region",

@@ -280,3 +280,12 @@ def chunk_blocks_semantic(
         # window_start so the loop is guaranteed to make forward progress.
         i = max(window_start + 1, i - overlap_sentences)
     return out
+
+
+def contextualize_chunk(text: str, title: str, section: str | None) -> str:
+    """Text to *embed* for a chunk when ``settings.contextual_chunk_headers`` is on:
+    the document title and section heading are prepended, so a chunk that says
+    only "it uses 8 heads" still carries what it is about. The stored/displayed/
+    BM25 text stays the raw chunk."""
+    header = " | ".join(part for part in (title, section) if part)
+    return f"{header}\n{text}" if header else text

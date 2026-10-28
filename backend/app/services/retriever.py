@@ -27,6 +27,7 @@ from .. import llm
 from ..cache import get_or_build_object, index_generation, retrieval_index_key
 from ..config import settings
 from ..models import Chunk, Document
+from . import reranker
 from .bm25_index import BM25Index
 
 logger = logging.getLogger("papertrail.retriever")
@@ -303,8 +304,17 @@ def hybrid_retrieve(
     collection_id: str | None = None,
     top_k: int = 8,
     record: bool = True,
+    rerank: bool | None = None,
+    expanded_query: str | None = None,
 ) -> list[dict]:
-    """Return the top-``k`` chunks for ``query`` within the user's scope."""
+    """Return the top-``k`` chunks for ``query`` within the user's scope.
+
+    ``rerank`` re-scores the top ``settings.rerank_candidates`` hybrid candidates
+    with a cross-encoder and keeps the best ``top_k`` (``None`` = server default;
+    on any re-ranker failure the first-stage order is kept). ``expanded_query`` is
+    a HyDE hypothetical passage: it replaces the question for the dense embedding
+    and is appended to it for BM25.
+    """
     scope = _load_chunk_ids_for_scope(db, user_id, document_ids, collection_id)
     if scope is not None and not scope:
         return []  # an explicit but empty scope matches nothing
@@ -313,7 +323,8 @@ def hybrid_retrieve(
     if not index.rows:
         return []
 
-    query_vec = llm.embed_texts([query])[0]
+    query_vec = llm.embed_texts([expanded_query or query])[0]
+    sparse_query = f"{query}\n{expanded_query}" if expanded_query else query
     qdim = len(query_vec)
     dense_index = index.dense_by_dim.get(qdim)
     if dense_index is None:
@@ -326,7 +337,7 @@ def hybrid_retrieve(
         }
         sparse_candidates = {
             row_id
-            for row_id, _ in index.bm25.search(query, top_k=dense_limit)
+            for row_id, _ in index.bm25.search(sparse_query, top_k=dense_limit)
             if len(index.rows[row_id].embedding) == qdim
         }
         candidate_ids = sorted(dense_candidates | sparse_candidates)
@@ -340,7 +351,7 @@ def hybrid_retrieve(
     if not candidate_ids:
         return []
 
-    sparse_map = dict(index.bm25.search(query, top_k=len(index.rows)))
+    sparse_map = dict(index.bm25.search(sparse_query, top_k=len(index.rows)))
     dense_raw = [_cosine(query_vec, index.rows[i].embedding) for i in candidate_ids]
     sparse_raw = [float(sparse_map.get(i, 0.0)) for i in candidate_ids]
 
@@ -369,7 +380,16 @@ def hybrid_retrieve(
         )
 
     scored.sort(key=lambda d: d["ranked_score"], reverse=True)
-    top = scored[: max(0, top_k)]
+    do_rerank = settings.rerank_enabled if rerank is None else rerank
+    if do_rerank:
+        candidates = scored[: max(top_k, settings.rerank_candidates)]
+        try:
+            top = reranker.rerank(query, candidates, max(0, top_k))
+        except Exception as exc:  # noqa: BLE001 - keep first-stage order on any failure
+            logger.warning("Re-ranking failed (%s); keeping first-stage order.", exc)
+            top = candidates[: max(0, top_k)]
+    else:
+        top = scored[: max(0, top_k)]
 
     if record and top:
         _record_retrievals(db, user_id, [d["chunk_id"] for d in top])

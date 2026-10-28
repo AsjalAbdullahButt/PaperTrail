@@ -334,12 +334,24 @@ class ConversationTurn(BaseModel):
     content: str = Field(..., min_length=1, max_length=4000)
 
 
+class QueryOptions(BaseModel):
+    """Per-request overrides for the optional NLP pipeline stages. ``None`` means
+    "use the server default"; a requested stage whose library is missing is
+    skipped and reported in ``QueryResponse.pipeline.notes``."""
+
+    rerank: bool | None = None
+    expansion: str | None = Field(None, pattern="^(none|hyde)$")
+    grounding: str | None = Field(None, pattern="^(lexical|nli)$")
+    abstain: bool | None = None
+
+
 class QueryRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=2000)
     mode: str = Field("rag", pattern="^(rag|direct|multihop|compare)$")
     document_ids: list[str] = Field(default_factory=list)
     collection_id: str | None = None
     conversation_history: list[ConversationTurn] = Field(default_factory=list)
+    options: QueryOptions | None = None
 
     @field_validator("question")
     @classmethod
@@ -368,11 +380,38 @@ class SourceOut(BaseModel):
     similarity_score: float = 0.0
     importance_score: float = 0.0
     relevance_pct: int = 0
+    # Score breakdown for the "why was this retrieved" inspector.
+    sparse_score: float = 0.0  # BM25 (raw, as returned by the retriever)
+    rerank_score: float | None = None  # cross-encoder logit, when re-ranking ran
+    rerank_prob: float | None = None  # sigmoid(rerank_score)
 
 
 class UnsupportedSentence(BaseModel):
     sentence: str
     source_chunk_id: str | None = None
+
+
+class GroundingSentence(BaseModel):
+    """Verdict for one answer sentence from the active grounding method."""
+
+    sentence: str
+    supported: bool
+    source_chunk_id: str | None = None
+    entailment: float | None = None  # NLI only
+    contradiction: float | None = None  # NLI only
+    label: str | None = None  # "entailed" | "neutral" | "contradicted" (NLI only)
+
+
+class PipelineInfo(BaseModel):
+    """Which optional NLP stages actually ran for this answer."""
+
+    reranked: bool = False
+    expansion: str = "none"  # "none" | "hyde"
+    grounding_method: str = "lexical"  # "lexical" | "nli"
+    abstention_checked: bool = False
+    retrieval_signal: float | None = None
+    signal_kind: str | None = None  # "rerank" | "dense"
+    notes: list[str] = Field(default_factory=list)
 
 
 class QueryResponse(BaseModel):
@@ -383,6 +422,9 @@ class QueryResponse(BaseModel):
     followup_questions: list[str] = Field(default_factory=list)
     unsupported_sentences: list[UnsupportedSentence] = Field(default_factory=list)
     query_id: str | None = None
+    abstained: bool = False
+    grounding: list[GroundingSentence] = Field(default_factory=list)
+    pipeline: PipelineInfo = Field(default_factory=PipelineInfo)
 
 
 # --- Chat history ---

@@ -21,7 +21,7 @@ from ..cache import cache, user_prefix
 from ..config import settings
 from ..database import get_db
 from ..ratelimit import limiter, upload_limit
-from ..ingestion import chunk_blocks, chunk_blocks_semantic, file_type_from_name
+from ..ingestion import chunk_blocks, chunk_blocks_semantic, contextualize_chunk, file_type_from_name
 from ..models import (
     Chunk,
     Document,
@@ -206,7 +206,12 @@ def _process_upload(
     # latency on top.
     with ThreadPoolExecutor(max_workers=1) as pool:
         meta_future = pool.submit(_score_and_summarize, blocks, chunk_texts, document.filename)
-        embeddings = _embed_with_progress(db, document, chunk_texts)
+        embed_inputs = (
+            [contextualize_chunk(c["text"], document.filename, c.get("section_heading")) for c in chunk_dicts]
+            if settings.contextual_chunk_headers
+            else chunk_texts
+        )
+        embeddings = _embed_with_progress(db, document, embed_inputs)
         scores, highlights, outline, full_text, summary = meta_future.result()
 
     if len(embeddings) != len(chunk_texts):
