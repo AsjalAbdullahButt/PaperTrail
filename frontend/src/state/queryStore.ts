@@ -11,10 +11,15 @@ import {
   ApiError,
   askQuery,
   askQueryStreaming,
+  getQueryCapabilities,
   listDocuments,
   type ConversationTurn,
   type DocumentInfo,
+  type GroundingSentence,
+  type PipelineInfo,
+  type QueryCapabilities,
   type QueryMode,
+  type QueryOptions,
   type Source,
   type UnsupportedSentence,
 } from "@/api/backendClient";
@@ -28,6 +33,12 @@ type AnswerState = {
   confidenceScore: number;
   followupQuestions: string[];
   unsupportedSentences: UnsupportedSentence[];
+  /** Per-sentence grounding verdicts from the active grounding method. */
+  grounding: GroundingSentence[];
+  /** True when the system declined to answer because retrieval confidence was too low. */
+  abstained: boolean;
+  /** Which optional NLP stages ran for the current answer. */
+  pipeline: PipelineInfo | null;
   isStreaming: boolean;
   askedQuestion: string;
   queryId: string | null;
@@ -42,6 +53,9 @@ const EMPTY_ANSWER: AnswerState = {
   confidenceScore: 0,
   followupQuestions: [],
   unsupportedSentences: [],
+  grounding: [],
+  abstained: false,
+  pipeline: null,
   isStreaming: false,
   askedQuestion: "",
   queryId: null,
@@ -58,7 +72,12 @@ type QueryStore = AnswerState & {
   selectedDocIds: string[];
   selectedCollectionId: string | null;
   compareDocs: DocumentInfo[] | null;
+  /** Per-query NLP options chosen in the UI (unset = server default). */
+  options: QueryOptions;
+  capabilities: QueryCapabilities | null;
 
+  setOption: <K extends keyof QueryOptions>(key: K, value: QueryOptions[K] | undefined) => void;
+  loadCapabilities: () => Promise<void>;
   setMode: (mode: QueryMode) => void;
   setQuery: (query: string) => void;
   setSelectedDocIds: (ids: string[]) => void;
@@ -77,7 +96,25 @@ export const useQueryStore = create<QueryStore>((set, get) => ({
   selectedDocIds: [],
   selectedCollectionId: null,
   compareDocs: null,
+  options: {},
+  capabilities: null,
   ...EMPTY_ANSWER,
+
+  setOption: (key, value) =>
+    set((s) => {
+      const next = { ...s.options };
+      if (value === undefined) delete next[key];
+      else next[key] = value;
+      return { options: next };
+    }),
+  loadCapabilities: async () => {
+    if (get().capabilities !== null) return;
+    try {
+      set({ capabilities: await getQueryCapabilities() });
+    } catch {
+      // Older server without the endpoint: leave the advanced options hidden.
+    }
+  },
 
   setMode: (mode) => set({ mode }),
   setQuery: (query) => set({ query }),
@@ -105,7 +142,7 @@ export const useQueryStore = create<QueryStore>((set, get) => ({
 
   runQuery: async (q, onUnauthorized) => {
     const question = q.trim();
-    const { mode, asking, selectedDocIds, conversationHistory } = get();
+    const { mode, asking, selectedDocIds, conversationHistory, options } = get();
     if (!question || asking) return;
     if (mode === "compare" && selectedDocIds.length < 2) return;
 
@@ -114,6 +151,7 @@ export const useQueryStore = create<QueryStore>((set, get) => ({
     const opts = {
       conversation_history: conversationHistory,
       document_ids: mode === "compare" ? selectedDocIds : undefined,
+      options: Object.keys(options).length > 0 ? options : undefined,
     };
 
     /** Appends this exchange to conversationHistory and trims to the last 3
@@ -138,6 +176,9 @@ export const useQueryStore = create<QueryStore>((set, get) => ({
         confidenceScore: data.confidence_score,
         followupQuestions: data.followup_questions,
         unsupportedSentences: data.unsupported_sentences,
+        grounding: data.grounding ?? [],
+        abstained: data.abstained ?? false,
+        pipeline: data.pipeline ?? null,
         askedQuestion: question,
         answerMode: mode,
         queryId: data.query_id,
@@ -156,6 +197,10 @@ export const useQueryStore = create<QueryStore>((set, get) => ({
             hasAnswer: true,
             currentSources: event.sources,
             currentAnswer: "",
+            grounding: [],
+            abstained: false,
+            pipeline: null,
+            unsupportedSentences: [],
             askedQuestion: question,
             answerMode: mode,
             isStreaming: true,
@@ -165,8 +210,16 @@ export const useQueryStore = create<QueryStore>((set, get) => ({
           set({ currentAnswer: streamedAnswer });
         } else if (event.type === "followups") {
           set({ followupQuestions: event.followups });
+        } else if (event.type === "pipeline") {
+          set({ pipeline: event.pipeline, abstained: event.abstained });
         } else if (event.type === "hallucination") {
-          set({ unsupportedSentences: event.unsupported_sentences });
+          set((s) => ({
+            unsupportedSentences: event.unsupported_sentences,
+            grounding: event.grounding,
+            pipeline: s.pipeline
+              ? { ...s.pipeline, grounding_method: event.grounding_method, notes: event.notes }
+              : s.pipeline,
+          }));
         } else if (event.type === "done") {
           set({
             confidenceScore: event.confidence_score,

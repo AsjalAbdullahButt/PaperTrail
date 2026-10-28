@@ -11,6 +11,7 @@ export default function OnboardingModal({ onDismiss }: { onDismiss: () => void }
           <li><strong style={{ color: "var(--text)" }}>Upload</strong> a document (top-right, or Ctrl+U).</li>
           <li>Ask a question in the <strong style={{ color: "var(--text)" }}>search bar</strong> (press /).</li>
           <li>Switch <strong style={{ color: "var(--text)" }}>RAG / Multi-hop / Direct</strong> modes.</li>
+          <li>Try the <strong style={{ color: "var(--text)" }}>NLP pipeline</strong> switches (re-rank, HyDE, NLI grounding, abstain).</li>
           <li>Trace answers to their <strong style={{ color: "var(--text)" }}>source cards</strong>.</li>
           <li>Browse everything in the <strong style={{ color: "var(--text)" }}>Library</strong>.</li>
         </ol>

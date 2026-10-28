@@ -7,6 +7,8 @@ import { useFloatingRect } from "@/hooks/useFloatingRect";
 import { renderAnswerWithCitations } from "@/components/query/AnswerCitations";
 import SourcePanel from "@/components/query/SourcePanel";
 import FollowUpQuestionChips from "@/components/query/FollowUpQuestionChips";
+import AdvancedOptions from "@/components/query/AdvancedOptions";
+import PipelineBadges from "@/components/query/PipelineBadges";
 import type { QueryMode } from "@/api/backendClient";
 
 const SUGGESTIONS = [
@@ -160,6 +162,10 @@ export default function QueryPanel({
   const confidenceScore = useQueryStore((s) => s.confidenceScore);
   const followupQuestions = useQueryStore((s) => s.followupQuestions);
   const unsupportedSentences = useQueryStore((s) => s.unsupportedSentences);
+  const grounding = useQueryStore((s) => s.grounding);
+  const abstained = useQueryStore((s) => s.abstained);
+  const pipeline = useQueryStore((s) => s.pipeline);
+  const loadCapabilities = useQueryStore((s) => s.loadCapabilities);
   const answerMode = useQueryStore((s) => s.answerMode);
   const timing = useQueryStore((s) => s.timing);
   const conversationHistory = useQueryStore((s) => s.conversationHistory);
@@ -173,6 +179,10 @@ export default function QueryPanel({
   useEffect(() => {
     if (mode === "compare") void loadCompareDocsIfNeeded();
   }, [mode, loadCompareDocsIfNeeded]);
+
+  useEffect(() => {
+    void loadCapabilities();
+  }, [loadCapabilities]);
 
   const compareBlocked = mode === "compare" && selectedDocIds.length < 2;
   const confPct = Math.round(confidenceScore * 100);
@@ -216,6 +226,7 @@ export default function QueryPanel({
             {!asking && <span style={{ fontSize: 15, marginTop: -1 }}>→</span>}
           </button>
         </div>
+        <AdvancedOptions />
         {conversationHistory.length > 0 && (
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
             <button
@@ -305,6 +316,17 @@ export default function QueryPanel({
                 </span>
               )}
             </div>
+            {abstained && !isStreaming && (
+              <div
+                role="status"
+                data-testid="abstained-banner"
+                style={{ marginBottom: 14, padding: "10px 13px", borderRadius: 12, fontSize: 13, lineHeight: 1.5, color: "#e0a53a", background: "rgba(224,165,58,.10)", border: "1px solid rgba(224,165,58,.35)" }}
+              >
+                ⚠ Declined to answer: the best matching passage scored{" "}
+                {pipeline?.retrieval_signal != null ? `${Math.round(pipeline.retrieval_signal * 100)}%` : "low"} relevance, below the
+                abstention threshold. The retrieved passages are listed so you can judge for yourself.
+              </div>
+            )}
             <div style={{ fontSize: "clamp(16px, 4.2vw, 19px)", lineHeight: 1.62, letterSpacing: "-.01em", color: "var(--text)", fontWeight: 400, whiteSpace: isStreaming ? "pre-wrap" : undefined }}>
               {isStreaming ? (
                 <>
@@ -319,7 +341,7 @@ export default function QueryPanel({
               <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 26, paddingTop: 18, borderTop: "1px solid var(--card-border)", flexWrap: "wrap" }}>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
                   <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--accent)", boxShadow: "0 0 8px var(--accent)" }} />
-                  {answerMode === "direct" ? "Direct answer" : confidenceLabel}
+                  {answerMode === "direct" ? "Direct answer" : abstained ? "Abstained" : confidenceLabel}
                 </span>
                 <span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--muted)", opacity: 0.5 }} />
                 <span style={{ fontSize: 13, color: "var(--muted)" }}>
@@ -329,6 +351,7 @@ export default function QueryPanel({
                 <span style={{ fontSize: 13, color: "var(--muted)" }}>answered in {timing.toFixed(1)}s</span>
               </div>
             )}
+            {!isStreaming && answerMode !== "direct" && <PipelineBadges pipeline={pipeline} />}
             {!isStreaming && <FollowUpQuestionChips questions={followupQuestions} onPick={ask} />}
           </div>
 
@@ -338,6 +361,8 @@ export default function QueryPanel({
             unsupportedSentences={unsupportedSentences}
             mode={answerMode}
             isStreaming={isStreaming}
+            grounding={grounding}
+            groundingMethod={pipeline?.grounding_method ?? "lexical"}
           />
         </div>
       )}

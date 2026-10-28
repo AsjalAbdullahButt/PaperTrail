@@ -1,15 +1,32 @@
 "use client";
 
 import { useState } from "react";
-import type { QueryMode, Source, UnsupportedSentence } from "@/api/backendClient";
+import type { GroundingMethod, GroundingSentence, QueryMode, Source, UnsupportedSentence } from "@/api/backendClient";
 import ConfidenceGauge from "@/components/query/ConfidenceGauge";
+import GroundingPanel from "@/components/query/GroundingPanel";
+
+const scoreChip = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 4,
+  padding: "2px 7px",
+  borderRadius: 7,
+  fontSize: 11,
+  fontWeight: 600,
+  color: "var(--muted)",
+  background: "var(--seg-bg)",
+  border: "1px solid var(--card-border)",
+} as const;
+
+const pct = (x: number) => `${Math.round(x * 100)}%`;
 
 function SourceCard({ src }: { src: Source }) {
   const [hover, setHover] = useState(false);
   const typeLabel = `${src.title.split(".").pop()?.toUpperCase() || "DOC"} · p.${src.page_number}`;
   const whyRetrieved =
     `Relevance ${src.relevance_pct}% · similarity ${Math.round(src.similarity_score * 100)}%` +
-    ` · importance ${Math.round(src.importance_score * 100)}%`;
+    ` · importance ${Math.round(src.importance_score * 100)}%` +
+    (src.rerank_prob != null ? ` · re-rank ${Math.round(src.rerank_prob * 100)}%` : "");
   return (
     <div
       id={`src-${src.n}`}
@@ -64,6 +81,17 @@ function SourceCard({ src }: { src: Source }) {
             )}
           </div>
           <p style={{ margin: "9px 0 0", fontSize: 12.5, lineHeight: 1.5, color: "var(--muted)" }}>{src.snippet}</p>
+          {/* Retrieval inspector: how each stage scored this passage */}
+          <div data-testid={`score-breakdown-${src.n}`} style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 9 }}>
+            <span title="Dense (embedding) cosine similarity" style={scoreChip}>Dense {pct(src.similarity_score)}</span>
+            <span title="BM25 keyword score, normalised over the collection" style={scoreChip}>BM25 {pct(src.sparse_score)}</span>
+            <span title="Chunk importance (TF-IDF + position prior)" style={scoreChip}>Importance {pct(src.importance_score)}</span>
+            {src.rerank_prob != null && (
+              <span title={`Cross-encoder logit ${src.rerank_score?.toFixed(2)}`} style={{ ...scoreChip, color: "var(--accent)", border: "1px solid var(--chip-border)", background: "var(--chip-bg)" }}>
+                Re-rank {pct(src.rerank_prob)}
+              </span>
+            )}
+          </div>
           {/* Relevance meter */}
           <div title={`Relevance ${src.relevance_pct}%`} style={{ marginTop: 11, height: 4, borderRadius: 3, background: "var(--seg-bg)", overflow: "hidden" }}>
             <div style={{ height: "100%", width: `${src.score}%`, borderRadius: 3, background: "linear-gradient(90deg,var(--accent),var(--accent2))" }} />
@@ -84,12 +112,16 @@ export default function SourcePanel({
   unsupportedSentences,
   mode,
   isStreaming,
+  grounding = [],
+  groundingMethod = "lexical",
 }: {
   sources: Source[];
   confidenceScore: number;
   unsupportedSentences: UnsupportedSentence[];
   mode: QueryMode;
   isStreaming: boolean;
+  grounding?: GroundingSentence[];
+  groundingMethod?: GroundingMethod;
 }) {
   if (sources.length === 0) return null;
   return (
@@ -106,6 +138,10 @@ export default function SourcePanel({
           ⚠ {unsupportedSentences.length} claim
           {unsupportedSentences.length === 1 ? "" : "s"} without a direct source in your documents.
         </div>
+      )}
+
+      {!isStreaming && mode !== "direct" && (
+        <GroundingPanel grounding={grounding} method={groundingMethod} sources={sources} />
       )}
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "2px 4px 14px" }}>

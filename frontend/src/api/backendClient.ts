@@ -59,9 +59,54 @@ export type Source = {
   similarity_score: number;
   importance_score: number;
   relevance_pct: number;
+  /** Raw BM25 score (the sparse half of hybrid retrieval). */
+  sparse_score: number;
+  /** Cross-encoder logit / probability; null unless re-ranking ran. */
+  rerank_score: number | null;
+  rerank_prob: number | null;
 };
 
 export type UnsupportedSentence = { sentence: string; source_chunk_id: string | null };
+
+/** Verdict for one answer sentence. `entailment`/`label` are set by NLI grounding only. */
+export type GroundingSentence = {
+  sentence: string;
+  supported: boolean;
+  source_chunk_id: string | null;
+  entailment: number | null;
+  contradiction: number | null;
+  label: "entailed" | "neutral" | "contradicted" | null;
+};
+
+export type GroundingMethod = "lexical" | "nli";
+export type ExpansionMethod = "none" | "hyde";
+
+/** Which optional NLP stages actually ran for an answer. */
+export type PipelineInfo = {
+  reranked: boolean;
+  expansion: ExpansionMethod;
+  grounding_method: GroundingMethod;
+  abstention_checked: boolean;
+  retrieval_signal: number | null;
+  signal_kind: "rerank" | "dense" | null;
+  notes: string[];
+};
+
+/** Per-request overrides; omitted fields use the server default. */
+export type QueryOptions = {
+  rerank?: boolean;
+  expansion?: ExpansionMethod;
+  grounding?: GroundingMethod;
+  abstain?: boolean;
+};
+
+export type QueryCapabilities = {
+  rerank: { available: boolean; default: boolean; model: string };
+  expansion: { available: boolean; default: ExpansionMethod; options: ExpansionMethod[] };
+  grounding: { available: boolean; default: GroundingMethod; options: GroundingMethod[]; model: string };
+  abstain: { available: boolean; default: boolean; calibrated: boolean };
+  contextual_chunk_headers: boolean;
+};
 
 export type QueryResponse = {
   answer: string;
@@ -71,6 +116,9 @@ export type QueryResponse = {
   followup_questions: string[];
   unsupported_sentences: UnsupportedSentence[];
   query_id: string | null;
+  abstained: boolean;
+  grounding: GroundingSentence[];
+  pipeline: PipelineInfo;
 };
 
 export type Highlight = { text: string; score: number; chunk_index: number };
@@ -457,7 +505,15 @@ export type AskQueryOpts = {
   /** Prior turns (oldest first). At most the last 6 are used server-side;
    * send more and the server truncates rather than rejecting. */
   conversation_history?: ConversationTurn[];
+  /** Optional NLP stages (re-ranking, HyDE, NLI grounding, abstention). */
+  options?: QueryOptions;
 };
+
+/** What the server can do (e.g. whether the cross-encoder / NLI models are installed). */
+export async function getQueryCapabilities(): Promise<QueryCapabilities> {
+  const res = await apiFetch("/api/query/capabilities");
+  return handle<QueryCapabilities>(res);
+}
 
 export async function askQuery(
   question: string,
@@ -473,6 +529,7 @@ export async function askQuery(
       document_ids: opts.document_ids ?? [],
       collection_id: opts.collection_id ?? null,
       conversation_history: opts.conversation_history ?? [],
+      options: opts.options ?? null,
     }),
   });
   return handle<QueryResponse>(res);
@@ -483,7 +540,14 @@ export type QueryStreamEvent =
   | { type: "sources"; sources: Source[] }
   | { type: "token"; token: string }
   | { type: "followups"; followups: string[] }
-  | { type: "hallucination"; unsupported_sentences: UnsupportedSentence[] }
+  | { type: "pipeline"; pipeline: PipelineInfo; abstained: boolean }
+  | {
+      type: "hallucination";
+      unsupported_sentences: UnsupportedSentence[];
+      grounding: GroundingSentence[];
+      grounding_method: GroundingMethod;
+      notes: string[];
+    }
   | { type: "done"; query_id: string | null; confidence_score: number };
 
 /** Parse one "event: X\ndata: Y" SSE block (no trailing blank line) into a
@@ -504,8 +568,16 @@ function parseSseBlock(block: string): QueryStreamEvent | null {
       return { type: "token", token: parsed.token };
     case "followups":
       return { type: "followups", followups: parsed.followups };
+    case "pipeline":
+      return { type: "pipeline", pipeline: parsed.pipeline, abstained: Boolean(parsed.abstained) };
     case "hallucination":
-      return { type: "hallucination", unsupported_sentences: parsed.unsupported_sentences };
+      return {
+        type: "hallucination",
+        unsupported_sentences: parsed.unsupported_sentences,
+        grounding: parsed.grounding ?? [],
+        grounding_method: parsed.grounding_method ?? "lexical",
+        notes: parsed.notes ?? [],
+      };
     case "done":
       return { type: "done", query_id: parsed.query_id, confidence_score: parsed.confidence_score };
     default:
@@ -531,6 +603,7 @@ export async function* askQueryStreaming(
       document_ids: opts.document_ids ?? [],
       collection_id: opts.collection_id ?? null,
       conversation_history: opts.conversation_history ?? [],
+      options: opts.options ?? null,
     }),
   });
   if (!res.ok || !res.body) throw new ApiError(await parseError(res), res.status);
