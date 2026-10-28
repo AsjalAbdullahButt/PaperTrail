@@ -1,0 +1,170 @@
+{
+  "character__dense__hf|sig_dense": {
+    "auroc": 0.8125,
+    "threshold": 0.6246,
+    "caught": 7,
+    "lost": 9,
+    "loo_accuracy": 0.7391
+  },
+  "character__dense__bge|sig_dense": {
+    "auroc": 0.8651,
+    "threshold": 0.7944,
+    "caught": 7,
+    "lost": 6,
+    "loo_accuracy": 0.8261
+  },
+  "character__hybrid__hf|sig_dense": {
+    "auroc": 0.7599,
+    "threshold": 0.589,
+    "caught": 7,
+    "lost": 12,
+    "loo_accuracy": 0.6957
+  },
+  "character__hybrid__bge|sig_dense": {
+    "auroc": 0.9079,
+    "threshold": 0.7944,
+    "caught": 8,
+    "lost": 7,
+    "loo_accuracy": 0.8261
+  },
+  "sentence__dense__bge|sig_dense": {
+    "auroc": 0.8454,
+    "threshold": 0.7751,
+    "caught": 7,
+    "lost": 7,
+    "loo_accuracy": 0.7826
+  },
+  "sentence__hybrid__bge|sig_dense": {
+    "auroc": 0.8882,
+    "threshold": 0.7742,
+    "caught": 8,
+    "lost": 10,
+    "loo_accuracy": 0.7609
+  },
+  "sentence800__dense__hf|sig_dense": {
+    "auroc": 0.8125,
+    "threshold": 0.6205,
+    "caught": 7,
+    "lost": 6,
+    "loo_accuracy": 0.8043
+  },
+  "sentence800__dense__bge|sig_dense": {
+    "auroc": 0.9013,
+    "threshold": 0.7972,
+    "caught": 7,
+    "lost": 4,
+    "loo_accuracy": 0.8478
+  },
+  "sentence800__hybrid__hf|sig_dense": {
+    "auroc": 0.8125,
+    "threshold": 0.5555,
+    "caught": 7,
+    "lost": 6,
+    "loo_accuracy": 0.8043
+  },
+  "sentence800__hybrid__bge|sig_dense": {
+    "auroc": 0.9572,
+    "threshold": 0.77,
+    "caught": 8,
+    "lost": 3,
+    "loo_accuracy": 0.913
+  },
+  "character__hybrid_rerank__hf|sig_dense": {
+    "auroc": 0.8059,
+    "threshold": 0.5882,
+    "caught": 8,
+    "lost": 14,
+    "loo_accuracy": 0.6522
+  },
+  "character__hybrid_rerank__hf|sig_rerank": {
+    "auroc": 0.8684,
+    "threshold": 0.9842,
+    "caught": 7,
+    "lost": 6,
+    "loo_accuracy": 0.8043
+  },
+  "character__hybrid_rerank__bge|sig_dense": {
+    "auroc": 0.8586,
+    "threshold": 0.7906,
+    "caught": 8,
+    "lost": 11,
+    "loo_accuracy": 0.7174
+  },
+  "character__hybrid_rerank__bge|sig_rerank": {
+    "auroc": 0.8684,
+    "threshold": 0.9842,
+    "caught": 7,
+    "lost": 6,
+    "loo_accuracy": 0.8043
+  },
+  "sentence800__hybrid_rerank__hf|sig_dense": {
+    "auroc": 0.7796,
+    "threshold": 0.547,
+    "caught": 7,
+    "lost": 12,
+    "loo_accuracy": 0.6957
+  },
+  "sentence800__hybrid_rerank__hf|sig_rerank": {
+    "auroc": 0.8586,
+    "threshold": 0.9876,
+    "caught": 7,
+    "lost": 6,
+    "loo_accuracy": 0.8043
+  },
+  "sentence800__hybrid_rerank__bge|sig_dense": {
+    "auroc": 0.8289,
+    "threshold": 0.7882,
+    "caught": 7,
+    "lost": 10,
+    "loo_accuracy": 0.7174
+  },
+  "sentence800__hybrid_rerank__bge|sig_rerank": {
+    "auroc": 0.8586,
+    "threshold": 0.9876,
+    "caught": 7,
+    "lost": 6,
+    "loo_accuracy": 0.8043
+  },
+  "character_ctx__hybrid__hf|sig_dense": {
+    "auroc": 0.7862,
+    "threshold": 0.6132,
+    "caught": 7,
+    "lost": 14,
+    "loo_accuracy": 0.6304
+  },
+  "character_ctx__hybrid__bge|sig_dense": {
+    "auroc": 0.898,
+    "threshold": 0.7475,
+    "caught": 6,
+    "lost": 2,
+    "loo_accuracy": 0.8043
+  },
+  "sentence800_ctx__hybrid__hf|sig_dense": {
+    "auroc": 0.7467,
+    "threshold": 0.6215,
+    "caught": 7,
+    "lost": 16,
+    "loo_accuracy": 0.5652
+  },
+  "sentence800_ctx__hybrid__bge|sig_dense": {
+    "auroc": 0.875,
+    "threshold": 0.7622,
+    "caught": 6,
+    "lost": 4,
+    "loo_accuracy": 0.8478
+  },
+  "character__hybrid_hyde__bge|sig_dense": {
+    "auroc": 0.7697,
+    "threshold": 0.8331,
+    "caught": 5,
+    "lost": 4,
+    "loo_accuracy": 0.7174
+  },
+  "sentence800__hybrid_hyde__bge|sig_dense": {
+    "auroc": 0.7993,
+    "threshold": 0.8214,
+    "caught": 5,
+    "lost": 4,
+    "loo_accuracy": 0.8478
+  }
+}

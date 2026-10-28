@@ -29,6 +29,7 @@ import json
 import pathlib
 import re
 import sys
+import time
 from dataclasses import dataclass, field
 
 _BACKEND_DIR = pathlib.Path(__file__).resolve().parents[1] / "backend"
@@ -37,6 +38,7 @@ if str(_BACKEND_DIR) not in sys.path:
 
 from app import ingestion, llm  # noqa: E402
 from app.config import settings  # noqa: E402
+from app.services import query_expansion, reranker  # noqa: E402
 from app.services import retriever as prod_retriever  # noqa: E402
 from app.services.bm25_index import BM25Index  # noqa: E402
 from app.services.importance import score_chunks  # noqa: E402
@@ -87,6 +89,7 @@ class Chunk:
     page_number: int = 1
     section_heading: str | None = None
     importance: float = 0.0
+    embed_text: str = ""  # text that is embedded (contextual-header variants); "" = same as ``text``
 
 
 @dataclass
@@ -95,6 +98,7 @@ class Retrieved:
     score: float
     dense: float = 0.0
     sparse: float = 0.0
+    rerank: float | None = None  # cross-encoder logit when re-ranking ran
 
 
 @dataclass
@@ -180,16 +184,22 @@ CHUNKERS = {
     "sentence": _chunk_sentence,
     "sentence800": _chunk_sentence800,
 }
+# ``<chunker>_ctx``: identical chunks, but the text that is *embedded* is prefixed
+# with "<paper title> | <section>" (ingestion.contextualize_chunk). Display, BM25
+# and citation text stay the raw chunk.
+CONTEXTUAL_SUFFIX = "_ctx"
 
 
 def chunk(documents: list[Document], strategy: str) -> list[Chunk]:
     """Chunk every document; importance is scored per document, as at upload."""
-    fn = CHUNKERS[strategy]
+    contextual = strategy.endswith(CONTEXTUAL_SUFFIX)
+    fn = CHUNKERS[strategy.removesuffix(CONTEXTUAL_SUFFIX)]
     out: list[Chunk] = []
     for doc in documents:
         raw = fn(_markdown_to_blocks(doc.text))
         importance = score_chunks([c["text"] for c in raw])
         for i, (c, imp) in enumerate(zip(raw, importance)):
+            section = c.get("section_heading")
             out.append(
                 Chunk(
                     chunk_id=f"{doc.doc_id}::{strategy}::{i}",
@@ -197,8 +207,9 @@ def chunk(documents: list[Document], strategy: str) -> list[Chunk]:
                     strategy=strategy,
                     text=c["text"],
                     page_number=int(c.get("page_number") or 1),
-                    section_heading=c.get("section_heading"),
+                    section_heading=section,
                     importance=imp,
+                    embed_text=ingestion.contextualize_chunk(c["text"], doc.title, section) if contextual else "",
                 )
             )
     return out
@@ -248,7 +259,7 @@ def embed_texts(texts: list[str], embedder: str) -> list[list[float]]:
 def build_index(strategy: str, documents: list[Document], embedder: str) -> Index:
     """Chunk + embed + BM25-index a whole corpus."""
     chunks = chunk(documents, strategy)
-    vectors = embed_texts([c.text for c in chunks], embedder)
+    vectors = embed_texts([c.embed_text or c.text for c in chunks], embedder)
     bm25 = BM25Index().build([c.text for c in chunks])
     return Index(strategy=strategy, embedder=embedder, chunks=chunks, vectors=vectors, bm25=bm25)
 
@@ -263,24 +274,26 @@ def retrieve_dense(query: str, index: Index, k: int = 5) -> list[Retrieved]:
     return [Retrieved(chunk=index.chunks[i], score=score, dense=score) for i, score in ranked]
 
 
-def retrieve_hybrid(query: str, index: Index, k: int = 5) -> list[Retrieved]:
-    """Hybrid retrieval mirroring ``services.retriever.hybrid_retrieve`` (no scope).
+def _hybrid_scored(query: str, index: Index, k: int, expanded: str | None = None) -> list[Retrieved]:
+    """All fused candidates, best first, mirroring ``services.retriever.hybrid_retrieve``.
 
     Candidates = top ``k * 20`` by dense cosine  U  top ``k * 20`` by BM25; dense
     cosine and normalised BM25 are each min-max normalised over the candidates,
     fused as ``0.6 * dense + 0.4 * sparse`` and multiplied by
     ``1 + 0.2 * importance``. Weights, multiplier and ``_minmax`` come from the
-    production module.
+    production module. With ``expanded`` (a HyDE passage) the dense side embeds
+    the passage and BM25 sees question + passage, as in production.
     """
     assert index.bm25 is not None
-    query_vec = embed_texts([query], index.embedder)[0]
+    query_vec = embed_texts([expanded or query], index.embedder)[0]
+    sparse_query = f"{query}\n{expanded}" if expanded else query
     n = len(index.chunks)
     limit = max(k * prod_retriever._ANN_CANDIDATE_MULTIPLIER, k)
 
     dense_all = [prod_retriever._cosine(query_vec, v) for v in index.vectors]
     dense_top = sorted(range(n), key=lambda i: dense_all[i], reverse=True)[:limit]
-    sparse_map = dict(index.bm25.search(query, top_k=n))
-    sparse_top = [i for i, _ in index.bm25.search(query, top_k=limit)]
+    sparse_map = dict(index.bm25.search(sparse_query, top_k=n))
+    sparse_top = [i for i, _ in index.bm25.search(sparse_query, top_k=limit)]
 
     candidates = sorted(set(dense_top) | set(sparse_top))
     dense_raw = [dense_all[i] for i in candidates]
@@ -294,11 +307,69 @@ def retrieve_hybrid(query: str, index: Index, k: int = 5) -> list[Retrieved]:
         ranked = fused * (1 + prod_retriever.IMPORTANCE_BOOST * index.chunks[i].importance)
         scored.append(Retrieved(chunk=index.chunks[i], score=ranked, dense=dense_raw[pos], sparse=sparse_raw[pos]))
     scored.sort(key=lambda r: r.score, reverse=True)
-    return scored[:k]
+    return scored
+
+
+def retrieve_hybrid(query: str, index: Index, k: int = 5, expanded: str | None = None) -> list[Retrieved]:
+    return _hybrid_scored(query, index, k, expanded)[:k]
+
+
+def retrieve_hybrid_rerank(query: str, index: Index, k: int = 5, expanded: str | None = None) -> list[Retrieved]:
+    """Hybrid top-``rerank_candidates`` re-scored by a cross-encoder (production's
+    ``hybrid_retrieve(rerank=True)``: candidates = max(k, settings.rerank_candidates))."""
+    scored = _hybrid_scored(query, index, k, expanded)
+    candidates = scored[: max(k, settings.rerank_candidates)]
+    items = [{"text": r.chunk.text, "i": pos} for pos, r in enumerate(candidates)]
+    out: list[Retrieved] = []
+    for it in reranker.rerank(query, items, k):
+        base = candidates[it["i"]]
+        out.append(Retrieved(chunk=base.chunk, score=base.score, dense=base.dense, sparse=base.sparse,
+                             rerank=it["rerank_score"]))
+    return out
+
+
+_HYDE_CACHE = CACHE_DIR / "hyde.json"
+HYDE_MODEL = ""  # Groq model that writes HyDE passages ("" = settings.groq_chat_model)
+
+
+def hyde_passage(query: str) -> str:
+    """HyDE hypothetical passage (``services.query_expansion``), cached on disk.
+    Raises if no LLM answers, rather than silently falling back to the raw query."""
+    CACHE_DIR.mkdir(exist_ok=True)
+    cache: dict[str, str] = json.loads(_HYDE_CACHE.read_text(encoding="utf-8")) if _HYDE_CACHE.exists() else {}
+    model = HYDE_MODEL or settings.groq_chat_model
+    key = hashlib.sha1(f"{model}|{query}".encode("utf-8")).hexdigest()
+    if key not in cache:
+        text = ""
+        for attempt in range(4):
+            time.sleep(1.5)  # stay under per-minute token limits on the free tier
+            previous = settings.groq_chat_model
+            settings.groq_chat_model = model
+            try:
+                text = query_expansion.hyde_passage(query)
+            finally:
+                settings.groq_chat_model = previous
+            if text:
+                break
+            time.sleep(5 * (attempt + 1))
+        if not text:
+            raise RuntimeError("HyDE expansion returned nothing (no LLM / rate limit); refusing to fake it.")
+        cache[key] = text
+        _HYDE_CACHE.write_text(json.dumps(cache), encoding="utf-8")
+    return cache[key]
 
 
 def retrieve(query: str, index: Index, mode: str = "dense", k: int = 5) -> list[Retrieved]:
-    return {"dense": retrieve_dense, "hybrid": retrieve_hybrid}[mode](query, index, k)
+    """Modes: ``dense``, ``hybrid``, ``hybrid_rerank``, ``hybrid_hyde``."""
+    if mode == "dense":
+        return retrieve_dense(query, index, k)
+    if mode == "hybrid":
+        return retrieve_hybrid(query, index, k)
+    if mode == "hybrid_rerank":
+        return retrieve_hybrid_rerank(query, index, k)
+    if mode == "hybrid_hyde":
+        return retrieve_hybrid(query, index, k, expanded=hyde_passage(query))
+    raise ValueError(f"unknown retrieval mode {mode!r}")
 
 
 # --------------------------------------------------------------------------- #

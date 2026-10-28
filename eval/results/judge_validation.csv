@@ -1,0 +1,165 @@
+config,id,type,question,reference_answer,generated_answer,judge1_model,judge1_correctness,judge2_model,judge2_correctness,human_correctness
+character__dense__hf,q11,factual,"In the Sentence-BERT classification objective, what is fed to the softmax classifier?",The concatenation of the two sentence embeddings u and v with their element-wise difference |u-v|.,"## Answer
+
+In the SBERT (Sentence‑BERT) classification objective, the **concatenation of the two sentence embeddings and their absolute difference** is supplied to the softmax classifier.  
+Specifically, after the two BERT encoders produce the pooled vectors **u** and **v**, the vector  
+
+\[
+\text{[}u;\;v;\;|u - v|\text{]}
+\]
+
+is fed into the softmax layer for classification【1†L1-L4】【5†L1-L4】.",groq:openai/gpt-oss-20b,5,qwen/qwen3.8-27b,5,
+character__hybrid__hf,q01,factual,"How many parallel attention heads does the base Transformer use, and what is the dimension of each head's keys and values?","It uses h = 8 parallel attention heads, with d_k = d_v = d_model/h = 64 per head.","## Parallel Attention Heads and Their Dimensions  
+
+- The base Transformer uses **8 parallel attention heads**.  
+- Each head has key and value dimensions **dk = dv = 64** (i.e., each head’s keys and values are 64‑dimensional)【1†L1-L4】.",groq:openai/gpt-oss-20b,5,qwen/qwen3.8-27b,5,
+character__hybrid__hf,q10,factual,Which pooling strategy is Sentence-BERT's default for deriving a fixed-size sentence embedding?,MEAN pooling (the mean of all output token vectors).,"## Default Pooling Strategy
+
+Sentence‑BERT (SBERT) uses **MEAN pooling** as its default method for deriving a fixed‑size sentence embedding. This strategy computes the mean of all output vectors from BERT/RoBERTa.  
+
+**Source:** The documents state that “The default configuration is MEAN” when describing the pooling options【1†L1-L4】【4†L1-L4】.",groq:openai/gpt-oss-20b,5,qwen/qwen3.8-27b,5,
+character__hybrid__hf,q12,factual,Which negative-passage scheme gave Dense Passage Retrieval (DPR) its best model?,Using gold passages from the same mini-batch (in-batch negatives) plus one BM25 negative passage per question.,"## Best Negative‑Passage Scheme for DPR
+
+The Dense Passage Retriever achieved its strongest performance when it was **trained with the in‑batch negative scheme**, supplemented by **one additional BM25 negative passage per question**【1】. This configuration was used for the main experiments reported in the paper.",groq:openai/gpt-oss-20b,5,qwen/qwen3.8-27b,5,
+sentence800__hybrid__bge,q12,factual,Which negative-passage scheme gave Dense Passage Retrieval (DPR) its best model?,Using gold passages from the same mini-batch (in-batch negatives) plus one BM25 negative passage per question.,"## Answer
+
+The **in‑batch negative training scheme** (used together with one additional BM25 negative passage per question) produced the best Dense Passage Retriever (DPR) model — this is the configuration employed for the main experiments described in the paper【1†L1-L4】.",groq:openai/gpt-oss-20b,5,qwen/qwen3.8-27b,5,
+sentence800__hybrid__bge,q18,factual,How does REALM keep its document index from going stale during pre-training?,It refreshes the index by asynchronously re-embedding and re-indexing all documents every several hundred training steps.,"## How REALM Prevents a Stale Document Index During Pre‑training  
+
+- **Asynchronous MIPS refreshes** – REALM runs two jobs in parallel:  
+  1. **Trainer job** that continues to update the model parameters (θ).  
+  2. **Index‑builder job** that receives a snapshot of the current parameters (θ′), re‑embeds all corpus documents with this snapshot, and rebuilds a new Maximum Inner‑Product Search (MIPS) index in the background.  
+  When the new index is ready, it is sent back to the trainer and replaces the old one, after which the cycle repeats【1†L1-L7】.  
+
+- **Frequent refresh schedule** – During pre‑training the index is refreshed roughly every 500 training steps, ensuring that the retrieved top‑k documents are selected with a relatively up‑to‑date representation of the corpus【5†L1-L4】.  
+
+- **Staleness mitigation** – Although the index may be slightly outdated between refreshes, REALM recomputes the probability p(z | x) and its gradient with the fresh parameters for the retrieved top‑k documents, which stabilizes optimization as long as refreshes are frequent enough【2†L1-L4】.  
+
+Together, these mechanisms keep the document index from becoming too stale while the model is being pre‑trained.",groq:openai/gpt-oss-20b,5,qwen/qwen3.8-27b,5,
+sentence800__hybrid__bge,q30,multi_hop,"Why is plain BERT unsuitable for finding similar sentence pairs in a large collection, and how does SBERT fix that?","BERT needs both sentences fed into the network together (a cross-encoder), so 10,000 sentences require about 50 million inference computations (~65 hours); SBERT uses siamese networks to produce independent sentence embeddings compared with cosine similarity (~5 seconds).","## Why plain BERT is unsuitable
+
+- **Pair‑wise inference cost** – To compare every sentence with every other one, BERT must run an inference for each pair.  
+  For a collection of 10 000 sentences this means \(10 000·(10 000‑1)/2 ≈ 50 million\) forward passes, which on a modern V100 GPU takes about **65 hours**【4】.  
+- **Inefficient for search/clustering** – The same cost would apply to tasks such as finding the most similar Quora question among 40 million entries, making a single query take **over 50 hours**【4】.  
+- **Embedding quality** – Out‑of‑the‑box BERT maps sentences to a space that works poorly with simple similarity measures like cosine, yielding lower performance than even average GloVe embeddings on STS tasks【5】.
+
+## How SBERT fixes the problem
+
+- **Siamese/Triplet architecture** – SBERT fine‑tunes BERT in a siamese (or triplet) network, enabling it to produce a **fixed‑size vector (embedding) for each sentence in a single forward pass**【1】【3】.  
+- **One‑time embedding computation** – For 10 000 sentences, SBERT needs only to compute the embeddings once (≈5 seconds) and then can reuse them for any similarity query【1】【2】【3】.  
+- **Fast similarity search** – Similarities are then calculated with cheap operations such as **cosine similarity** (≈0.01 seconds for all pairwise comparisons) or other distance metrics, which are orders of magnitude faster than BERT’s pair‑wise inference【1】【2】【3】.  
+- **Maintained accuracy** – Despite the speedup, SBERT retains the accuracy of the original BERT/ RoBERTa models while being computationally efficient【1】.  
+
+Thus, SBERT transforms the expensive pair‑wise BERT computation into a rapid embedding‑then‑similarity workflow, making large‑scale semantic similarity search and clustering feasible.",groq:openai/gpt-oss-20b,5,qwen/qwen3.8-27b,5,
+sentence800__hybrid_rerank__bge,q02,factual,What BLEU score does the Transformer reach on the WMT 2014 English-to-German translation task?,"28.4 BLEU, improving over the previous best results (including ensembles) by over 2 BLEU.","## BLEU Score on WMT 2014 English‑to‑German
+
+The Transformer achieves a **BLEU score of 28.4** on the WMT 2014 English‑to‑German translation task【1†L1-L3】【3†L4-L6】.",groq:openai/gpt-oss-20b,5,qwen/qwen3.8-27b,5,
+sentence800__hybrid_rerank__bge,q11,factual,"In the Sentence-BERT classification objective, what is fed to the softmax classifier?",The concatenation of the two sentence embeddings u and v with their element-wise difference |u-v|.,"## What is fed to the softmax classifier in the SBERT classification objective?
+
+The classifier receives **the concatenated vector** consisting of:
+
+* the embedding of sentence A (**u**)  
+* the embedding of sentence B (**v**)  
+* the element‑wise absolute difference between them (**|u − v|**)  
+
+These three n‑dimensional components are stacked into a single 3n‑dimensional vector, which is then multiplied by a trainable weight matrix **Wₜ** and passed through the softmax function:
+
+\[
+o = \text{softmax}\bigl(W_t\,[u,\;v,\;|u-v|]\bigr)
+\]
+
+(see [3]).
+
+Thus, the softmax classifier operates on the concatenation **(u, v, |u − v|)**.",groq:openai/gpt-oss-20b,5,qwen/qwen3.8-27b,5,
+sentence800__hybrid_rerank__bge,q17,factual,What learning signal does REALM use to pre-train its knowledge retriever without supervision?,"Masked language modeling, backpropagating through a retrieval step over millions of documents.","## Learning Signal for Unsupervised Pre‑training  
+
+REALM trains its latent knowledge retriever **without supervision by using the masked language‑modeling objective**.  
+- The retriever is rewarded when the retrieved documents help the language model lower its **perplexity** on the unsupervised text, and penalized when they do not [2].  
+- Concretely, the **masked language modeling (MLM) loss** provides the learning signal that is back‑propagated through the retrieval step, allowing the retriever to be optimized in an unsupervised manner [3].  
+
+Thus, the improvement in language‑model perplexity (driven by the MLM loss) serves as the unsupervised learning signal for REALM’s knowledge retriever.  
+
+**Sources**: [2] , [3]",groq:openai/gpt-oss-20b,5,qwen/qwen3.8-27b,5,
+sentence800__hybrid_rerank__bge,q21,factual,What does the BEIR benchmark find about BM25 and about which models perform best zero-shot on average?,"BM25 is a robust baseline; re-ranking and late-interaction models achieve the best zero-shot performance on average, at high computational cost.","## BM25 as a Baseline  
+- The BEIR benchmark shows that **BM25 remains a strong, robust baseline** for zero‑shot text retrieval. It often outperforms many dense or sparse embedding approaches, which can underperform despite being more computationally efficient【2†L1-L4】.  
+
+## Models that Perform Best Zero‑Shot (on average)  
+- **Re‑ranking models** and **late‑interaction models** achieve the highest zero‑shot performance across the BEIR datasets. These approaches consistently beat other methods, though they incur a higher computational cost【1†L1-L3】.  
+
+In summary, while BM25 is a reliable and efficient baseline, the top‑performing zero‑shot systems in the BEIR evaluation are the more expensive re‑ranking and late‑interaction architectures.",groq:openai/gpt-oss-20b,5,qwen/qwen3.8-27b,5,
+sentence800__hybrid_rerank__bge,q46,unanswerable,What F1 does any paper report on the Korean KorQuAD benchmark?,Not answerable from the corpus; the system should say the documents do not contain this information.,I could not find any mention of an F 1 score reported for the Korean **KorQuAD** benchmark in the provided documents.,groq:openai/gpt-oss-20b,5,qwen/qwen3.8-27b,5,
+character__dense__hf,q27,factual,Which three RAG paradigms does the 'Retrieval-Augmented Generation for Large Language Models' survey describe?,"Naive RAG, Advanced RAG and Modular RAG.","## RAG Paradigms Described in the Survey  
+
+The survey **“Retrieval‑Augmented Generation for Large Language Models”** categorizes RAG approaches into three distinct paradigms:
+
+1. **Vanilla RAG** – the basic retrieval‑augmented generation pipeline where a retriever supplies documents that are directly fed to the language model for generation.  
+2. **Advanced RAG** – enhanced versions that incorporate more sophisticated retrieval, integration, or generation techniques (e.g., dynamic retrieval, multi‑hop reasoning).  
+3. **Modular RAG** – architectures that treat retrieval and generation as separate, interchangeable modules, allowing flexible composition and fine‑tuning of each component.
+
+These three paradigms are explicitly mentioned in the survey’s discussion of RAG research directions【2†L1-L4】.",groq:openai/gpt-oss-20b,1,qwen/qwen3.8-27b,4,
+character__dense__hf,q36,multi_hop,"What three quality scores does the RAG survey list for evaluating RAG, and how does RAGAS define answer relevance?","The survey lists context relevance, answer faithfulness and answer relevance; RAGAS defines answer relevance as the generated answer addressing the actual question that was provided.","## Quality Scores Listed in the Survey
+The RAG survey identifies three primary quality scores for evaluating Retrieval‑Augmented Generation models:
+
+1. **Context relevance** – measures how precise and specific the retrieved context is.  
+2. **Answer faithfulness** – ensures that the generated answer stays true to the retrieved context.  
+3. **Answer relevance** – requires that the generated answer be coherent and pertinent to the retrieved information.  
+
+These scores are described in the survey’s discussion of evaluation quality dimensions【1】.
+
+## Definition of Answer Relevance by RAGAS
+The provided excerpts do not contain a specific definition of **answer relevance** as formulated by the RAGAS metric. The documents mention RAGAS’s performance on answer relevance (e.g., agreement levels) but do not detail how RAGAS defines the concept【5】. Therefore, the definition cannot be extracted from the given context.",groq:openai/gpt-oss-20b,3,qwen/qwen3.8-27b,3,
+character__hybrid__hf,q13,factual,How many Wikipedia passages make up DPR's retrieval corpus in its experiments?,About 21 million passages.,"## Retrieval Corpus Size
+
+DPR’s experiments use a Wikipedia knowledge corpus that is split into **just over 13 million passages** (retrieval candidates)【4】.",groq:openai/gpt-oss-20b,1,qwen/qwen3.8-27b,1,
+character__hybrid__hf,q23,factual,What does HyDE do to a query before retrieval?,"It zero-shot instructs an instruction-following language model (e.g. InstructGPT) to generate a hypothetical document, which is then embedded and used for retrieval.",I could not find a description of what HyDE does to a query before retrieval in the provided documents.,groq:openai/gpt-oss-20b,1,qwen/qwen3.8-27b,1,
+character__hybrid__hf,q28,multi_hop,"Which earlier retriever is used to initialize the retriever in RAG, and what negative-sampling scheme did that retriever's best model use?",RAG initializes its retriever with the pre-trained DPR bi-encoder; DPR's best model used in-batch gold passages as negatives plus one BM25 negative passage per question.,"## Retriever Initialization in RAG
+- RAG’s retriever is **initialized with DPR’s retriever** (the Dense Passage Retriever) that was trained on Natural Questions and TriviaQA [3].
+
+## Negative‑Sampling Scheme Used by DPR’s Best Model
+- The best DPR model employed a **negative‑sampling strategy that selects the top 5 positive passages and the top 30 negative passages** from the set of the top 100 passages retrieved for the same question [1].
+
+These two pieces together answer the question.",groq:openai/gpt-oss-20b,1,qwen/qwen3.8-27b,2,
+character__hybrid__hf,q29,multi_hop,How does ColBERT's representation of a passage differ from DPR's?,DPR encodes a passage into a single d-dimensional dense vector scored by inner product; ColBERT encodes it into a bag of contextualized token embeddings scored with late interaction (MaxSim).,"## ColBERT’s Passage Representation  
+
+- **Token‑level embeddings** – ColBERT first obtains BERT’s contextualized representation for each token in a passage.  
+- **Linear projection** – These token vectors are passed through a linear layer (without activation) that reduces the dimensionality to a smaller size *m* (much smaller than BERT’s hidden dimension) [1].  
+- **Late interaction** – The resulting *m*-dimensional token embeddings are stored for the passage and later combined with query token embeddings through a simple similarity (e.g., dot‑product) at retrieval time [5].
+
+## DPR’s Passage Representation  
+
+The provided excerpts do not contain a detailed description of how DPR encodes passages. DPR is only mentioned qualitatively, noting that it “excels at semantic representation” but may lack capacity for rare salient phrases [2]. No specifics about its embedding process are given.
+
+**Conclusion:** The context explains ColBERT’s passage encoding in detail, but it does not provide information on DPR’s passage representation.",groq:openai/gpt-oss-20b,1,qwen/qwen3.8-27b,1,
+sentence800__hybrid__bge,q31,multi_hop,"What kind of encoder does HyDE use to embed its generated document, and how is that encoder trained in its own paper?",HyDE uses an unsupervised contrastively learned encoder such as Contriever; Contriever is trained with contrastive learning (using MoCo) without labeled data.,"## Encoder Used by HyDE  
+
+**HyDE embeds the generated (hypothetical) document with an unsupervised contrastively‑learned encoder, e.g., Contriever**【5†L2-L4】.  
+
+## How the Encoder Is Trained  
+
+The encoder is trained **without supervision** by a **contrastive learning objective** that maximizes similarity between related documents (and implicitly between queries and documents) while pushing unrelated pairs apart. This contrastive training builds document‑document similarity into the inner‑product space used for retrieval【4†L2-L5】.",groq:openai/gpt-oss-20b,3,qwen/qwen3.8-27b,4,
+sentence800__hybrid__bge,q35,multi_hop,"Which part of the original Transformer architecture does BERT use, and how many layers does BERT-base have compared with the base Transformer's encoder?",BERT uses the Transformer encoder (a multi-layer bidirectional Transformer encoder); BERT-base has 12 layers versus 6 in the original Transformer encoder.,"**Part of the original Transformer used by BERT**  
+BERT adopts the **encoder** component of the original Transformer architecture. It is described as a “multi‑layer bidirectional Transformer encoder” that follows the implementation of Vaswani et al. (2017) [1][2].
+
+**Number of layers in BERT‑base vs. the base Transformer encoder**  
+The provided documents do not specify how many layers BERT‑base contains, nor do they give the layer count for the “base” Transformer encoder. Therefore, that information cannot be extracted from the given context.",groq:openai/gpt-oss-20b,1,qwen/qwen3.8-27b,3,
+sentence800__hybrid_rerank__bge,q26,factual,Which reflection tokens does Self-RAG use to decide on retrieval and to critique passages and generations?,"Retrieve, ISREL (relevance), ISSUP (support) and ISUSE (usefulness).","## Reflection Tokens in SELF‑RAG  
+
+- **Retrieval tokens** – special tokens that the model emits when it decides that augmenting the current generation with external passages would be helpful. These tokens trigger an on‑demand call to a retriever.  
+
+- **Critique tokens** – special tokens that the model emits after it has processed the retrieved passages (or its own output) to evaluate factuality and overall quality, and to select the best continuation.  
+
+These two categories of reflection tokens enable SELF‑RAG to both **determine when to retrieve** information and **self‑evaluate / critique** the passages and its own generations [1][2][3][4][5].",groq:openai/gpt-oss-20b,1,qwen/qwen3.8-27b,1,
+sentence800__hybrid_rerank__bge,q28,multi_hop,"Which earlier retriever is used to initialize the retriever in RAG, and what negative-sampling scheme did that retriever's best model use?",RAG initializes its retriever with the pre-trained DPR bi-encoder; DPR's best model used in-batch gold passages as negatives plus one BM25 negative passage per question.,"## Retriever Initialization
+- RAG’s retriever is **initialized with the Dense Passage Retriever (DPR)**, a bi‑encoder model that was originally trained with retrieval supervision on the Natural Questions and TriviaQA datasets【1†L1-L3】【4†L1-L3】.
+
+## Negative‑Sampling Scheme
+- The provided documents do **not contain information** about the negative‑sampling scheme used by DPR’s best model. I could not find that detail in the given context.",groq:openai/gpt-oss-20b,3,qwen/qwen3.8-27b,1,
+sentence800__hybrid_rerank__bge,q29,multi_hop,How does ColBERT's representation of a passage differ from DPR's?,DPR encodes a passage into a single d-dimensional dense vector scored by inner product; ColBERT encodes it into a bag of contextualized token embeddings scored with late interaction (MaxSim).,"I could not find information about **ColBERT**’s passage representation in the provided documents. The excerpts discuss DPR’s encoding and retrieval behavior, but they do not describe how ColBERT represents passages.",groq:openai/gpt-oss-20b,1,qwen/qwen3.8-27b,1,
+sentence800__hybrid_rerank__bge,q35,multi_hop,"Which part of the original Transformer architecture does BERT use, and how many layers does BERT-base have compared with the base Transformer's encoder?",BERT uses the Transformer encoder (a multi-layer bidirectional Transformer encoder); BERT-base has 12 layers versus 6 in the original Transformer encoder.,"## Part of the Transformer Architecture Used by BERT
+BERT adopts **the encoder** component of the original Transformer architecture (Vaswani et al., 2017) and builds a multi‑layer bidirectional Transformer encoder on top of it【1†L1-L3】【2†L1-L2】.
+
+## Number of Layers in BERT‑BASE
+For the BERT‑BASE configuration, the model is defined with **12 Transformer layers (blocks)**【1†L4-L5】.
+
+### Comparison with the Original (base) Transformer Encoder
+The provided documents do not specify how many layers the original “base” Transformer encoder contains, so a direct numerical comparison cannot be given from the available context.",groq:openai/gpt-oss-20b,2,qwen/qwen3.8-27b,3,

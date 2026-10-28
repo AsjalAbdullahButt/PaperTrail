@@ -61,6 +61,19 @@ EMBEDDERS_FOR = {"character": ["hf", "bge"], "sentence": ["bge"], "sentence800":
 ALL_CONFIGS = [f"{c}__{m}__{e}" for c in CHUNKERS for m in MODES for e in EMBEDDERS_FOR[c]]
 # Optional OpenAI-embedding configurations (need a real OPENAI_API_KEY); not in the default grid.
 OPENAI_CONFIGS = [f"{c}__{m}__openai" for c in ("character", "sentence800") for m in MODES]
+# Advanced pipeline arms (run with --advanced). Each differs from a core hybrid
+# configuration in exactly one stage, so comparisons are controlled:
+#   hybrid_rerank : + cross-encoder re-ranking of the top-20 hybrid candidates
+#   <chunker>_ctx : + "<paper title> | <section>" prepended to the text that is embedded
+#   hybrid_hyde   : + HyDE hypothetical-passage query expansion (needs an LLM)
+ADVANCED_CONFIGS = (
+    [f"{c}__hybrid_rerank__{e}" for c in ("character", "sentence800") for e in ("hf", "bge")]
+    + [f"{c}_ctx__hybrid__{e}" for c in ("character", "sentence800") for e in ("hf", "bge")]
+    + [f"{c}__hybrid_hyde__bge" for c in ("character", "sentence800")]
+)
+ALL_KNOWN = ALL_CONFIGS + ADVANCED_CONFIGS + OPENAI_CONFIGS
+# Tables produced by analysis.py; run_eval.py must not delete them when it refreshes its own.
+ANALYSIS_TABLES = {"abstention", "nli_grounding", "judge_agreement", "failure_taxonomy"}
 
 _JUDGE_SYSTEM = (
     "You are a strict evaluator of a retrieval-augmented QA system. You are given a question, a "
@@ -110,6 +123,11 @@ class Row:
     evidence_recall: float | None = None     # fraction of evidence quotes found in a retrieved chunk
     evidence_mrr: float | None = None        # 1/rank of first chunk containing any evidence
     section_hit: float | None = None
+    # Retrieval-confidence signals of the top passage, recorded for EVERY question
+    # (including unanswerable ones) for the abstention analysis (analysis.py).
+    sig_dense: float | None = None           # top passage's dense cosine similarity
+    sig_fused: float | None = None           # top passage's hybrid fused score
+    sig_rerank: float | None = None          # sigmoid(cross-encoder score) when re-ranking ran
     generated_answer: str = ""
     correctness: int | None = None
     faithfulness: int | None = None
@@ -560,6 +578,18 @@ def write_summary(results: dict[str, list[Row]], meta: RunMeta, testset: list[di
         "where chunk boundaries fall.",
         [(f"character__{m}__{e}", f"sentence800__{m}__{e}") for m in MODES for e in ("hf", "bge")])
 
+    cmp("cmp_rerank", "3.4 Cross-encoder re-ranking",
+        "A = hybrid retrieval; B = the same hybrid top-20 re-scored by `cross-encoder/ms-marco-MiniLM-L-6-v2` and cut to the top 5.",
+        [(f"{c}__hybrid__{e}", f"{c}__hybrid_rerank__{e}") for c in ("character", "sentence800") for e in ("hf", "bge")])
+    cmp("cmp_ctx", "3.5 Contextual chunk headers",
+        "A = hybrid retrieval over plain chunks; B = identical chunks whose *embedded* text is prefixed with "
+        "`<paper title> | <section>` (display text and BM25 unchanged).",
+        [(f"{c}__hybrid__{e}", f"{c}_ctx__hybrid__{e}") for c in ("character", "sentence800") for e in ("hf", "bge")])
+    cmp("cmp_hyde", "3.6 HyDE query expansion",
+        "A = hybrid retrieval on the raw question; B = the dense side embeds an LLM-written hypothetical answer passage "
+        "(BM25 sees question + passage).",
+        [(f"{c}__hybrid__bge", f"{c}__hybrid_hyde__bge") for c in ("character", "sentence800")])
+
     stats = ["| Chunker | # chunks | mean chars | median chars |", "|---|---|---|---|"]
     docs = p.load_documents()
     for s in CHUNKERS:
@@ -585,7 +615,8 @@ def write_summary(results: dict[str, list[Row]], meta: RunMeta, testset: list[di
     tdir = RESULTS_DIR / "tables"
     tdir.mkdir(exist_ok=True)
     for stale in tdir.glob("*.md"):
-        stale.unlink()
+        if stale.stem not in ANALYSIS_TABLES:  # written by analysis.py, not by this run
+            stale.unlink()
     for name, lines in tables.items():
         (tdir / f"{name}.md").write_text("\n".join(lines).strip() + "\n", encoding="utf-8")
 
@@ -593,7 +624,8 @@ def write_summary(results: dict[str, list[Row]], meta: RunMeta, testset: list[di
     if "generation" in tables:
         body += ["## 2. Answer quality", ""] + tables["generation"] + [""]
     body += ["## 3. Controlled comparisons", ""]
-    for name in ("cmp_dense_hybrid", "cmp_embedding", "cmp_chunk_uncontrolled", "cmp_chunk_controlled"):
+    for name in ("cmp_dense_hybrid", "cmp_embedding", "cmp_chunk_uncontrolled", "cmp_chunk_controlled",
+                 "cmp_rerank", "cmp_ctx", "cmp_hyde"):
         body += tables[name]
     body += ["### Chunk statistics", ""] + tables["chunk_stats"] + [""]
     if "sanity" in tables:
@@ -620,6 +652,8 @@ def preflight(configs: list[str], generate: bool, require_online: bool) -> None:
             import sentence_transformers  # noqa: F401
         except ImportError:
             errors.append("HF embeddings requested but sentence-transformers is not installed (pip install -r backend/requirements-dev.txt).")
+    if any(c.split("__")[1] == "hybrid_hyde" for c in configs) and not (settings.openai_ready or settings.groq_ready):
+        errors.append("HyDE configurations need an LLM to write the hypothetical passages (GROQ_API_KEY / OPENAI_API_KEY).")
     if generate and not (settings.openai_ready or settings.groq_ready):
         errors.append("No LLM configured: set GROQ_API_KEY (gsk_...) or OPENAI_API_KEY (sk-...) in backend/.env, "
                       "or pass --no-generate for a retrieval-only run.")
@@ -664,6 +698,24 @@ def load_rows(config: str) -> list[Row] | None:
     return rows
 
 
+_GEN_FIELDS = ("generated_answer", "correctness", "faithfulness", "relevance", "abstained_judge", "abstained_regex",
+               "abstain_correct", "n_citations", "n_correct_citations", "guard_unsupported_frac", "judge_rationale",
+               "generator", "judge_model", "manual_score")
+
+
+def keep_prior_generation(new_rows: list[Row], prior: list[Row] | None) -> None:
+    """A retrieval-only rerun must not erase earlier answer scores: copy them over
+    for every question whose retrieved context is unchanged."""
+    if not prior:
+        return
+    old = {r.id: r for r in prior}
+    for row in new_rows:
+        o = old.get(row.id)
+        if o is not None and o.generated_answer and o.retrieved_chunk_ids == row.retrieved_chunk_ids:
+            for f in _GEN_FIELDS:
+                setattr(row, f, getattr(o, f))
+
+
 def run_config(config: str, documents, testset, generate: bool, cache: LLMCache, meta: RunMeta, indexes: dict) -> list[Row]:
     chunker, mode, embedder = config.split("__")
     if (chunker, embedder) not in indexes:
@@ -681,6 +733,11 @@ def run_config(config: str, documents, testset, generate: bool, cache: LLMCache,
         )
         if item["type"] in ANSWERABLE:
             score_retrieval(item, retrieved, row)
+        if retrieved:
+            top = retrieved[0]
+            row.sig_dense, row.sig_fused = round(top.dense, 6), round(top.score, 6)
+            if top.rerank is not None:
+                row.sig_rerank = round(p.reranker.sigmoid(top.rerank), 6)
         if generate:
             answer = generate_answer(cache, item["question"], retrieved)
             score_generation(item, retrieved, answer, row, cache, meta)
@@ -692,7 +749,12 @@ def run_config(config: str, documents, testset, generate: bool, cache: LLMCache,
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--configs", nargs="*", default=ALL_CONFIGS, help=f"subset of: {', '.join(ALL_CONFIGS)} (plus optional OpenAI configs: {', '.join(OPENAI_CONFIGS)})")
+    ap.add_argument("--configs", nargs="*", default=None,
+                    help=f"subset of: {', '.join(ALL_CONFIGS)}; advanced: {', '.join(ADVANCED_CONFIGS)}; "
+                         f"optional OpenAI configs: {', '.join(OPENAI_CONFIGS)}")
+    ap.add_argument("--advanced", action="store_true",
+                    help="also run the advanced arms (re-ranking, contextual chunk headers, HyDE)")
+    ap.add_argument("--hyde-model", default="", help="Groq model that writes the HyDE passages (default: --gen-model)")
     ap.add_argument("--no-generate", action="store_true", help="retrieval metrics only (no LLM answers/judging)")
     ap.add_argument("--require-online", action=argparse.BooleanOptionalAction, default=True,
                     help="abort instead of falling back to offline embeddings/answers (default: on)")
@@ -703,12 +765,15 @@ def main() -> int:
     args = ap.parse_args()
 
     global PACE_SECONDS, JUDGE_MODEL
+    if args.configs is None:
+        args.configs = ALL_CONFIGS + (ADVANCED_CONFIGS if args.advanced else [])
+    p.HYDE_MODEL = args.hyde_model
     PACE_SECONDS = args.pace
     JUDGE_MODEL = args.judge_model
     if args.gen_model:
         settings.groq_chat_model = args.gen_model
     generate = not args.no_generate
-    bad = [c for c in args.configs if c not in ALL_CONFIGS + OPENAI_CONFIGS]
+    bad = [c for c in args.configs if c not in ALL_KNOWN]
     if bad:
         ap.error(f"unknown config(s): {bad}")
     preflight(args.configs, generate, args.require_online)
@@ -741,14 +806,16 @@ def main() -> int:
                   "rerun the same command later (e.g. after the daily token limit resets) to resume.")
             stopped = True
             break
+        if not generate:
+            keep_prior_generation(rows, load_rows(config))
         results[config] = rows
         write_csv(config, rows)
 
     if not args.limit:  # fold in configs finished by earlier runs so the summary covers everything
-        for config in ALL_CONFIGS + OPENAI_CONFIGS:
+        for config in ALL_KNOWN:
             if config not in results and (prior := load_rows(config)) is not None:
                 results[config] = prior
-        results = {c: results[c] for c in ALL_CONFIGS + OPENAI_CONFIGS if c in results}
+        results = {c: results[c] for c in ALL_KNOWN if c in results}
     meta.generation = any(r.correctness is not None for rows in results.values() for r in rows)
 
     meta.llm_fallback_warnings = counter.count

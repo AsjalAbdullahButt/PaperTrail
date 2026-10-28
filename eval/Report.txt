@@ -1,238 +1,490 @@
 ===============================================================================
- PaperTrail — Manual Evaluation Report
+ PaperTrail - Manual Evaluation Report
  Evidence-Grounded Research-Paper Question Answering over an NLP Corpus
  using Hybrid RAG
  Course category: RAG Bot for a Niche Domain
 -------------------------------------------------------------------------------
- Plain-text companion to eval/REPORT.md for manual grading. Numbers are copied
- from eval/results/summary.md (generated 2026-10-28 00:47). That file, and the
- raw_<config>.csv files beside it, are the source of truth: if you re-run the
- evaluation, regenerate this report's numbers from them rather than editing
- by hand.
+ Plain-text companion to eval/REPORT.md for manual grading.
+ Every table in this file is injected by eval/render_docs.py from the same
+ generated files (eval/results/tables/*.md) that fill REPORT.md, so the two
+ documents show identical numbers. Do not edit the tables by hand: re-run
+ run_eval.py / analysis.py and then render_docs.py. Prose below states only
+ qualitative findings and a few numbers that are fixed by the corpus itself.
 ===============================================================================
 
 
 1. WHAT THIS SYSTEM IS
 -------------------------------------------------------------------------------
 PaperTrail answers natural-language questions over a fixed corpus of NLP
-research papers and cites the exact passages its answer rests on. The RAG
-pipeline is: load -> chunk -> embed -> retrieve (dense or hybrid) -> generate.
+research papers and cites the exact passages its answer rests on. Pipeline:
+
+  load -> chunk -> embed -> retrieve -> [re-rank] -> generate -> [fact-check]
+
+with optional stages (each a per-query switch in the web app, off by default):
+  - cross-encoder RE-RANKING of the hybrid top-20
+  - HyDE QUERY EXPANSION (an LLM writes a hypothetical answer passage)
+  - NLI GROUNDING (every answer sentence checked for entailment)
+  - ABSTENTION (decline to answer when retrieval confidence is low)
+  - CONTEXTUAL CHUNK HEADERS ("<paper title> | <section>" embedded with each chunk)
+
 The evaluation imports the production modules directly (ingestion.py, llm.py,
-similarity.py, services/bm25_index.py, services/importance.py, retriever.py) —
-it measures the same code the live app runs, not a reimplementation.
+similarity.py, services/bm25_index.py, importance.py, retriever.py, reranker.py,
+nli_guard.py, abstention.py, query_expansion.py): it measures the same code the
+live app runs, not a reimplementation of it (one documented exception: the
+hybrid SCORING is re-implemented because the production function needs a
+database session; its weights and normaliser are imported).
 
 No models were trained or fine-tuned. All models are pretrained and used as-is,
 per the course rules ("Do not train models from scratch").
 
 
-2. DATA "TRAINED" / CORPUS (the knowledge base)
+2. THE CORPUS (the knowledge base - there is NO model training data)
 -------------------------------------------------------------------------------
-There is NO model training. "Data" here means the retrieval corpus: 14 NLP
-research papers (137,778 words, 229 pages), fetched from arXiv by id,
-text-extracted through the production PDF extractor, cleaned to markdown, and
-chunked + embedded into the vector index the system searches at query time.
+14 NLP research papers fetched from arXiv by id, extracted through the
+production PDF extractor, cleaned to markdown, then chunked and embedded into
+the index searched at query time.
 
-  arXiv id    Short name          Title (abbrev.)                         Year
-  --------    -----------------   ------------------------------------    ----
-  1706.03762  Transformer         Attention Is All You Need               2017
-  1810.04805  BERT                Pre-training Deep Bidirectional Trans.  2018
-  1908.10084  Sentence-BERT       Sentence Embeddings via Siamese BERT    2019
-  2002.08909  REALM               Retrieval-Augmented LM Pre-Training     2020
-  2004.04906  DPR                 Dense Passage Retrieval for Open QA     2020
-  2004.12832  ColBERT             Late Interaction Passage Search         2020
-  2005.11401  RAG                 Retrieval-Augmented Generation          2020
-  2104.08663  BEIR                Zero-shot IR Benchmark                  2021
-  2112.09118  Contriever          Unsupervised Dense Retrieval            2021
-  2212.10496  HyDE                Zero-Shot Dense Retrieval w/o Labels    2022
-  2307.03172  Lost in the Middle  How LMs Use Long Contexts               2023
-  2309.15217  RAGAS               Automated RAG Evaluation                2023
-  2310.11511  Self-RAG            Retrieve, Generate, Critique            2023
-  2312.10997  RAG Survey          RAG for LLMs: A Survey                  2023
+[[BEGIN:manifest]]
+  doc_id              Title                                                                                          Authors               Year  Words   Pages  Source
+  ------------------  ---------------------------------------------------------------------------------------------  --------------------  ----  ------  -----  ----------
+  beir                BEIR: A Heterogeneous Benchmark for Zero-shot Evaluation of Information Retrieval Models       Thakur et al.         2021  14,098  24     2104.08663
+  bert                BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding               Devlin et al.         2018  10,152  16     1810.04805
+  colbert             ColBERT: Efficient and Effective Passage Search via Contextualized Late Interaction over BERT  Khattab and Zaharia   2020  9,343   10     2004.12832
+  contriever          Unsupervised Dense Information Retrieval with Contrastive Learning (Contriever)                Izacard et al.        2021  11,990  21     2112.09118
+  dpr                 Dense Passage Retrieval for Open-Domain Question Answering                                     Karpukhin et al.      2020  8,878   13     2004.04906
+  hyde                Precise Zero-Shot Dense Retrieval without Relevance Labels (HyDE)                              Gao et al.            2022  6,171   11     2212.10496
+  lost-in-the-middle  Lost in the Middle: How Language Models Use Long Contexts                                      Liu et al.            2023  9,766   18     2307.03172
+  rag                 Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks                               Lewis et al.          2020  9,886   19     2005.11401
+  rag-survey          Retrieval-Augmented Generation for Large Language Models: A Survey                             Gao et al.            2023  15,618  21     2312.10997
+  ragas               RAGAS: Automated Evaluation of Retrieval Augmented Generation                                  Es et al.             2023  4,919   8      2309.15217
+  realm               REALM: Retrieval-Augmented Language Model Pre-Training                                         Guu et al.            2020  8,064   12     2002.08909
+  self-rag            Self-RAG: Learning to Retrieve Generate and Critique through Self-Reflection                   Asai et al.           2023  16,131  30     2310.11511
+  sentence-bert       Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks                                 Reimers and Gurevych  2019  6,667   11     1908.10084
+  transformer         Attention Is All You Need                                                                      Vaswani et al.        2017  6,095   15     1706.03762
 
-Chunking statistics actually produced over this corpus:
+  14 papers, 137,778 words, 229 pages (per paper: 4,919–16,131 words, 8–30 pages).
+[[END:manifest]]
 
-  Chunker       # chunks    mean chars    median chars
-  -----------   --------    ----------    ------------
-  character        1087         796           800
-  sentence          257        2981          3124
-  sentence800       1568         699           727
+Chunk statistics actually produced over this corpus:
+
+[[BEGIN:chunk_stats]]
+  Chunker      # chunks  mean chars  median chars
+  -----------  --------  ----------  ------------
+  character    1087      796         800
+  sentence     257       2981        3124
+  sentence800  1568      699         727
+[[END:chunk_stats]]
 
 
 3. TEST SET
 -------------------------------------------------------------------------------
-46 hand-written questions, each with a verbatim evidence quote + source paper +
-section + page. Every quote is machine-checked against the corpus by
-verify_testset.py, and every unanswerable question is checked to have its key
-terms absent from the corpus.
+[[BEGIN:testset_stats]]
+  46 questions: 27 factual, 11 multi-hop (evidence in two papers), 8 unanswerable (answer
+  deliberately absent from the corpus).
+[[END:testset_stats]]
 
-  Type           Count    What it probes
-  ------------   -----    ------------------------------------------------
-  factual          27     single-passage lookups
-  multi_hop        11     answer requires 2+ papers / passages
-  unanswerable      8     answer is NOT in the corpus (system should abstain)
-  ------------   -----
-  TOTAL            46
+Each answerable question has a verbatim evidence quote + source paper + section
++ page, machine-checked against the corpus by verify_testset.py. Every
+unanswerable question is checked to have its key terms absent from the corpus.
+Types: factual (single-passage lookup), multi_hop (needs 2 papers),
+unanswerable (the system should abstain).
 
 
 4. EXPERIMENT GRID
 -------------------------------------------------------------------------------
-Each configuration is named  <chunker>__<retrieval>__<embedder> :
+Configuration name = <chunker>__<retrieval>__<embedder>
 
   chunker    : character | sentence (prod default ~3000 chars) | sentence800
-               (sentence boundaries capped ~800 chars, for the size-controlled
-               ablation)
-  retrieval  : dense (cosine only) | hybrid (0.6 dense / 0.4 BM25, x(1+0.2*imp))
+               (sentence boundaries capped ~800 chars: size-controlled ablation)
+               ; suffix _ctx = contextual chunk headers
+  retrieval  : dense | hybrid (0.6 dense / 0.4 BM25, x(1+0.2*importance))
+               | hybrid_rerank (cross-encoder on the hybrid top-20)
+               | hybrid_hyde  (HyDE query expansion)
   embedder   : hf  = sentence-transformers/all-MiniLM-L6-v2 (384-d, local)
                bge = BAAI/bge-small-en-v1.5                 (384-d, local)
 
-Run metadata (eval/results/run_meta.json):
-  top_k = 5 ; questions = 46 ; embeddings = local HF (no paid API)
-  generator = groq:openai/gpt-oss-120b ; judge = groq:openai/gpt-oss-20b
-  (two different models, so the generator never grades its own answers)
-  retrieval metrics: all 10 configurations
-  answer generation + judging: 1 of 10 configurations (character__dense__hf)
-  -> see section 7 for why, and what that means for the claims below.
+Core grid = 10 configurations. Advanced arms = 10 more, each differing from a
+core hybrid configuration in exactly ONE stage, so comparisons are controlled.
+
+[[BEGIN:run_info]]
+  Generated by eval/run_eval.py on 2026-10-28 20:17. Every number below is computed from the per-
+  question raw_<config>.csv files; nothing is hand-edited.
+
+  - Questions: 46 (27 factual, 11 multi-hop, 8 unanswerable); top-k = 5.
+  - Embeddings (local Hugging Face models, no paid API): hf = sentence-transformers/all-
+    MiniLM-L6-v2, bge = BAAI/bge-small-en-v1.5.
+  - Configurations in this summary: 20 (all folded in from raw_<config>.csv).
+  - Answer generation + LLM-as-judge ran for 4 of 20 configurations (character__dense__hf,
+    character__hybrid__hf, sentence800__hybrid__bge, sentence800__hybrid_rerank__bge); the rest are
+    retrieval-only because of the Groq free-tier daily token limit.
+  - Generator: groq:openai/gpt-oss-120b; judge: groq:openai/gpt-oss-20b.
+  - Production-fallback warnings in the last run: 0; unparseable judge outputs: 0.
+  - Intervals in brackets are bootstrap 95% CIs over questions.
+[[END:run_info]]
 
 
-5. RETRIEVAL RESULTS  (over the 38 answerable questions)
+5. RETRIEVAL RESULTS  (over the answerable questions; all configurations)
 -------------------------------------------------------------------------------
-Evidence Recall@5 = fraction of gold evidence passages found in a retrieved
-chunk (passage-level, the strict metric). Doc Recall@5 = right paper retrieved.
-Section hit = retrieved chunk's section label matches the gold section.
+[[BEGIN:retrieval]]
+  Retrieval metrics are computed over the answerable questions (factual + multi-hop). Evidence
+  Recall@5 is the fraction of gold evidence passages found in some retrieved chunk (the passage-
+  level metric); Doc Recall@5 only asks whether a chunk from the right paper was retrieved.
 
-  Config                      Doc R@5    Doc R@5(multihop)  Evid R@5   MRR   Sect
-  -------------------------   -------    -----------------  --------   ----  ----
-  character__dense__hf          88%            59%            41%      0.31  42%
-  character__dense__bge         86%            59%            50%      0.44  39%
-  character__hybrid__hf         93%            77%            49%      0.41  42%
-  character__hybrid__bge        95%            82%            54%      0.48  45%
-  sentence__dense__bge          89%            73%            64%      0.56  22%
-  sentence__hybrid__bge         95%            82%            66%      0.56  28%
-  sentence800__dense__hf        86%            59%            41%      0.29  38%
-  sentence800__dense__bge       91%            77%            54%      0.42  47%
-  sentence800__hybrid__hf       93%            77%            55%      0.45  47%
-  sentence800__hybrid__bge      96%            86%            54%      0.48  46%
-
-Bootstrap 95% CIs for every cell are in eval/results/summary.md (section 1).
-
-Headline reading:
-  - Best doc-level retrieval: sentence800__hybrid__bge (96% overall, 86% multi-hop).
-  - Best evidence (passage) recall: sentence__hybrid__bge (66%) — but its large
-    ~3000-char chunks wreck section precision (28%), because one chunk spans
-    many headings.
-  - Hybrid beats dense on doc recall in every pairing; see section 6.1.
+  Config                           Doc Recall@5 (answerable)  Doc Recall@5 (multi-hop)  Evidence Recall@5  Evidence MRR  Section hit
+  -------------------------------  -------------------------  ------------------------  -----------------  ------------  -----------
+  character__dense__hf             88% [80%–95%]              59%                       41% [26%–55%]      0.31          42%
+  character__dense__bge            86% [76%–93%]              59%                       50% [37%–64%]      0.44          39%
+  character__hybrid__hf            93% [87%–99%]              77%                       49% [34%–63%]      0.41          42%
+  character__hybrid__bge           95% [89%–99%]              82%                       54% [39%–68%]      0.48          45%
+  sentence__dense__bge             89% [82%–96%]              73%                       64% [50%–78%]      0.56          22%
+  sentence__hybrid__bge            95% [89%–99%]              82%                       66% [51%–79%]      0.56          28%
+  sentence800__dense__hf           86% [78%–93%]              59%                       41% [26%–55%]      0.29          38%
+  sentence800__dense__bge          91% [83%–97%]              77%                       54% [39%–68%]      0.42          47%
+  sentence800__hybrid__hf          93% [88%–99%]              77%                       55% [41%–70%]      0.45          47%
+  sentence800__hybrid__bge         96% [91%–100%]             86%                       54% [39%–68%]      0.48          46%
+  character__hybrid_rerank__hf     93% [88%–99%]              77%                       64% [51%–78%]      0.54          53%
+  character__hybrid_rerank__bge    93% [88%–99%]              77%                       67% [53%–80%]      0.54          64%
+  sentence800__hybrid_rerank__hf   89% [82%–96%]              64%                       63% [49%–76%]      0.57          63%
+  sentence800__hybrid_rerank__bge  89% [82%–96%]              64%                       63% [50%–78%]      0.56          71%
+  character_ctx__hybrid__hf        91% [84%–96%]              68%                       53% [38%–67%]      0.41          43%
+  character_ctx__hybrid__bge       93% [88%–99%]              77%                       61% [46%–74%]      0.47          50%
+  sentence800_ctx__hybrid__hf      89% [83%–96%]              64%                       55% [39%–70%]      0.44          50%
+  sentence800_ctx__hybrid__bge     93% [88%–99%]              77%                       57% [42%–71%]      0.47          51%
+  character__hybrid_hyde__bge      96% [91%–100%]             86%                       79% [67%–89%]      0.66          70%
+  sentence800__hybrid_hyde__bge    93% [87%–99%]              77%                       80% [68%–91%]      0.63          63%
+[[END:retrieval]]
 
 
 6. CONTROLLED COMPARISONS  (paired bootstrap; * = 95% CI excludes 0)
 -------------------------------------------------------------------------------
+6.1 DENSE vs HYBRID
+[[BEGIN:cmp_dense_hybrid]]
+  3.1 DENSE-ONLY VS. HYBRID RETRIEVAL
 
-6.1  DENSE vs HYBRID  (same chunks + embeddings; B adds BM25 + importance)
+  Same chunks, same embeddings; B adds BM25 fusion and the importance boost (production weights 0.6
+  dense / 0.4 sparse, ×(1+0.2·importance)).
 
-  A                       B                        d Evid R@5        d Doc R@5
-  ---------------------   ----------------------   --------------    --------------
-  character__dense__hf    character__hybrid__hf    +7.9%             +5.3%
-  character__dense__bge   character__hybrid__bge   +3.9%             +9.2% *
-  sentence__dense__bge    sentence__hybrid__bge    +1.3%             +5.3%
-  sentence800__dense__hf  sentence800__hybrid__hf  +14.5%            +7.9% *
-  sentence800__dense__bge sentence800__hybrid__bge +0.0%             +5.3%
+  A                        B                         Δ Evidence Recall@5 (B−A)  Δ Doc Recall@5 (B−A)     Δ Correctness (1-5) (B−A)  Δ Faithfulness (1-5) (B−A)
+  -----------------------  ------------------------  -------------------------  -----------------------  -------------------------  --------------------------
+  character__dense__hf     character__hybrid__hf     +7.9% [-6.6%, +22.4%]      +5.3% [+0.0%, +11.8%]    +0.58 [-0.03, +1.18]       +0.74 [+0.21, +1.32] *
+  character__dense__bge    character__hybrid__bge    +3.9% [-2.6%, +13.2%]      +9.2% [+2.6%, +17.1%] *  —                          —
+  sentence__dense__bge     sentence__hybrid__bge     +1.3% [-7.9%, +10.5%]      +5.3% [+0.0%, +11.8%]    —                          —
+  sentence800__dense__hf   sentence800__hybrid__hf   +14.5% [+0.0%, +30.3%]     +7.9% [+1.3%, +15.8%] *  —                          —
+  sentence800__dense__bge  sentence800__hybrid__bge  +0.0% [-9.2%, +9.2%]       +5.3% [+0.0%, +11.8%]    —                          —
 
-  Takeaway: hybrid consistently lifts DOC recall (two results significant,
-  all positive); evidence-recall gains are positive-leaning but noisier at
-  n=38. Adding BM25 + importance is a net win, strongest on multi-hop.
+  * = the paired-bootstrap 95% interval excludes 0.
+[[END:cmp_dense_hybrid]]
 
-6.2  EMBEDDING MODEL: MiniLM vs BGE-small  (same chunks + mode)
+6.2 EMBEDDING MODEL: MiniLM vs BGE-small
+[[BEGIN:cmp_embedding]]
+  3.2 EMBEDDING MODEL: MINILM VS. BGE-SMALL
 
-  A (MiniLM)                B (BGE)                  d Evid R@5        d Doc R@5
-  -----------------------   ----------------------   --------------    --------------
-  character__dense__hf      character__dense__bge    +9.2%             -2.6%
-  character__hybrid__hf     character__hybrid__bge   +5.3%             +1.3%
-  sentence800__dense__hf    sentence800__dense__bge  +13.2%            +5.3% *
-  sentence800__hybrid__hf   sentence800__hybrid__bge -1.3%             +2.6%
+  Same chunks and retrieval mode; A = all-MiniLM-L6-v2 (384-d, 256 word-piece window), B = BAAI/bge-
+  small-en-v1.5 (384-d, 512 word-piece window). Both are local Hugging Face models run through
+  llm.embed_texts(provider=hf).
 
-  Takeaway: BGE-small generally retrieves better passages than MiniLM
-  (its 512-token window vs MiniLM's 256 helps on ~800-char chunks); one
-  significant doc-recall win. Both run locally, no API cost.
+  A                        B                         Δ Evidence Recall@5 (B−A)  Δ Doc Recall@5 (B−A)     Δ Correctness (1-5) (B−A)  Δ Faithfulness (1-5) (B−A)
+  -----------------------  ------------------------  -------------------------  -----------------------  -------------------------  --------------------------
+  character__dense__hf     character__dense__bge     +9.2% [-2.6%, +21.1%]      -2.6% [-10.5%, +3.9%]    —                          —
+  character__hybrid__hf    character__hybrid__bge    +5.3% [-3.9%, +15.8%]      +1.3% [-2.6%, +5.3%]     —                          —
+  sentence800__dense__hf   sentence800__dense__bge   +13.2% [-1.3%, +28.9%]     +5.3% [+1.3%, +10.5%] *  —                          —
+  sentence800__hybrid__hf  sentence800__hybrid__bge  -1.3% [-9.2%, +5.3%]       +2.6% [+0.0%, +6.6%]     —                          —
 
-6.3  CHUNKING ABLATION — SIZE-CONTROLLED (boundary strategy isolated)
-     A = character windows ~800 chars ; B = sentence boundaries capped ~800
+  * = the paired-bootstrap 95% interval excludes 0.
+[[END:cmp_embedding]]
 
-  A                        B                           d Evid R@5      d Doc R@5
-  ----------------------   -------------------------   ------------    ------------
-  character__dense__hf     sentence800__dense__hf      +0.0%           -2.6%
-  character__dense__bge    sentence800__dense__bge     +3.9%           +5.3% *
-  character__hybrid__hf    sentence800__hybrid__hf     +6.6%           +0.0%
-  character__hybrid__bge   sentence800__hybrid__bge    +0.0%           +1.3%
+6.3 CHUNKING - SIZE-CONTROLLED (boundary strategy isolated)
+[[BEGIN:cmp_chunk_controlled]]
+  3.3B CHUNKING ABLATION — SIZE-CONTROLLED (BOUNDARY STRATEGY ISOLATED)
 
-  Takeaway: with size held constant, sentence-boundary alignment gives a
-  small, mostly-not-significant edge — i.e. most of the "sentence chunking
-  is better" effect in the naive comparison is really a CHUNK-SIZE effect,
-  not a boundary effect. This is the methodological point graders reward.
+  A = character windows (~800 chars); B = sentence-boundary chunks capped at ~800 chars
+  (chunk_blocks_semantic(chunk_size=200)). Chunk size is held (approximately) constant, so any
+  difference is due to where chunk boundaries fall.
 
-6.4  CHUNKING ABLATION — UNCONTROLLED (size-confounded; shown for contrast)
-     A = character ~800 ; B = production sentence chunker ~3000 chars (BGE)
+  A                       B                         Δ Evidence Recall@5 (B−A)  Δ Doc Recall@5 (B−A)     Δ Correctness (1-5) (B−A)  Δ Faithfulness (1-5) (B−A)
+  ----------------------  ------------------------  -------------------------  -----------------------  -------------------------  --------------------------
+  character__dense__hf    sentence800__dense__hf    +0.0% [-14.5%, +14.5%]     -2.6% [-9.2%, +2.6%]     —                          —
+  character__dense__bge   sentence800__dense__bge   +3.9% [-7.9%, +15.8%]      +5.3% [+1.3%, +10.5%] *  —                          —
+  character__hybrid__hf   sentence800__hybrid__hf   +6.6% [-3.9%, +18.4%]      +0.0% [-3.9%, +3.9%]     —                          —
+  character__hybrid__bge  sentence800__hybrid__bge  +0.0% [-7.9%, +7.9%]       +1.3% [+0.0%, +3.9%]     —                          —
 
-  A                        B                        d Evid R@5         d Doc R@5
-  ----------------------   ----------------------   ---------------    ----------
-  character__dense__bge    sentence__dense__bge     +14.5% *           +3.9%
-  character__hybrid__bge   sentence__hybrid__bge    +11.8%             +0.0%
+  * = the paired-bootstrap 95% interval excludes 0.
+[[END:cmp_chunk_controlled]]
 
-  The big +14.5% evidence-recall jump here is the confound: bigger chunks
-  simply contain more text, so a gold passage is likelier to land inside
-  one. Isolating boundary strategy (6.3) removes most of that gain.
+6.4 CHUNKING - UNCONTROLLED (size-confounded; shown for contrast)
+[[BEGIN:cmp_chunk_uncontrolled]]
+  3.3A CHUNKING ABLATION — UNCONTROLLED (THE ORIGINAL, SIZE-CONFOUNDED COMPARISON)
+
+  A = character windows (~800 chars); B = production sentence chunker at its default size (~3,000
+  chars); embedder BGE-small. (BGE's 512-word-piece window covers only the first ~2,000 characters
+  of a ~3,000-character chunk.) Boundary strategy and chunk size differ at once, so differences
+  cannot be attributed to boundary alignment alone.
+
+  A                       B                      Δ Evidence Recall@5 (B−A)  Δ Doc Recall@5 (B−A)  Δ Correctness (1-5) (B−A)  Δ Faithfulness (1-5) (B−A)
+  ----------------------  ---------------------  -------------------------  --------------------  -------------------------  --------------------------
+  character__dense__bge   sentence__dense__bge   +14.5% [+2.6%, +27.6%] *   +3.9% [-1.3%, +9.2%]  —                          —
+  character__hybrid__bge  sentence__hybrid__bge  +11.8% [-2.6%, +27.6%]     +0.0% [-5.3%, +5.3%]  —                          —
+
+  * = the paired-bootstrap 95% interval excludes 0.
+[[END:cmp_chunk_uncontrolled]]
+
+6.5 CROSS-ENCODER RE-RANKING
+[[BEGIN:cmp_rerank]]
+  3.4 CROSS-ENCODER RE-RANKING
+
+  A = hybrid retrieval; B = the same hybrid top-20 re-scored by cross-encoder/ms-marco-MiniLM-L-6-v2
+  and cut to the top 5.
+
+  A                         B                                Δ Evidence Recall@5 (B−A)  Δ Doc Recall@5 (B−A)     Δ Correctness (1-5) (B−A)  Δ Faithfulness (1-5) (B−A)
+  ------------------------  -------------------------------  -------------------------  -----------------------  -------------------------  --------------------------
+  character__hybrid__hf     character__hybrid_rerank__hf     +15.8% [+6.5%, +27.6%] *   +0.0% [-3.9%, +3.9%]     —                          —
+  character__hybrid__bge    character__hybrid_rerank__bge    +13.2% [+0.0%, +27.6%]     -1.3% [-5.3%, +2.6%]     —                          —
+  sentence800__hybrid__hf   sentence800__hybrid_rerank__hf   +7.9% [-3.9%, +19.7%]      -3.9% [-9.2%, +0.0%]     —                          —
+  sentence800__hybrid__bge  sentence800__hybrid_rerank__bge  +9.2% [-2.6%, +22.4%]      -6.6% [-14.5%, -1.3%] *  +0.03 [-0.47, +0.50]       -0.18 [-0.55, +0.13]
+
+  * = the paired-bootstrap 95% interval excludes 0.
+[[END:cmp_rerank]]
+
+6.6 CONTEXTUAL CHUNK HEADERS
+[[BEGIN:cmp_ctx]]
+  3.5 CONTEXTUAL CHUNK HEADERS
+
+  A = hybrid retrieval over plain chunks; B = identical chunks whose embedded text is prefixed with
+  <paper title> | <section> (display text and BM25 unchanged).
+
+  A                         B                             Δ Evidence Recall@5 (B−A)  Δ Doc Recall@5 (B−A)  Δ Correctness (1-5) (B−A)  Δ Faithfulness (1-5) (B−A)
+  ------------------------  ----------------------------  -------------------------  --------------------  -------------------------  --------------------------
+  character__hybrid__hf     character_ctx__hybrid__hf     +3.9% [-2.6%, +13.2%]      -2.6% [-7.9%, +2.6%]  —                          —
+  character__hybrid__bge    character_ctx__hybrid__bge    +6.6% [+0.0%, +14.5%]      -1.3% [-6.6%, +2.6%]  —                          —
+  sentence800__hybrid__hf   sentence800_ctx__hybrid__hf   +0.0% [-11.8%, +11.8%]     -3.9% [-9.2%, +1.3%]  —                          —
+  sentence800__hybrid__bge  sentence800_ctx__hybrid__bge  +2.6% [-6.6%, +13.2%]      -2.6% [-6.6%, +0.0%]  —                          —
+
+  * = the paired-bootstrap 95% interval excludes 0.
+[[END:cmp_ctx]]
+
+6.7 HyDE QUERY EXPANSION
+[[BEGIN:cmp_hyde]]
+  3.6 HYDE QUERY EXPANSION
+
+  A = hybrid retrieval on the raw question; B = the dense side embeds an LLM-written hypothetical
+  answer passage (BM25 sees question + passage).
+
+  A                         B                              Δ Evidence Recall@5 (B−A)  Δ Doc Recall@5 (B−A)  Δ Correctness (1-5) (B−A)  Δ Faithfulness (1-5) (B−A)
+  ------------------------  -----------------------------  -------------------------  --------------------  -------------------------  --------------------------
+  character__hybrid__bge    character__hybrid_hyde__bge    +25.0% [+9.2%, +40.8%] *   +1.3% [+0.0%, +3.9%]  —                          —
+  sentence800__hybrid__bge  sentence800__hybrid_hyde__bge  +26.3% [+13.2%, +40.8%] *  -2.6% [-7.9%, +2.6%]  —                          —
+
+  * = the paired-bootstrap 95% interval excludes 0.
+[[END:cmp_hyde]]
+
+Qualitative takeaways (see REPORT.md section 6.7 for the reasoning):
+  - Hybrid never hurt and usually helped DOCUMENT recall; the dense->hybrid
+    changes in evidence recall are positive-leaning but mostly within noise.
+  - BGE-small beat MiniLM on most (not all) pairs; BM25 fusion narrows the gap.
+  - Most of the "sentence chunking is better" effect is CHUNK SIZE, not
+    boundary alignment: it shrinks when size is held constant (6.3 vs 6.4).
+  - Re-ranking raises passage precision (evidence recall, MRR, section hit)
+    but can lower document coverage on multi-hop questions: a real trade-off.
+  - Contextual chunk headers: no reliable benefit (honest null result).
+  - HyDE: the largest retrieval gain, BUT the LLM has largely memorised these
+    famous papers, so the gain here overstates what a private collection gives.
+  - Doc Recall@5 is far above Evidence Recall@5 in every configuration: the
+    right paper is usually found, the right passage often is not.
 
 
-7. ANSWER-QUALITY RESULTS — PARTIAL (1 of 10 configurations)
+7. ANSWER-QUALITY RESULTS  (only the configurations that were scored)
 -------------------------------------------------------------------------------
-Answer generation + LLM-as-judge ran for ONE configuration only,
-character__dense__hf. The Groq free tier allows roughly 200,000 tokens per
-model per day, well below the ~80-120k tokens per configuration per model that
-a full generation + judge run needs, so configurations are scored
-incrementally (results accumulate and runs are resumable; see eval/README.md).
+Generation + LLM-as-judge need Groq tokens; the free tier allows roughly 200,000
+per model per day, so configurations are scored incrementally (results
+accumulate and runs are resumable; see eval/README.md). The table lists exactly
+the configurations scored so far.
 
-  Config: character__dense__hf       (answerable Qs unless noted; 1-5 scale)
-  ----------------------------------------------------------------------
-  Correctness (LLM judge)            3.68   [95% CI 3.11 - 4.24]
-  Faithfulness (LLM judge)           3.87
-  Relevance (LLM judge)              4.18
-  Citation accuracy                  38%    (22 of 58 cited passages held gold evidence)
-  Citation coverage                  84%    (answers citing >= 1 passage)
-  Unanswerable handling              88%    (7 of 8 abstained correctly)
-  Guard flagged-sentence rate        12%    (lexical hallucination heuristic)
+[[BEGIN:generation]]
+  Correctness / faithfulness / relevance are LLM-as-judge scores on answerable questions. Citation
+  accuracy = fraction of cited [n] passages that contain gold evidence; coverage = fraction of
+  answers citing at least one passage. Unanswerable handling = fraction of unanswerable questions
+  where the system abstained (judge verdict). The guard column is the lexical hallucination
+  heuristic's flagged-sentence rate.
 
-Sanity checks on the metrics themselves (results/tables/sanity.md):
-  - Judge abstention verdict agrees with a regex abstention check on 93% of
-    the 46 answers.
-  - The lexical guard's flagged-sentence rate has Pearson r = -0.04 with the
-    judge's faithfulness score (n=38): it does NOT track the judge. Treat the
-    guard as a heuristic, not a measure of grounding.
+  Config                           Correctness (1-5)  Faithfulness (1-5)  Relevance (1-5)  Citation accuracy  Citation coverage  Unanswerable handling  Guard unsupported-sentence rate
+  -------------------------------  -----------------  ------------------  ---------------  -----------------  -----------------  ---------------------  -------------------------------
+  character__dense__hf             3.68 [3.11–4.24]   3.87                4.18             38% (22/58)        84%                88% (7/8)              12%
+  character__hybrid__hf            4.26 [3.76–4.71]   4.61                4.68             38% (24/64)        92%                100% (8/8)             10%
+  sentence800__hybrid__bge         4.32 [3.79–4.79]   4.76                4.55             47% (36/76)        95%                88% (7/8)              8%
+  sentence800__hybrid_rerank__bge  4.34 [3.84–4.79]   4.58                4.55             48% (38/80)        92%                100% (8/8)             13%
+[[END:generation]]
+
+Sanity checks on the metrics themselves:
+[[BEGIN:sanity]]
+  - LLM-judge abstention verdict agrees with a regex abstention heuristic on 95% of 184 answers.
+  - Pearson correlation between the hallucination guard's unsupported-sentence rate and the judge's
+    faithfulness score: -0.13 (n=152). A strongly negative value means the lexical guard tracks the
+    judge; the guard is a heuristic, not a proof of grounding.
+[[END:sanity]]
+
+Qualitative takeaways (REPORT.md section 5.3):
+  - Answer quality tracks retrieval quality: dense -> hybrid raised judged
+    correctness and (significantly) faithfulness on the paired configuration.
+  - Cross-encoder re-ranking did NOT change judged answer quality, although it
+    improved passage-level retrieval: five passages in the prompt were already
+    enough evidence for the generator.
+  - Citation accuracy stays below 50% in every scored configuration: most [n]
+    markers point at a passage without the gold quote even when the answer is
+    right. This is the largest remaining weakness.
+  - The HyDE configuration is retrieval-scored only (free-tier token limit).
 
 How to read these honestly:
-  - character__dense__hf is the WEAKEST retrieval configuration in the grid
-    (Evid R@5 41%). These answer-quality numbers are therefore a lower bound
-    for what hybrid + BGE would give; they are not an estimate for the best
-    configuration, and no cross-configuration answer-quality comparison
-    exists yet (the "d Correctness" columns in summary.md are blank).
-  - Citation accuracy of 38% means most cited passages did not contain the
-    gold evidence quote, even when the answer was judged correct.
-  - run_meta.json logs 5 production-fallback warnings and 0 unparseable judge
-    outputs in the last run. Inspect those 5 before quoting the numbers.
-  - Single judge model, single run, n=38 answerable questions: the 3.68 CI
-    spans over a full point.
-
-To extend coverage (e.g. the best configuration), once daily limits reset:
-      cd eval
-      python run_eval.py --configs sentence800__hybrid__bge \
-          --gen-model openai/gpt-oss-120b --judge-model openai/gpt-oss-20b --pace 1
-Re-running the same command resumes from cache without re-spending tokens.
+  - Citation accuracy is the fraction of CITED passages that contain the gold
+    evidence; a correct answer can still cite the wrong passage.
+  - Single judge model per run, n ~ 38 answerable questions: correctness CIs
+    span about a point on the 1-5 scale. Compare configurations only through
+    the paired intervals, never through point estimates alone.
+  - The generator and judge are different models of the same family.
 
 
-8. MANUAL GRADING SHEET  (fill in during the live demo)
+8. BEYOND ACCURACY
 -------------------------------------------------------------------------------
-Grade by hand to corroborate the automated judge. Use the configuration whose
-answers you actually have: character__dense__hf today (or
-sentence800__hybrid__bge once section 7's command has been run). The raw
-answers are in eval/results/raw_<config>.csv, which also has a blank
-manual_score column for the same purpose.
+8.1 ABSTENTION - can the best passage's score predict "not in the documents"?
+[[BEGIN:abstention]]
+  Positive class = answerable. AUROC is the probability that an answerable question's top-passage
+  signal exceeds an unanswerable one's (0.5 = chance). The threshold maximises Youden's J on all 46
+  questions; LOO accuracy re-picks the threshold without each question in turn and classifies that
+  question with it, which removes the optimism of tuning and testing on the same data. With only 8
+  unanswerable questions, intervals are wide.
+
+  Config                           Signal                              AUROC [95% CI]    Threshold  Unanswerable caught  Answerable wrongly abstained  LOO accuracy
+  -------------------------------  ----------------------------------  ----------------  ---------  -------------------  ----------------------------  ------------
+  character__dense__hf             top dense cosine                    0.81 [0.63–0.95]  0.625      7/8                  9/38                          74%
+  character__dense__bge            top dense cosine                    0.87 [0.74–0.97]  0.794      7/8                  6/38                          83%
+  character__hybrid__hf            top dense cosine                    0.76 [0.55–0.92]  0.589      7/8                  12/38                         70%
+  character__hybrid__bge           top dense cosine                    0.91 [0.81–0.98]  0.794      8/8                  7/38                          83%
+  sentence__dense__bge             top dense cosine                    0.85 [0.66–0.97]  0.775      7/8                  7/38                          78%
+  sentence__hybrid__bge            top dense cosine                    0.89 [0.77–0.97]  0.774      8/8                  10/38                         76%
+  sentence800__dense__hf           top dense cosine                    0.81 [0.57–0.97]  0.621      7/8                  6/38                          80%
+  sentence800__dense__bge          top dense cosine                    0.90 [0.78–0.99]  0.797      7/8                  4/38                          85%
+  sentence800__hybrid__hf          top dense cosine                    0.81 [0.57–0.97]  0.556      7/8                  6/38                          80%
+  sentence800__hybrid__bge         top dense cosine                    0.96 [0.89–1.00]  0.770      8/8                  3/38                          91%
+  character__hybrid_rerank__hf     top dense cosine                    0.81 [0.67–0.92]  0.588      8/8                  14/38                         65%
+  character__hybrid_rerank__hf     re-ranker probability               0.87 [0.67–0.99]  0.984      7/8                  6/38                          80%
+  character__hybrid_rerank__bge    top dense cosine                    0.86 [0.74–0.95]  0.791      8/8                  11/38                         72%
+  character__hybrid_rerank__bge    re-ranker probability               0.87 [0.67–0.99]  0.984      7/8                  6/38                          80%
+  sentence800__hybrid_rerank__hf   top dense cosine                    0.78 [0.62–0.91]  0.547      7/8                  12/38                         70%
+  sentence800__hybrid_rerank__hf   re-ranker probability               0.86 [0.64–0.99]  0.988      7/8                  6/38                          80%
+  sentence800__hybrid_rerank__bge  top dense cosine                    0.83 [0.69–0.93]  0.788      7/8                  10/38                         72%
+  sentence800__hybrid_rerank__bge  re-ranker probability               0.86 [0.64–0.99]  0.988      7/8                  6/38                          80%
+  character_ctx__hybrid__hf        top dense cosine                    0.79 [0.60–0.93]  0.613      7/8                  14/38                         63%
+  character_ctx__hybrid__bge       top dense cosine                    0.90 [0.78–0.98]  0.748      6/8                  2/38                          80%
+  sentence800_ctx__hybrid__hf      top dense cosine                    0.75 [0.56–0.90]  0.622      7/8                  16/38                         57%
+  sentence800_ctx__hybrid__bge     top dense cosine                    0.88 [0.74–0.97]  0.762      6/8                  4/38                          85%
+  character__hybrid_hyde__bge      top dense cosine                    0.77 [0.54–0.96]  0.833      5/8                  4/38                          72%
+  sentence800__hybrid_hyde__bge    top dense cosine                    0.80 [0.63–0.94]  0.821      5/8                  4/38                          85%
+  character__dense__hf             LLM self-abstention (no threshold)  —                 —          7/8                  7/38                          —
+  character__hybrid__hf            LLM self-abstention (no threshold)  —                 —          8/8                  3/38                          —
+  sentence800__hybrid__bge         LLM self-abstention (no threshold)  —                 —          7/8                  4/38                          —
+  sentence800__hybrid_rerank__bge  LLM self-abstention (no threshold)  —                 —          8/8                  3/38                          —
+
+  The hybrid fused score is deliberately not offered as a signal: it is min-max normalised per
+  query, so the top passage scores ≈1 whatever the question (AUROC 0.47–0.72 across the hybrid
+  configurations; for dense-only retrieval it equals the cosine). Thresholds are specific to the
+  embedding model, because cosine scales differ between models.
+[[END:abstention]]
+
+8.2 NLI GROUNDING vs the LEXICAL HEURISTIC (vs the judge's faithfulness)
+[[BEGIN:nli_grounding]]
+  Per answerable, non-abstained answer: fraction of sentences each method flags as unsupported,
+  compared with the LLM judge's faithfulness score (1-5). A good grounding check has a strongly
+  negative rank correlation with faithfulness (more flagged = less faithful). AUROC = how well
+  "fraction supported" separates answers the judge rated faithful (>= 4) from the rest. The judge is
+  itself an imperfect reference.
+
+  Method                                                             n answers  Mean flagged-sentence rate  Spearman ρ vs judge faithfulness  AUROC for judge-faithful (≥4)
+  -----------------------------------------------------------------  ---------  --------------------------  --------------------------------  -----------------------------
+  Lexical guard (production heuristic)                               135        10%                         -0.24                             0.71
+  NLI entailment, binary (flagged if P(entail) < 0.5)                135        56%                         -0.03                             0.46
+  NLI mean entailment probability (continuous; ρ expected positive)  135        57% (1 − mean P)            +0.07                             0.50
+
+  Judge-faithful answers (≥4): 124/135 — with few low-faithfulness answers the AUROC is noisy.
+[[END:nli_grounding]]
+
+8.3 CAN THE LLM JUDGE BE TRUSTED?  (second judge; human column to be filled)
+[[BEGIN:judge_agreement]]
+  24 answers were sampled (stratified: half judged correct (≥4), half not) from the scored
+  configurations and re-judged by a second, different model. results/judge_validation.csv also has a
+  blank human_correctness column (1-5, same rubric) for a human grader; the human rows below fill in
+  once it is completed.
+
+  Pair                              n                         Exact agreement  Within ±1  Spearman ρ  Quadratic-weighted κ
+  --------------------------------  ------------------------  ---------------  ---------  ----------  --------------------
+  Judge 1 vs Judge 2 (correctness)  24                        75%              88%        +0.93       +0.87
+  Judge 1 vs human                  0 (pending human labels)  —                —          —           —
+  Judge 2 vs human                  0 (pending human labels)  —                —          —           —
+[[END:judge_agreement]]
+
+8.4 WHERE DO WRONG ANSWERS COME FROM?
+[[BEGIN:failure_taxonomy]]
+  Each answerable question is assigned to exactly one bucket, from the per-question CSVs (evidence
+  recall, judge correctness, abstention, citation accuracy). Unanswerable questions are reported
+  separately.
+
+  Config                           Answer judged correct (≥4)  Wrong: no gold evidence retrieved (retrieval failure)  Wrong although gold evidence was retrieved (generation / reading failure)  Wrong: abstained on an answerable question  Correct answer but its citations point at passages without the evidence  Unanswerable: hallucinated an answer
+  -------------------------------  --------------------------  -----------------------------------------------------  -------------------------------------------------------------------------  ------------------------------------------  -----------------------------------------------------------------------  ------------------------------------
+  character__dense__hf             15 (39%)                    4 (11%)                                                3 (8%)                                                                     7 (18%)                                     9 (24%)                                                                  1/8
+  character__hybrid__hf            19 (50%)                    3 (8%)                                                 1 (3%)                                                                     3 (8%)                                      12 (32%)                                                                 0/8
+  sentence800__hybrid__bge         22 (58%)                    2 (5%)                                                 2 (5%)                                                                     3 (8%)                                      9 (24%)                                                                  1/8
+  sentence800__hybrid_rerank__bge  25 (66%)                    3 (8%)                                                 1 (3%)                                                                     3 (8%)                                      6 (16%)                                                                  0/8
+[[END:failure_taxonomy]]
+
+
+Qualitative takeaways (REPORT.md section 7):
+  - Abstention: the top dense cosine separates answerable from unanswerable
+    questions well for the BGE configurations, the re-ranker probability gives
+    a model-independent signal, and the hybrid fused score is useless (it is
+    normalised per query). A calibrated threshold MATCHES the generator's own
+    abstention rather than beating it; its value is that it skips the LLM call
+    and is explicit and tunable. Only 8 unanswerable questions: wide intervals.
+  - NLI grounding is a NEGATIVE result: the small off-the-shelf NLI model flags
+    over half of all answer sentences as unsupported (it handles numerals and
+    technical paraphrase poorly) and does not track the judge, whereas the
+    lexical heuristic correlates modestly. NLI is therefore an experimental,
+    opt-in switch; the lexical guard remains the default.
+  - Judge reliability: two judges from different model families agree closely
+    on correctness. Agreement with a HUMAN is pending (human column is blank).
+  - Failure taxonomy: outright wrong answers are a minority; the biggest
+    defects are correct answers with citations pointing at the wrong passage,
+    then needless refusals to answer.
+
+
+9. WORKED RETRIEVAL FAILURES  (deterministic; see results/raw_<config>.csv)
+-------------------------------------------------------------------------------
+q19  Right paper, wrong passage: all 5 chunks from ColBERT but none holds the
+     MaxSim sentence. Re-ranking does NOT fix it; HyDE does.
+q25  Cross-paper confusion: the RAG survey restates RAGAS's three aspects and
+     crowds out the original. Re-ranking fixes it (primary source preferred).
+q21  Chunk boundaries: character windows miss BEIR's abstract sentence;
+     sentence-aligned chunks, re-ranking and HyDE retrieve it.
+q38  Multi-hop: both papers retrieved but not the supporting sentences;
+     re-ranking and HyDE make it slightly worse (evidence 0.5 -> 0).
+
+
+10. THE WEB APPLICATION  (what a user can do with all of this)
+-------------------------------------------------------------------------------
+Under the query box, an "NLP pipeline" bar has four switches (disabled, with
+the reason, when the server cannot run them): Re-rank, HyDE, NLI grounding,
+Abstain if unsure. The answer shows badges for the stages that actually ran
+(and any fallback note); each source card shows Dense / BM25 / Importance /
+Re-rank score chips; a "Claim-by-claim grounding" panel lists each answer
+sentence with its entailment % and links it to the supporting source card; an
+amber banner explains an abstention while still listing the retrieved passages.
+API: GET /api/query/capabilities; POST /api/query and /api/query/stream accept
+"options" and return abstained, grounding, pipeline and per-source score fields.
+
+
+11. MANUAL GRADING SHEET  (fill in during the live demo)
+-------------------------------------------------------------------------------
+Grade by hand to corroborate the automated judge. Use a configuration that has
+answers (section 7). The raw answers are in eval/results/raw_<config>.csv (blank
+manual_score column) and results/judge_validation.csv has a ready-made sample
+with a human_correctness column (1-5, same rubric as the judge).
 
   QID   Type          Retrieved right paper?  Answer correct?  Faithful?  Cites OK?
   ----  -----------   ----------------------  ---------------  ---------  ---------
@@ -248,21 +500,23 @@ manual_score column for the same purpose.
   Grader: ____________________    Date: ____________
 
 
-9. LIMITATIONS (state these honestly in the presentation)
+12. LIMITATIONS (state these honestly in the presentation)
 -------------------------------------------------------------------------------
-  - Answer quality covers 1 of 10 configurations, and the weakest retrieval one
-    (section 7). Retrieval conclusions (sections 5-6) cover all 10.
-  - Embeddings evaluated are the two local HF models; the production default
-    (OpenAI text-embedding-3-small) was not benchmarked this run (no key).
-  - Evidence Recall@5 of ~50-66% means roughly a third of gold passages are
-    missed at k=5 — a real ceiling; raising k or re-ranking would help.
-  - Section-level labeling is coarse for large chunks (sentence chunker: 22-28%).
-  - 46 questions / 14 papers: big enough to show patterns, too small for tight
-    CIs — several comparisons are directional, not significant.
-  - Generator and judge are both from the gpt-oss family; a judge from another
-    family or the manual pass above would be stronger evidence.
-  - The hallucination guard is a LEXICAL HEURISTIC, not a proof of grounding;
-    on this run it does not correlate with the judge's faithfulness (r=-0.04).
+  - Answer quality is scored for only some configurations (section 7); the
+    retrieval conclusions (5-6) cover all of them. The advanced arms were
+    evaluated mainly on retrieval metrics.
+  - 46 questions / 14 papers: patterns, not tight intervals. Abstention
+    calibration rests on only 8 unanswerable questions; thresholds are
+    specific to the embedding model and must be re-calibrated elsewhere.
+  - HyDE's gain is inflated by the LLM having memorised these famous papers.
+  - Generator and judge share a model family; the human column in 8.3 and
+    section 11 is provided but must be filled by a person.
+  - Evidence matching is textual, so Evidence Recall is conservative; section
+    labels come from heuristic heading detection.
+  - Embeddings evaluated are two local Hugging Face models; the production
+    default (OpenAI text-embedding-3-small) was not benchmarked (no key).
+  - The lexical hallucination guard is a HEURISTIC, not a proof of grounding;
+    section 8.2 measures how it compares with NLI.
 
 ===============================================================================
  END OF REPORT

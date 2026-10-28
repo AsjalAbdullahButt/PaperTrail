@@ -5,7 +5,7 @@ Course category: *RAG Bot for a Niche Domain* (domain: research papers on NLP te
 
 This directory evaluates PaperTrail's RAG pipeline on a corpus of 14 NLP research papers. It is built on top of
 the production modules (`backend/app/ingestion.py`, `llm.py`, `similarity.py`, `services/bm25_index.py`,
-`services/importance.py`, `services/retriever.py`) — it imports them, it does not fork them — and it never touches
+`services/importance.py`, `services/retriever.py`) and the optional-stage services (`services/reranker.py`, `nli_guard.py`, `abstention.py`, `query_expansion.py`) — it imports them, it does not fork them — and it never touches
 routes, the database, storage or auth.
 
 ## Layout
@@ -19,8 +19,11 @@ routes, the database, storage or auth.
 | `dataset/manifest.csv` | `doc_id, title, authors, year, arxiv_id_or_url, n_words, n_pages, source_pdf`. |
 | `testset.json` | 46 questions (factual / multi-hop / unanswerable) with verbatim evidence quotes. |
 | `verify_testset.py` | Checks every evidence quote exists in the corpus and every unanswerable question's key terms are absent. |
-| `pipeline.py` | `load → chunk → embed → retrieve (dense / hybrid) → generate`, each a callable stage. |
+| `pipeline.py` | `load → chunk → embed → retrieve (dense / hybrid / hybrid+rerank / hybrid+HyDE) → generate`, each a callable stage. |
 | `run_eval.py` | Runs the experiment grid, computes all metrics, writes `results/`. |
+| `analysis.py` | Extra analyses on the saved results: abstention calibration (AUROC), NLI vs lexical grounding, second-judge agreement (+ human template `results/judge_validation.csv`), failure taxonomy. |
+| `render_docs.py` | Injects every generated table into `REPORT.md`, `chunking_comparison.md`, `PRESENTATION.md` and the plain-text `Report.txt`. |
+| `REPORT.md`, `Report.txt`, `PRESENTATION.md`, `chunking_comparison.md` | The written deliverables (tables are generated, never typed). |
 | `ask.py` | Ask the corpus a question from the CLI (live-demo helper). |
 | `results/` | `raw_<config>.csv` per configuration and `run_meta.json`. `run_eval.py` also (re)generates `summary.md` and `tables/*.md` (every metric table) on each run; they are not committed. |
 
@@ -66,9 +69,15 @@ generation + judge run needs (about 80–120k tokens per configuration per model
 cd eval
 python build_dataset.py --download     # fetch PDFs by arXiv id (skip --download if dataset/raw/ already has them) and build the corpus .md files + manifest
 python verify_testset.py               # sanity-check the test set against the corpus
-python run_eval.py --no-generate       # retrieval metrics for all 10 configurations (no LLM needed)
-python run_eval.py --configs character__dense__hf character__hybrid__hf \n    --gen-model openai/gpt-oss-120b --judge-model openai/gpt-oss-20b --pace 1   # answers + judge; resumable
+python run_eval.py --no-generate --advanced --hyde-model qwen/qwen3.8-27b   # retrieval metrics: 10 core + 10 advanced configurations
+python run_eval.py --configs character__dense__hf character__hybrid__hf \
+    --gen-model openai/gpt-oss-120b --judge-model openai/gpt-oss-20b --pace 1   # answers + judge; resumable
+python analysis.py                     # abstention AUROC, NLI vs lexical grounding, judge agreement, failure taxonomy
+python render_docs.py                  # refresh the tables inside the written deliverables
 ```
+
+The `--advanced` arms add cross-encoder re-ranking, contextual chunk headers and HyDE (HyDE needs an LLM to write the
+hypothetical passages; they are cached). A retrieval-only rerun never erases answer scores already on disk.
 
 Useful variations:
 
@@ -87,6 +96,10 @@ A configuration is `chunker__retrieval__embedder`:
 * chunker: `character` (legacy 800-char windows), `sentence` (production default sentence chunker, ~3,000 chars),
   `sentence800` (the same sentence chunker capped at ~800 chars — the size-controlled variant);
 * retrieval: `dense` (cosine only) or `hybrid` (production fusion: 0.6 dense + 0.4 BM25, × (1 + 0.2 · importance));
+* retrieval *(advanced, `--advanced`)*: `hybrid_rerank` (hybrid top-20 re-scored by the cross-encoder, top 5 kept) and `hybrid_hyde`
+  (dense search embeds an LLM-written hypothetical answer passage; BM25 sees question + passage); a `_ctx` suffix on the chunker
+  (`character_ctx`, `sentence800_ctx`) embeds `<paper title> | <section>` + chunk while leaving display/BM25 text unchanged.
+  Each advanced arm differs from a core hybrid configuration in exactly one stage;
 * embedder: `hf` (MiniLM, 256-word-piece window), `bge` (BGE-small, 512-word-piece window), or optionally `openai`. MiniLM is only paired with the ~800-char chunkers; BGE also covers the ~3,000-char `sentence` chunker but truncates it to its first ~2,000 characters (stated wherever that comparison appears).
 
 ## Metrics
@@ -99,6 +112,10 @@ A configuration is `chunker__retrieval__embedder`:
 * **Citation accuracy** — of the `[n]` passages an answer cites, the fraction that contain gold evidence; *coverage* — fraction of answers that cite at all.
 * **Unanswerable handling** — fraction of unanswerable questions on which the system abstains (judge verdict, cross-checked with a regex).
 * **Guard rate** — fraction of answer sentences the lexical hallucination heuristic flags; correlated against judged faithfulness.
+* **Abstention AUROC / threshold / LOO accuracy** (`analysis.py`) — can the top passage's dense cosine or re-ranker probability separate answerable from unanswerable questions?
+* **NLI vs lexical grounding** (`analysis.py`) — rank correlation of each method's flagged-sentence rate with the judge's faithfulness.
+* **Judge agreement** (`analysis.py`) — exact / ±1 agreement and quadratic-weighted κ between the judge, a second judge model and (once `results/judge_validation.csv` is filled in by a person) a human.
+* **Failure taxonomy** (`analysis.py`) — retrieval miss vs generation error vs wrong abstention vs mis-cited correct answer.
 
 All intervals are bootstrap 95% CIs over questions; comparisons use paired bootstrap on per-question differences.
 
@@ -108,4 +125,6 @@ All intervals are bootstrap 95% CIs over questions; comparisons use paired boots
 2. Sections: production PDF extraction yields one block per page and no headings; `build_dataset.py` adds heading detection and page markers when writing the markdown corpus.
 3. References sections are stripped from the corpus (bibliographic noise for lexical matching).
 4. Generator and judge are different models of the same family (`gpt-oss-120b` / `gpt-oss-20b`), so some shared-style bias remains; treat judge scores as relative, not absolute. The judge calls Groq directly (low reasoning effort, larger output cap) because reasoning models otherwise exhaust their output budget and return empty text through production's `complete_text`.
-5. The corpus `.md` files are git-ignored and regenerated by `build_dataset.py`; if another tool cleans ignored files, rebuild before running.
+5. Re-ranking, HyDE, NLI and abstention call the production service modules directly. The eval re-implements only the hybrid *scoring* (item 1).
+6. HyDE passages are written by an LLM that has largely memorised these well-known papers; see `REPORT.md` §6.6 for why that inflates the measured gain.
+7. The corpus `.md` files are git-ignored and regenerated by `build_dataset.py`; if another tool cleans ignored files, rebuild before running.

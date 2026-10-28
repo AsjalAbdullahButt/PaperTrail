@@ -1,0 +1,294 @@
+config,id,type,question,expected_answer,source_documents,retrieved_chunk_ids,retrieved_doc_ids,doc_recall,evidence_recall,evidence_mrr,section_hit,sig_dense,sig_fused,sig_rerank,generated_answer,correctness,faithfulness,relevance,abstained_judge,abstained_regex,abstain_correct,n_citations,n_correct_citations,guard_unsupported_frac,judge_rationale,generator,judge_model,manual_score
+sentence800__hybrid_rerank__bge,q01,factual,"How many parallel attention heads does the base Transformer use, and what is the dimension of each head's keys and values?","It uses h = 8 parallel attention heads, with d_k = d_v = d_model/h = 64 per head.",transformer,transformer::sentence800::25; transformer::sentence800::24; transformer::sentence800::53; transformer::sentence800::23; transformer::sentence800::19,transformer; transformer; transformer; transformer; transformer,1.0,1.0,0.5,1.0,0.824176,0.998743,0.98113,"## Parallel Attention Heads in the Base Transformer  
+
+- **Number of heads:** The base Transformer uses **8 parallel attention heads**.  
+- **Dimension of each head’s keys and values:** For each head, the key and value vectors have dimension **64** (i.e., \(d_k = d_v = d_{\text{model}}/h = 64\)).  
+
+**Sources**  
+- The model employs \(h = 8\) parallel attention layers, with \(d_k = d_v = d_{\text{model}}/h = 64\) 【2†L1-L4】.  
+- The same configuration is reiterated in the description of the multi‑head attention mechanism【1†L1-L3】.",5,5,5,False,False,,2,1,0.0,"The answer correctly states 8 heads and 64 dimensions per head, fully supported by the retrieved passages.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q02,factual,What BLEU score does the Transformer reach on the WMT 2014 English-to-German translation task?,"28.4 BLEU, improving over the previous best results (including ensembles) by over 2 BLEU.",transformer,transformer::sentence800::2; transformer::sentence800::48; transformer::sentence800::47; transformer::sentence800::1; transformer::sentence800::60,transformer; transformer; transformer; transformer; transformer,1.0,1.0,1.0,1.0,0.801007,1.034007,0.999875,"## BLEU Score on WMT 2014 English‑to‑German
+
+The Transformer achieves a **BLEU score of 28.4** on the WMT 2014 English‑to‑German translation task【1†L1-L3】【3†L4-L6】.",5,5,5,False,False,,2,1,0.0,"The answer correctly states 28.4 BLEU, cites the retrieved passages, and directly addresses the question.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q03,factual,Which optimizer and hyperparameters were used to train the Transformer?,"The Adam optimizer with beta1 = 0.9, beta2 = 0.98 and epsilon = 1e-9, with a warmup learning-rate schedule.",transformer,transformer::sentence800::42; contriever::sentence800::112; transformer::sentence800::43; contriever::sentence800::111; bert::sentence800::102,transformer; contriever; transformer; contriever; bert,1.0,1.0,1.0,1.0,0.708601,0.98739,0.810688,"## Optimizer Used
+**Adam** optimizer was employed for training the Transformer model【1†L1-L2】【3†L1-L2】.
+
+## Key Hyperparameters
+- **β₁ = 0.9**  
+- **β₂ = 0.98**  
+- **ε = 10⁻⁹**  
+
+These values are explicitly listed for the Adam optimizer in the training setup【1†L1-L2】【3†L1-L2】.
+
+## Learning‑Rate Schedule
+The learning rate was varied during training according to the formula  
+
+\[
+\text{lrate} = d^{-0.5} \times \min(\text{step\_num}^{-0.5},\; \text{step\_num} \times \text{warmup\_steps}^{-1.5})
+\]
+
+- **Warm‑up steps:** 4000  
+- The schedule linearly increases the learning rate for the first 4000 steps, then decays proportionally to the inverse square root of the step number【3†L3-L6】.",5,5,5,False,False,,2,2,0.0,"The answer accurately states the optimizer, hyperparameters, and learning‑rate schedule exactly as in the reference and cites the retrieved passages.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q04,factual,Why did the Transformer authors choose sinusoidal positional encodings over learned positional embeddings?,"Both gave nearly identical results, but the sinusoidal version may let the model extrapolate to sequence lengths longer than those seen in training.",transformer,transformer::sentence800::32; transformer::sentence800::33; transformer::sentence800::54; transformer::sentence800::34; transformer::sentence800::47,transformer; transformer; transformer; transformer; transformer,1.0,1.0,0.5,1.0,0.859612,1.131028,0.992177,"## Reason for Choosing Sinusoidal Positional Encodings  
+
+- **Ease of learning relative positions** – The authors hypothesized that the sinusoidal formulation lets the model represent a fixed offset *k* as a linear function of the original position encoding, making it straightforward to attend to relative positions【1†L4-L7】.  
+
+- **Potential to extrapolate to longer sequences** – Unlike learned embeddings, the fixed sinusoidal functions are defined for any position, so the model can handle sequence lengths that exceed those seen during training【2†L2-L4】【4†L1-L2】.  
+
+- **Comparable performance** – Experiments showed that learned positional embeddings produced results almost identical to the sinusoidal version, so the additional benefit of extrapolation justified keeping the sinusoidal encodings【2†L2-L3】【3†L2-L4】.",5,5,5,False,False,,4,2,0.0,"The answer accurately reflects the reference, cites the provided passages, and directly addresses the question.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q05,factual,"How many identical layers does the Transformer encoder stack contain, and what are the two sub-layers of each?",N = 6 identical layers; each has a multi-head self-attention sub-layer and a position-wise fully connected feed-forward sub-layer.,transformer,transformer::sentence800::16; transformer::sentence800::17; transformer::sentence800::28; transformer::sentence800::18; transformer::sentence800::27,transformer; transformer; transformer; transformer; transformer,1.0,1.0,1.0,1.0,0.899529,1.107153,0.999812,"## Encoder Stack Details  
+
+- **Number of identical layers:** 6 identical layers [1].  
+- **Two sub‑layers in each layer:**  
+  1. A **multi‑head self‑attention** mechanism.  
+  2. A **position‑wise fully connected feed‑forward network**. [1]",5,5,5,False,False,,1,1,0.3333333333333333,"The answer correctly states 6 layers and the two sub‑layers, fully supported by the retrieved passage.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q06,factual,What are the two unsupervised pre-training tasks used by BERT?,Masked language modeling (predicting masked tokens) and next sentence prediction (NSP).,bert,bert::sentence800::35; bert::sentence800::26; contriever::sentence800::23; bert::sentence800::34; bert::sentence800::102,bert; bert; contriever; bert; bert,1.0,0.0,0.0,1.0,0.832886,0.918513,0.998864,"## BERT’s Two Unsupervised Pre‑training Tasks  
+
+**1. Masked Language Modeling (MLM)**  
+- BERT randomly masks some tokens in the input and trains the model to predict the original tokens from the surrounding context. This is described as *Task #1: Masked LM* in the pre‑training stage【1†L1-L4】.  
+
+**2. Next Sentence Prediction (NSP)**  
+- BERT also learns to predict whether two input sentences follow each other in the original text. The model uses a learned *segment embedding* that marks each token as belonging to *sentence A* or *sentence B*, a mechanism that supports this sentence‑pair classification task【4†L1-L4】.  
+
+These two tasks—MLM and NSP—are the unsupervised objectives used to pre‑train BERT before fine‑tuning on downstream tasks.",5,5,5,False,False,,2,0,0.14285714285714285,"The answer correctly identifies MLM and NSP, fully supported by the retrieved passages.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q07,factual,What fraction of WordPiece tokens does BERT mask at random for its masked language model objective?,15% of all WordPiece tokens in each sequence.,bert,bert::sentence800::11; bert::sentence800::39; bert::sentence800::38; realm::sentence800::20; bert::sentence800::91,bert; bert; bert; realm; bert,1.0,1.0,0.5,1.0,0.838072,0.870255,0.995366,"## Fraction of Tokens Masked
+
+BERT randomly masks **15 %** of all WordPiece tokens in each input sequence for its masked language model (MLM) objective【1†L1-L3】【2†L1-L3】.",5,5,5,False,False,,2,1,0.0,The answer correctly states 15% and is fully supported by the retrieved passages.,groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q08,factual,"What are the layer count, hidden size, attention heads and total parameters of BERT-base?","L=12 layers, H=768 hidden size, A=12 attention heads, about 110M parameters.",bert,bert::sentence800::30; bert::sentence800::29; realm::sentence800::51; bert::sentence800::84; bert::sentence800::85,bert; bert; realm; bert; bert,1.0,1.0,1.0,1.0,0.862366,1.09064,0.998902,"## BERT‑base Configuration  
+
+- **Layer count (L):** 12  
+- **Hidden size (H):** 768  
+- **Attention heads (A):** 12  
+- **Total parameters:** 110 million  
+
+**Source:** The model specifications list BERTBASE as having “L=12, H=768, A=12, Total Parameters=110M”【1†L1-L3】.",5,5,5,False,False,,1,1,0.0,The answer correctly lists the BERT‑base specifications and cites the retrieved passage.,groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q09,factual,"By how much does Sentence-BERT reduce the time to find the most similar pair among 10,000 sentences compared with BERT?",From about 65 hours with BERT/RoBERTa to about 5 seconds with SBERT.,sentence-bert,sentence-bert::sentence800::1; sentence-bert::sentence800::8; sentence-bert::sentence800::5; sentence-bert::sentence800::2; sentence-bert::sentence800::7,sentence-bert; sentence-bert; sentence-bert; sentence-bert; sentence-bert,1.0,1.0,1.0,1.0,0.864923,0.975321,0.999735,"## Reduction in Search Time
+
+Sentence‑BERT cuts the time needed to locate the most similar sentence pair in a set of 10 000 sentences from **approximately 65 hours with BERT to about 5 seconds with SBERT**【1†L1-L4】【5†L1-L4】. This represents a speed‑up of several orders of magnitude (roughly a factor of 46 000).",5,5,5,False,False,,2,2,0.5,"The answer correctly states the 65‑hour to 5‑second reduction, fully supported by the retrieved passages.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q10,factual,Which pooling strategy is Sentence-BERT's default for deriving a fixed-size sentence embedding?,MEAN pooling (the mean of all output token vectors).,sentence-bert,sentence-bert::sentence800::19; sentence-bert::sentence800::56; sentence-bert::sentence800::20; sentence-bert::sentence800::14; sentence-bert::sentence800::6,sentence-bert; sentence-bert; sentence-bert; sentence-bert; sentence-bert,1.0,1.0,1.0,0.0,0.910054,1.103834,0.997522,"## Default Pooling Strategy
+
+Sentence‑BERT uses **mean pooling** (the **MEAN** strategy) as its default method for converting the variable‑length BERT/RoBERTa outputs into a fixed‑size sentence embedding【1†L3-L5】【3†L1-L2】.",5,5,5,False,False,,2,2,0.0,"The answer correctly states that Sentence‑BERT’s default pooling strategy is mean pooling, fully supported by the retrieved passages, and directly addresses the question.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q11,factual,"In the Sentence-BERT classification objective, what is fed to the softmax classifier?",The concatenation of the two sentence embeddings u and v with their element-wise difference |u-v|.,sentence-bert,sentence-bert::sentence800::17; sentence-bert::sentence800::59; sentence-bert::sentence800::21; sentence-bert::sentence800::60; sentence-bert::sentence800::20,sentence-bert; sentence-bert; sentence-bert; sentence-bert; sentence-bert,1.0,1.0,0.3333333333333333,1.0,0.836495,1.097227,0.988308,"## What is fed to the softmax classifier in the SBERT classification objective?
+
+The classifier receives **the concatenated vector** consisting of:
+
+* the embedding of sentence A (**u**)  
+* the embedding of sentence B (**v**)  
+* the element‑wise absolute difference between them (**|u − v|**)  
+
+These three n‑dimensional components are stacked into a single 3n‑dimensional vector, which is then multiplied by a trainable weight matrix **Wₜ** and passed through the softmax function:
+
+\[
+o = \text{softmax}\bigl(W_t\,[u,\;v,\;|u-v|]\bigr)
+\]
+
+(see [3]).
+
+Thus, the softmax classifier operates on the concatenation **(u, v, |u − v|)**.",5,5,5,False,False,,1,1,0.0,"The answer correctly states that the softmax classifier receives the concatenation of u, v, and |u−v|, matching the reference and supported by the retrieved context.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q12,factual,Which negative-passage scheme gave Dense Passage Retrieval (DPR) its best model?,Using gold passages from the same mini-batch (in-batch negatives) plus one BM25 negative passage per question.,dpr,dpr::sentence800::42; contriever::sentence800::18; beir::sentence800::53; dpr::sentence800::50; dpr::sentence800::43,dpr; contriever; beir; dpr; dpr,1.0,0.0,0.0,0.0,0.850885,1.043519,0.996844,"## Negative‑passage scheme that yielded DPR’s best model  
+
+The strongest Dense Passage Retrieval (DPR) model was trained **with a combination of in‑batch negatives and a single BM25 hard negative for each question**.  
+
+- The DPR bi‑encoder uses “a single BM25 hard negative and in‑batch negatives” and this configuration (the open‑sourced **Multi‑DPR** model) outperformed the single‑dataset version [3].  
+- The same training setup is described elsewhere as “the in‑batch negative setting … with one additional BM25 negative passage per question” [1][5].
+
+Thus, the mixed scheme of **in‑batch negatives plus one BM25 hard negative** gave DPR its best performance.",5,5,5,False,False,,3,0,0.0,"The answer correctly states that DPR’s best model used in‑batch negatives plus one BM25 hard negative, fully supported by the retrieved passages.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q13,factual,How many Wikipedia passages make up DPR's retrieval corpus in its experiments?,About 21 million passages.,dpr,dpr::sentence800::19; dpr::sentence800::39; dpr::sentence800::18; dpr::sentence800::42; dpr::sentence800::38,dpr; dpr; dpr; dpr; dpr,1.0,1.0,1.0,1.0,0.763492,0.837745,0.994337,"**Number of passages**
+
+The Dense Passage Retriever (DPR) builds its retrieval corpus from **approximately 21 million Wikipedia passages** in the experiments reported in the paper【1†L1-L3】【3†L1-L3】.",5,5,5,False,False,,2,2,0.0,"The answer correctly states 21 million passages, directly supported by the retrieved passages, and fully addresses the question.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q14,factual,By how much does DPR outperform a Lucene-BM25 system in top-20 passage retrieval accuracy?,By 9%-19% absolute.,dpr,dpr::sentence800::58; dpr::sentence800::2; dpr::sentence800::13; dpr::sentence800::1; dpr::sentence800::12,dpr; dpr; dpr; dpr; dpr,1.0,1.0,0.5,1.0,0.870288,0.958162,0.999206,"## DPR vs. Lucene‑BM25 on Top‑20 Retrieval  
+
+DPR beats a strong Lucene‑BM25 baseline by **about 9 % to 19 % absolute** in top‑20 passage retrieval accuracy【2†L1-L3】【4†L1-L3】.",5,5,5,False,False,,2,2,0.5,"The answer correctly states the 9%-19% absolute improvement, cites the relevant passages, and directly addresses the question.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q15,factual,What is the difference between the RAG-Sequence and RAG-Token formulations?,RAG-Sequence conditions on the same retrieved passages across the whole generated sequence; RAG-Token can use different passages per token.,rag,rag::sentence800::30; rag::sentence800::4; rag::sentence800::23; rag::sentence800::49; rag::sentence800::21,rag; rag; rag; rag; rag,1.0,1.0,0.5,1.0,0.825254,0.984753,0.987738,"## Core Difference  
+
+- **RAG‑Sequence**  
+  - Uses **one retrieved document for the entire generated sequence**.  
+  - The document is treated as a single latent variable that is marginalised over the top‑K retrieved passages:  
+
+    \[
+    p_{\text{RAG‑Sequence}}(y|x) \approx \sum_{z\in\text{top‑}k} p_\eta(z|x)\,p_\theta(y|x,z)
+    \]  
+
+  - During decoding a separate beam search must be run for each candidate document, and the resulting hypotheses are later compared [1][3].
+
+- **RAG‑Token**  
+  - Allows **a different retrieved passage to be used for each target token**.  
+  - For every token a latent document is drawn and marginalised, giving the transition probability  
+
+    \[
+    p'_\theta(y_i|x,y_{1:i-1}) = \sum_{z\in\text{top‑}k} p_\eta(z|x)\,p_\theta(y_i|x,z,y_{1:i-1})
+    \]  
+
+  - This formulation can be plugged into a standard beam decoder, effectively treating the model as a regular autoregressive seq2seq generator [1][3][5].
+
+## Practical Implications  
+
+- **RAG‑Sequence** can only draw content from a single passage per answer, which may limit diversity but simplifies the marginalisation.  
+- **RAG‑Token** can combine information from multiple passages token‑by‑token, enabling more diverse and factually rich generations, as observed in downstream tasks [4].",5,5,5,False,False,,4,1,0.0,"The answer accurately states the key difference, cites the provided passages, and directly addresses the question.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q16,factual,"Which Wikipedia dump does RAG use as its knowledge source, and how is it split into documents?","The December 2018 Wikipedia dump, split into disjoint 100-word chunks.",rag,rag::sentence800::32; rag-survey::sentence800::59; rag::sentence800::33; dpr::sentence800::32; rag::sentence800::86,rag; rag-survey; rag; dpr; rag,1.0,1.0,1.0,1.0,0.68886,0.973774,0.991454,"## Knowledge Source and Document Splitting
+
+- **Wikipedia dump:** RAG uses the **December 2018 Wikipedia dump** as its external knowledge source【1†L1-L3】.  
+- **Splitting method:** Each Wikipedia article is divided into **disjoint 100‑word chunks** (passages). This chunking yields roughly **21 million documents** for retrieval【1†L3-L4】.",5,5,5,False,False,,1,1,0.3333333333333333,"The answer correctly states the December 2018 dump and 100‑word disjoint chunks, matching the reference and supported by the retrieved context.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q17,factual,What learning signal does REALM use to pre-train its knowledge retriever without supervision?,"Masked language modeling, backpropagating through a retrieval step over millions of documents.",realm,contriever::sentence800::10; realm::sentence800::8; realm::sentence800::2; realm::sentence800::5; realm::sentence800::33,contriever; realm; realm; realm; realm,1.0,1.0,0.5,1.0,0.74894,0.771489,0.994586,"## Learning Signal for Unsupervised Pre‑training  
+
+REALM trains its latent knowledge retriever **without supervision by using the masked language‑modeling objective**.  
+- The retriever is rewarded when the retrieved documents help the language model lower its **perplexity** on the unsupervised text, and penalized when they do not [2].  
+- Concretely, the **masked language modeling (MLM) loss** provides the learning signal that is back‑propagated through the retrieval step, allowing the retriever to be optimized in an unsupervised manner [3].  
+
+Thus, the improvement in language‑model perplexity (driven by the MLM loss) serves as the unsupervised learning signal for REALM’s knowledge retriever.  
+
+**Sources**: [2] , [3]",5,5,5,False,False,,2,2,0.2,"The answer correctly states that REALM uses masked language modeling as the unsupervised learning signal and backpropagates through the retrieval step, fully matching the reference and supported by the retrieved passages.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q18,factual,How does REALM keep its document index from going stale during pre-training?,It refreshes the index by asynchronously re-embedding and re-indexing all documents every several hundred training steps.,realm,realm::sentence800::76; realm::sentence800::41; realm::sentence800::75; rag::sentence800::29; realm::sentence800::42,realm; realm; realm; rag; realm,1.0,0.0,0.0,1.0,0.788599,0.938225,0.995883,"## Keeping the Document Index Fresh
+
+REALM prevents the document index from becoming stale during pre‑training by **periodically rebuilding it in the background**:
+
+- **Asynchronous MIPS refreshes** – While the primary trainer continues to perform gradient updates, a secondary job re‑embeds all corpus documents with the latest model parameters (θ) and constructs a new Maximum Inner Product Search (MIPS) index. When the new index is ready it is swapped in for the trainer to use again【2†L1-L5】【5†L1-L5】.  
+- **Refresh frequency** – This rebuilding process is run in parallel and is triggered roughly every **500 training steps**, ensuring that the index is refreshed often enough to keep retrieval accurate【3†L1-L4】.  
+
+By continuously updating the index with fresh embeddings and swapping it in asynchronously, REALM maintains a low‑staleness index throughout pre‑training.",5,5,5,False,False,,3,0,0.0,"The answer accurately states that REALM asynchronously refreshes the index by re‑embedding all documents every ~500 steps, matching the reference and supported by the retrieved passages.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q19,factual,How does ColBERT compute the relevance score between a query and a document?,Late interaction: each query embedding is matched to the document embeddings by a MaxSim operator (maximum cosine similarity) and the scores are summed across query terms.,colbert,contriever::sentence800::29; colbert::sentence800::1; colbert::sentence800::19; colbert::sentence800::58; colbert::sentence800::18,contriever; colbert; colbert; colbert; colbert,1.0,0.0,0.0,1.0,0.799594,1.037292,0.998889,"## How ColBERT Computes a Relevance Score  
+
+- **Separate encoding** – ColBERT first runs the query *q* and the document *d* through BERT **independently**, producing two sets of contextual token embeddings (one set for the query, one for the document) [2][3].  
+
+- **Late interaction** – Instead of collapsing each set to a single vector, ColBERT performs a **cheap, parameter‑free interaction** between the two token‑level embeddings. This interaction measures fine‑grained similarity (e.g., taking the maximum similarity for each query token against all document tokens and summing the results) [2][3][4].  
+
+- **Scoring** – The result of this interaction is a scalar relevance score *s(q, d)* that is computed **per document** and used directly in the loss (pairwise softmax cross‑entropy) during training [4].  
+
+Thus, ColBERT’s relevance score is obtained by **independently encoding query and document with BERT, then applying a parameter‑free, token‑level similarity aggregation (late interaction) to produce a single score**.  
+
+**Sources**: [2] [3] [4]",5,4,5,False,False,,3,0,0.16666666666666666,"The answer correctly describes ColBERT’s late‑interaction scoring with MaxSim aggregation, matching the reference, though it slightly extrapolates the MaxSim detail beyond the explicit citations.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q20,factual,What efficiency gains does ColBERT report relative to existing BERT-based ranking models?,Two orders of magnitude faster and four orders of magnitude fewer FLOPs per query.,colbert,colbert::sentence800::29; colbert::sentence800::28; colbert::sentence800::27; colbert::sentence800::4; colbert::sentence800::1,colbert; colbert; colbert; colbert; colbert,1.0,1.0,0.25,1.0,0.877678,0.958618,0.99432,"## Efficiency Gains Reported
+
+- **Speedup** – ColBERT achieves **over 170 × faster** query processing compared with existing BERT‑based ranking models【1†L1-L3】.  
+- **FLOP reduction** – It requires **about 14,000 × fewer FLOPs** per query than those models【1†L1-L3】.  
+
+The paper also summarizes these gains more generally as **two orders of magnitude faster** execution and **four orders of magnitude fewer FLOPs** per query【4†L1-L3】.",5,5,5,False,False,,2,1,0.0,The answer correctly states the reported efficiency gains and cites the retrieved passages that support each claim.,groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q21,factual,What does the BEIR benchmark find about BM25 and about which models perform best zero-shot on average?,"BM25 is a robust baseline; re-ranking and late-interaction models achieve the best zero-shot performance on average, at high computational cost.",beir,beir::sentence800::4; beir::sentence800::18; beir::sentence800::63; contriever::sentence800::56; beir::sentence800::83,beir; beir; beir; contriever; beir,1.0,1.0,1.0,1.0,0.777275,0.837182,0.998755,"## BM25 as a Baseline  
+- The BEIR benchmark shows that **BM25 remains a strong, robust baseline** for zero‑shot text retrieval. It often outperforms many dense or sparse embedding approaches, which can underperform despite being more computationally efficient【2†L1-L4】.  
+
+## Models that Perform Best Zero‑Shot (on average)  
+- **Re‑ranking models** and **late‑interaction models** achieve the highest zero‑shot performance across the BEIR datasets. These approaches consistently beat other methods, though they incur a higher computational cost【1†L1-L3】.  
+
+In summary, while BM25 is a reliable and efficient baseline, the top‑performing zero‑shot systems in the BEIR evaluation are the more expensive re‑ranking and late‑interaction architectures.",5,5,5,False,False,,2,1,0.0,"The answer accurately reflects the reference, cites the retrieved passages, and directly addresses the question.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q22,factual,"On the BEIR benchmark, on how many datasets does the unsupervised Contriever model beat BM25 in Recall@100?",On 11 out of 15 datasets.,contriever,contriever::sentence800::56; contriever::sentence800::2; contriever::sentence800::1; contriever::sentence800::55; contriever::sentence800::65,contriever; contriever; contriever; contriever; contriever,1.0,1.0,1.0,1.0,0.894699,1.095838,0.999698,"## Answer
+
+The unsupervised **Contriever** model beats **BM25** on **11 out of 15 datasets** in the BEIR benchmark for the Recall@100 metric【1†L1-L4】【2†L1-L3】.",5,5,5,False,False,,2,2,0.0,"The answer correctly states 11 out of 15 datasets, directly matches the reference, is fully supported by the cited passages, and addresses the question.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q23,factual,What does HyDE do to a query before retrieval?,"It zero-shot instructs an instruction-following language model (e.g. InstructGPT) to generate a hypothetical document, which is then embedded and used for retrieval.",hyde,hyde::sentence800::11; hyde::sentence800::13; hyde::sentence800::32; hyde::sentence800::51; rag-survey::sentence800::82,hyde; hyde; hyde; hyde; rag-survey,1.0,1.0,1.0,0.0,0.760713,0.91186,0.991538,"## What HyDE Does to a Query Before Retrieval  
+
+HyDE first **passes the query to an instruction‑following generative language model** and asks the model to *“write a document that answers the question.”*  
+The output is a **hypothetical (synthetic) document** that represents a possible answer to the query. This generated text is then embedded and used to find the most similar real documents in the corpus during the retrieval step【1†L1-L4】.  
+
+In other words, HyDE transforms the original query into a generated answer‑like document before any similarity search is performed【2†L1-L4】.",5,5,5,False,False,,2,1,0.0,"The answer accurately states that HyDE generates a hypothetical document from the query and then embeds it for retrieval, matching the reference and supported by the retrieved passages.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q24,factual,"How does language model performance vary with the position of the relevant information in a long input context, according to 'Lost in the Middle'?",Performance is highest when the relevant information is at the very beginning or end of the context and degrades significantly in the middle (a U-shaped curve).,lost-in-the-middle,lost-in-the-middle::sentence800::19; lost-in-the-middle::sentence800::114; lost-in-the-middle::sentence800::3; lost-in-the-middle::sentence800::28; lost-in-the-middle::sentence800::2,lost-in-the-middle; lost-in-the-middle; lost-in-the-middle; lost-in-the-middle; lost-in-the-middle,1.0,1.0,1.0,1.0,0.890336,0.986022,0.999447,"## Performance Variation by Position
+
+- **U‑shaped curve** – Language model accuracy is highest when the needed information appears at the **very beginning** of the context (a primacy bias) or at the **very end** (a recency bias).  
+- **Middle degradation** – Accuracy drops markedly when the relevant information is placed in the **middle** of a long input, producing the lowest performance in that region.  
+
+These findings are reported consistently across the study, showing that current models do not robustly retrieve or use information from the middle of long contexts, leading to a characteristic U‑shaped performance pattern【1†L1-L4】【4†L1-L4】.",5,5,5,False,False,,2,1,0.0,"The answer accurately reflects the U-shaped performance curve described in the reference and cited passages, fully addressing the question.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q25,factual,Which three quality aspects does RAGAS evaluate?,"Faithfulness, answer relevance and context relevance.",ragas,rag-survey::sentence800::126; ragas::sentence800::46; ragas::sentence800::45; ragas::sentence800::23; rag-survey::sentence800::124,rag-survey; ragas; ragas; ragas; rag-survey,1.0,1.0,0.25,0.0,0.797384,0.979293,0.999809,"## Quality Aspects Evaluated by **RAGAS**
+
+RAGAS (implemented as **Ragas**) evaluates the following three quality aspects:
+
+1. **Context relevance** – measures how precise and specific the retrieved context is for the query.  
+2. **Answer faithfulness** – checks whether the generated answer is grounded in the retrieved context.  
+3. **Answer relevance** – assesses whether the answer addresses the original question.
+
+These aspects are highlighted as the core quality scores for RAG evaluation in the provided documents【1†L1-L4】【2†L1-L3】.",5,5,5,False,False,,2,0,0.2857142857142857,"The answer correctly lists the three quality aspects (faithfulness, answer relevance, context relevance) and cites the retrieved passages that support each claim.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q26,factual,Which reflection tokens does Self-RAG use to decide on retrieval and to critique passages and generations?,"Retrieve, ISREL (relevance), ISSUP (support) and ISUSE (usefulness).",self-rag,self-rag::sentence800::9; self-rag::sentence800::8; self-rag::sentence800::27; self-rag::sentence800::3; self-rag::sentence800::96,self-rag; self-rag; self-rag; self-rag; self-rag,1.0,0.0,0.0,1.0,0.910228,0.98429,0.999809,"## Reflection Tokens in SELF‑RAG  
+
+- **Retrieval tokens** – special tokens that the model emits when it decides that augmenting the current generation with external passages would be helpful. These tokens trigger an on‑demand call to a retriever.  
+
+- **Critique tokens** – special tokens that the model emits after it has processed the retrieved passages (or its own output) to evaluate factuality and overall quality, and to select the best continuation.  
+
+These two categories of reflection tokens enable SELF‑RAG to both **determine when to retrieve** information and **self‑evaluate / critique** the passages and its own generations [1][2][3][4][5].",1,2,3,False,False,,5,0,0.0,"The answer incorrectly identifies only two categories of tokens and omits the specific token names (Retrieve, ISREL, ISSUP, ISUSE) required by the reference.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q27,factual,Which three RAG paradigms does the 'Retrieval-Augmented Generation for Large Language Models' survey describe?,"Naive RAG, Advanced RAG and Modular RAG.",rag-survey,rag-survey::sentence800::0; rag-survey::sentence800::1; self-rag::sentence800::1; rag::sentence800::3; self-rag::sentence800::0,rag-survey; rag-survey; self-rag; rag; self-rag,1.0,0.0,0.0,1.0,0.934828,1.059742,0.997535,I could not find the description of the three RAG paradigms in the provided documents.,1,1,2,True,True,,0,0,1.0,"The answer incorrectly claims the information is absent, whereas the reference states the three paradigms are Naive RAG, Advanced RAG, and Modular RAG.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q28,multi_hop,"Which earlier retriever is used to initialize the retriever in RAG, and what negative-sampling scheme did that retriever's best model use?",RAG initializes its retriever with the pre-trained DPR bi-encoder; DPR's best model used in-batch gold passages as negatives plus one BM25 negative passage per question.,rag; dpr,rag::sentence800::45; rag::sentence800::44; rag::sentence800::61; rag::sentence800::13; contriever::sentence800::23,rag; rag; rag; rag; contriever,0.5,0.0,0.0,0.0,0.819036,0.983862,0.992543,"## Retriever Initialization
+- RAG’s retriever is **initialized with the Dense Passage Retriever (DPR)**, a bi‑encoder model that was originally trained with retrieval supervision on the Natural Questions and TriviaQA datasets【1†L1-L3】【4†L1-L3】.
+
+## Negative‑Sampling Scheme
+- The provided documents do **not contain information** about the negative‑sampling scheme used by DPR’s best model. I could not find that detail in the given context.",3,5,3,False,True,,2,0,0.3333333333333333,"The answer correctly identifies DPR as the retriever but incorrectly states that the negative‑sampling scheme is unknown, omitting the documented in‑batch gold plus BM25 negatives.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q29,multi_hop,How does ColBERT's representation of a passage differ from DPR's?,DPR encodes a passage into a single d-dimensional dense vector scored by inner product; ColBERT encodes it into a bag of contextualized token embeddings scored with late interaction (MaxSim).,dpr; colbert,dpr::sentence800::90; dpr::sentence800::76; dpr::sentence800::20; dpr::sentence800::77; dpr::sentence800::39,dpr; dpr; dpr; dpr; dpr,0.5,0.0,0.0,0.5,0.682312,1.124338,0.954512,"I could not find information about **ColBERT**’s passage representation in the provided documents. The excerpts discuss DPR’s encoding and retrieval behavior, but they do not describe how ColBERT represents passages.",1,5,2,True,True,,0,0,0.5,"The answer claims no information on ColBERT, which is correct given the retrieved passages, but it does not provide the difference requested.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q30,multi_hop,"Why is plain BERT unsuitable for finding similar sentence pairs in a large collection, and how does SBERT fix that?","BERT needs both sentences fed into the network together (a cross-encoder), so 10,000 sentences require about 50 million inference computations (~65 hours); SBERT uses siamese networks to produce independent sentence embeddings compared with cosine similarity (~5 seconds).",bert; sentence-bert,sentence-bert::sentence800::1; sentence-bert::sentence800::7; sentence-bert::sentence800::4; sentence-bert::sentence800::65; sentence-bert::sentence800::2,sentence-bert; sentence-bert; sentence-bert; sentence-bert; sentence-bert,0.5,0.5,1.0,0.5,0.846945,1.012152,0.997956,"## Why plain BERT struggles with large‑scale similarity search  
+
+- **Cross‑encoder design** – BERT processes a *pair* of sentences together. To compare every possible pair in a collection of *n* sentences it must run \(n·(n‑1)/2\) inference passes. For 10 000 sentences this means about **50 million** forward passes, which on a modern V100 GPU takes **≈ 65 hours**【3】.  
+- **Embedding incompatibility** – The raw BERT output does not produce sentence vectors that work well with standard similarity measures such as cosine similarity; its performance on STS tasks is even worse than simple average GloVe embeddings【4】.  
+
+## How SBERT resolves the problem  
+
+- **Siamese / triplet architecture** – SBERT fine‑tunes BERT in a siamese (or triplet) network so that each sentence is mapped once to a **fixed‑size embedding**. These embeddings are semantically meaningful and can be compared directly with cosine, Manhattan or Euclidean distance【2】.  
+- **Massive speed‑up** – Embeddings for all 10 000 sentences are computed in roughly **5 seconds**, after which pairwise cosine similarity for the entire set takes only about **0.01 seconds**【2】. This reduces the total search time from 65 hours with plain BERT to a few seconds while preserving BERT‑level accuracy【1】【5】.  
+
+Thus, plain BERT is unsuitable because its pairwise inference cost is prohibitive and its embeddings are not directly comparable, whereas SBERT’s siamese design yields fast, comparable sentence vectors that enable efficient large‑scale similarity search.",5,5,5,False,False,,5,4,0.0,"The answer accurately reflects the reference, cites the provided passages, and directly addresses the question.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q31,multi_hop,"What kind of encoder does HyDE use to embed its generated document, and how is that encoder trained in its own paper?",HyDE uses an unsupervised contrastively learned encoder such as Contriever; Contriever is trained with contrastive learning (using MoCo) without labeled data.,hyde; contriever,hyde::sentence800::1; hyde::sentence800::26; hyde::sentence800::11; hyde::sentence800::13; hyde::sentence800::46,hyde; hyde; hyde; hyde; hyde,0.5,0.5,1.0,0.5,0.784304,0.933805,0.995156,"## Encoder Type
+HyDE embeds the hypothetical document with an **unsupervised contrastive encoder** (e.g., Contriever or m‑Contriever) [1][2].
+
+## Training Method
+The encoder is trained **via unsupervised contrastive learning** on document‑document similarity across the whole corpus. It learns a dense embedding space where inner‑product similarity reflects document relevance, and this encoder is used unchanged during HyDE retrieval [2][4].",5,5,5,False,False,,3,1,0.0,"The answer correctly identifies the unsupervised contrastive encoder (Contriever) and its unsupervised contrastive training, matching the reference and supported by the retrieved passages.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q32,multi_hop,How does the timing of retrieval in Self-RAG differ from the original RAG model?,"The original RAG always retrieves the top-K documents for every input via MIPS, whereas Self-RAG retrieves adaptively, on demand, as decided by a Retrieve reflection token.",self-rag; rag,self-rag::sentence800::34; self-rag::sentence800::14; rag-survey::sentence800::120; rag-survey::sentence800::116; self-rag::sentence800::86,self-rag; self-rag; rag-survey; rag-survey; self-rag,0.5,0.0,0.0,0.0,0.847315,0.894812,0.965422,"## Timing of Retrieval
+
+**Original RAG**  
+- Retrieves a **fixed set of documents before generation** begins, regardless of whether the upcoming text actually needs external knowledge. This “retrieve‑first” approach treats retrieval as a static preprocessing step [2].
+
+**Self‑RAG**  
+- Embeds a **retrieval decision token into the generation loop**. For each input token \(x\) and the already‑generated context \(y_{<t}\), the model first predicts whether retrieval is needed. If it decides retrieval is useful, it then fetches passages and continues generation; otherwise it proceeds like a standard language model [1].  
+- This **adaptive, on‑the‑fly retrieval** allows Self‑RAG to skip retrieval entirely for segments that do not require factual knowledge and to retrieve only when the model judges it beneficial [2].
+
+Thus, Self‑RAG shifts retrieval from a one‑time, upfront operation (as in the original RAG) to a **dynamic, token‑level decision made during inference**.",5,5,5,False,False,,2,0,0.14285714285714285,"The answer accurately reflects the difference in retrieval timing between RAG and Self‑RAG, cites the provided passages, and directly addresses the question.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q33,multi_hop,"What does BEIR conclude about dense retrieval models in the zero-shot setting, and which dense retriever was trained mainly on NQ-style open-domain QA data?",BEIR finds dense and sparse retrieval models are computationally efficient but often underperform other approaches (including the robust BM25 baseline) in generalization; DPR is the dense retriever trained on open-domain QA data such as Natural Questions.,beir; dpr,rag-survey::sentence800::89; hyde::sentence800::5; hyde::sentence800::19; contriever::sentence800::48; contriever::sentence800::8,rag-survey; hyde; hyde; contriever; contriever,0.0,0.0,0.0,0.0,0.840445,0.826254,0.988026,"## BEIR’s Findings on Zero‑Shot Dense Retrieval  
+The BEIR benchmark shows that, in a zero‑shot setting, **dense retrieval models are frequently outperformed by classical term‑frequency methods**, which do not require any supervision [5].
+
+## Dense Retriever Trained on NQ‑Style Open‑Domain QA Data  
+The provided documents do not specify which dense retriever was trained primarily on Natural‑Questions‑style open‑domain QA data. I could not find that information in the given context.",1,4,4,False,True,,1,0,0.3333333333333333,"The answer incorrectly states that the retriever trained on NQ data is unknown, whereas the reference specifies DPR; it partially reflects the BEIR finding but omits key details.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q34,multi_hop,How do REALM and RAG differ in how they update the document encoder and index during training?,REALM pre-trains the retriever and periodically refreshes (re-embeds and re-indexes) the document index asynchronously; RAG does not update the document encoder (to avoid periodic re-indexing) and only fine-tunes the query encoder and generator.,realm; rag,rag::sentence800::29; rag::sentence800::67; realm::sentence800::73; realm::sentence800::42; realm::sentence800::43,rag; rag; realm; realm; realm,1.0,0.5,1.0,1.0,0.74374,0.971407,0.996917,"## REALM  
+
+- During **pre‑training** REALM **updates the document encoder** (the embedding function for documents, `Embeddoc`).  
+- Because the document encoder changes, the **index must be refreshed** periodically. This is done asynchronously: the trainer sends a snapshot of the current parameters to an index‑builder, which constructs a new MIPS index in the background and returns it once ready【4】.  
+- For **fine‑tuning**, REALM **does not update the document encoder or the index**; the index is built once from the pre‑trained encoder and kept fixed, while only the query‑side encoder (`Embedinput`) continues to be fine‑tuned【5】.  
+
+## RAG  
+
+- In RAG **the document encoder is kept fixed** throughout training; only the query encoder (`BERTq`) and the generator (BART) are fine‑tuned【1】.  
+- Consequently, the **document index is also left unchanged** during training, avoiding the costly periodic updates required by REALM【1】.  
+
+**Summary:** REALM modifies its document encoder during pre‑training and must periodically rebuild the index, whereas RAG leaves both the document encoder and its index static, updating only the query encoder and generator.",5,5,5,False,False,,3,1,0.0,"The answer accurately reflects the reference, is fully supported by the retrieved passages, and directly addresses the question.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q35,multi_hop,"Which part of the original Transformer architecture does BERT use, and how many layers does BERT-base have compared with the base Transformer's encoder?",BERT uses the Transformer encoder (a multi-layer bidirectional Transformer encoder); BERT-base has 12 layers versus 6 in the original Transformer encoder.,bert; transformer,bert::sentence800::29; bert::sentence800::28; bert::sentence800::27; bert::sentence800::30; colbert::sentence800::111,bert; bert; bert; bert; colbert,0.5,0.5,0.5,0.5,0.813415,0.825708,0.97145,"## Part of the Transformer Architecture Used by BERT
+BERT adopts **the encoder** component of the original Transformer architecture (Vaswani et al., 2017) and builds a multi‑layer bidirectional Transformer encoder on top of it【1†L1-L3】【2†L1-L2】.
+
+## Number of Layers in BERT‑BASE
+For the BERT‑BASE configuration, the model is defined with **12 Transformer layers (blocks)**【1†L4-L5】.
+
+### Comparison with the Original (base) Transformer Encoder
+The provided documents do not specify how many layers the original “base” Transformer encoder contains, so a direct numerical comparison cannot be given from the available context.",2,2,3,False,True,,2,1,0.0,"The answer correctly states BERT uses the encoder and has 12 layers, but incorrectly claims the original Transformer encoder's layer count is unspecified, missing the 6-layer comparison from the reference.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q36,multi_hop,"What three quality scores does the RAG survey list for evaluating RAG, and how does RAGAS define answer relevance?","The survey lists context relevance, answer faithfulness and answer relevance; RAGAS defines answer relevance as the generated answer addressing the actual question that was provided.",rag-survey; ragas,rag-survey::sentence800::126; ragas::sentence800::46; rag-survey::sentence800::127; rag-survey::sentence800::123; ragas::sentence800::45,rag-survey; ragas; rag-survey; rag-survey; ragas,1.0,0.5,1.0,0.5,0.861275,1.053197,0.999035,"## Quality Scores Listed in the RAG Survey
+The survey identifies three primary quality scores for evaluating Retrieval‑Augmented Generation (RAG) systems:
+
+- **Context relevance** – measures how precise and specific the retrieved context is.  
+- **Answer faithfulness** – checks that the generated answer stays true to the retrieved context.  
+- **Answer relevance** – assesses whether the answer directly addresses the question posed.  
+
+These scores are highlighted as the main dimensions for judging both retrieval and generation performance【1】.
+
+## RAGAS Definition of Answer Relevance
+RAGAS (the evaluation framework discussed) defines **answer relevance** as the requirement that *the generated answers are directly pertinent to the posed questions, effectively addressing the core inquiry*【3】.",5,5,5,False,False,,2,2,0.0,"The answer correctly lists the three quality scores and accurately states RAGAS’s definition of answer relevance, fully supported by the retrieved passages.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q37,multi_hop,"What problem does 'Lost in the Middle' identify with relevant information in long inputs, and how does the RAG survey relate it to context curation?","Models use information at the start and end of long contexts better than the middle; the RAG survey notes overly long contexts lead to the 'lost in the middle' problem, so retrieved context should be curated.",lost-in-the-middle; rag-survey,rag-survey::sentence800::97; rag-survey::sentence800::140; lost-in-the-middle::sentence800::0; rag-survey::sentence800::139; lost-in-the-middle::sentence800::76,rag-survey; rag-survey; lost-in-the-middle; rag-survey; lost-in-the-middle,1.0,0.5,1.0,0.5,0.865068,1.103722,0.997992,"## Problem Identified by **“Lost in the Middle”**
+
+- Language models tend to attend primarily to the **beginning and end** of a long input and **forget or under‑weight information that lies in the middle**.  
+- Empirical results show a **performance drop** when the relevant passage is placed in the middle of sequences longer than 2048 tokens (e.g., Flan‑UL2 and Flan‑T5‑XXL)【5】.  
+- This phenomenon is called the **“Lost in the Middle” problem**【1】.
+
+## Relation to RAG **Context Curation**
+
+- In Retrieval‑Augmented Generation (RAG), long retrieved contexts can suffer from the same issue: the model may ignore middle chunks, reducing answer quality.  
+- To counteract this, RAG systems employ **context curation techniques** such as **reranking**, which reorder document chunks so that the most pertinent information appears early in the input, effectively filtering and highlighting key content【1】.  
+- By curating the context, RAG aims to mitigate the “Lost in the Middle” effect and ensure that essential information is not lost during generation.  
+
+Thus, the “Lost in the Middle” problem highlights a weakness of long‑context processing, and the RAG survey connects it to the need for careful **context curation**—especially reranking—to keep vital information accessible to the model.",5,5,5,False,False,,2,1,0.0,"The answer accurately reflects the reference, cites the provided passages, and directly addresses the question.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q38,multi_hop,"Which benchmark is Contriever evaluated on zero-shot, and how many datasets does that benchmark contain in total?","Contriever is evaluated on BEIR, which contains 18 datasets (Contriever reports on 15 of them).",contriever; beir,beir::sentence800::37; beir::sentence800::21; contriever::sentence800::48; beir::sentence800::28; beir::sentence800::32,beir; beir; contriever; beir; beir,1.0,0.0,0.0,0.0,0.750344,0.876999,0.986904,"I could not find information about **Contriever** being evaluated zero‑shot on a specific benchmark, nor the total number of datasets that such a benchmark contains, in the provided documents.",1,1,1,True,True,,0,0,0.0,"The answer incorrectly states that the information is not found, whereas the retrieved context clearly indicates BEIR with 18 datasets.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q39,unanswerable,What is the dollar cost of pre-training BERT-large on cloud TPUs?,Not answerable from the corpus; the system should say the documents do not contain this information.,,bert::sentence800::52; bert::sentence800::96; realm::sentence800::66; bert::sentence800::49; bert::sentence800::102,bert; bert; realm; bert; bert,,,,,0.744126,0.777541,0.698714,I could not find the dollar cost of pre‑training BERT‑large on cloud TPUs in the provided documents.,5,5,5,True,True,1.0,,,,"The answer correctly states that the information is not present in the provided documents, matching the reference.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q40,unanswerable,Which HNSW efConstruction setting does the RAGAS paper recommend for its vector index?,Not answerable from the corpus; the system should say the documents do not contain this information.,,ragas::sentence800::12; rag::sentence800::67; rag::sentence800::106; ragas::sentence800::11; ragas::sentence800::0,ragas; rag; rag; ragas; ragas,,,,,0.724336,1.052692,0.025389,I could not find the recommended **HNSW efConstruction** setting for the vector index in the provided documents.,5,5,5,True,True,1.0,,,,"The answer correctly states that the information is not present in the documents, matching the reference.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q41,unanswerable,What BLEU score does the Transformer achieve on the WMT 2019 English-to-German task?,Not answerable from the corpus; the system should say the documents do not contain this information.,,transformer::sentence800::2; transformer::sentence800::48; transformer::sentence800::47; transformer::sentence800::1; transformer::sentence800::45,transformer; transformer; transformer; transformer; transformer,,,,,0.743074,0.996063,0.999566,"I could not find the BLEU score for the Transformer on the **WMT 2019 English‑to‑German** task in the provided documents. The context only reports results for the WMT 2014 English‑to‑German task (e.g., a BLEU score of 28.4)【1†L1-L4】【3†L1-L4】.",5,5,5,True,True,1.0,,,,The answer correctly states that the documents do not contain the requested 2019 BLEU score and is fully supported by the provided passages.,groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q42,unanswerable,How does Self-RAG perform on the Chinese CMRC reading-comprehension benchmark?,Not answerable from the corpus; the system should say the documents do not contain this information.,,self-rag::sentence800::96; self-rag::sentence800::14; rag-survey::sentence800::120; self-rag::sentence800::76; self-rag::sentence800::24,self-rag; self-rag; rag-survey; self-rag; self-rag,,,,,0.821268,0.849355,0.684887,I could not find information about **Self‑RAG**’s performance on the Chinese CMRC reading‑comprehension benchmark in the provided documents.,5,5,5,True,True,1.0,,,,"The answer correctly states that the documents do not contain the requested information, matching the reference.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q43,unanswerable,How many kWh of energy did fine-tuning Sentence-BERT consume?,Not answerable from the corpus; the system should say the documents do not contain this information.,,bert::sentence800::45; bert::sentence800::105; bert::sentence800::104; bert::sentence800::103; realm::sentence800::61,bert; bert; bert; bert; realm,,,,,0.787857,0.990768,0.226017,I could not find information about the kWh of energy consumed during fine‑tuning of Sentence‑BERT in the provided documents.,5,5,5,True,True,1.0,,,,"The answer correctly states that the documents do not contain the requested information, matching the reference.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q44,unanswerable,What is the maximum context window of GPT-5 reported in these papers?,Not answerable from the corpus; the system should say the documents do not contain this information.,,lost-in-the-middle::sentence800::51; lost-in-the-middle::sentence800::50; lost-in-the-middle::sentence800::48; lost-in-the-middle::sentence800::127; lost-in-the-middle::sentence800::58,lost-in-the-middle; lost-in-the-middle; lost-in-the-middle; lost-in-the-middle; lost-in-the-middle,,,,,0.768845,0.927614,0.984711,"I could not find any information about a **GPT‑5** model or its maximum context window in the provided documents. The passages only discuss GPT‑3.5‑Turbo (4 K and 16 K tokens), GPT‑4, and other models such as Claude‑1.3, MPT‑30B‑Instruct, and LongChat‑13B‑16K【1†L1-L4】【2†L1-L4】【4†L1-L4】.",5,5,5,True,True,1.0,,,,"The answer correctly states that GPT‑5 is not mentioned in the provided passages, matching the reference that the information is not answerable.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q45,unanswerable,What query latency does ColBERT achieve on a Raspberry Pi?,Not answerable from the corpus; the system should say the documents do not contain this information.,,colbert::sentence800::95; colbert::sentence800::94; colbert::sentence800::90; colbert::sentence800::101; colbert::sentence800::89,colbert; colbert; colbert; colbert; colbert,,,,,0.767538,0.971915,0.98742,"I could not find any information in the provided documents about the query latency that ColBERT achieves on a Raspberry Pi. The passages only discuss latency measurements on GPUs (e.g., Tesla V100) and do not mention Raspberry Pi performance.",5,5,5,True,True,1.0,,,,The answer correctly states that the documents do not contain the requested information.,groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
+sentence800__hybrid_rerank__bge,q46,unanswerable,What F1 does any paper report on the Korean KorQuAD benchmark?,Not answerable from the corpus; the system should say the documents do not contain this information.,,contriever::sentence800::47; contriever::sentence800::88; contriever::sentence800::65; contriever::sentence800::59; contriever::sentence800::66,contriever; contriever; contriever; contriever; contriever,,,,,0.681847,0.982429,0.007665,I could not find any mention of an F 1 score reported for the Korean **KorQuAD** benchmark in the provided documents.,5,5,5,True,True,1.0,,,,"The answer correctly states that the documents do not contain the requested information, matching the reference.",groq:openai/gpt-oss-120b,groq:openai/gpt-oss-20b,
