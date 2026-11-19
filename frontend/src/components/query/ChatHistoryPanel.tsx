@@ -46,63 +46,41 @@ export default function ChatHistoryPanel({ open, onClose, refreshKey, onUnauthor
   return (
     <RightSideDrawer open={open} onClose={onClose} title="Chat history">
       {items === null && !error && (
-        <p style={{ fontSize: "var(--fs-sm)", color: "var(--muted)" }} aria-live="polite">
+        <p className="meta" style={{ fontSize: "var(--fs-sm)" }} aria-live="polite">
           Loading history…
         </p>
       )}
 
       {error && (
-        <div role="alert" style={{ padding: "10px 14px", borderRadius: "var(--radius-md)", fontSize: "var(--fs-sm)", color: "var(--danger)", background: "var(--danger-soft)", border: "1px solid var(--danger-line)" }}>
+        <div role="alert" className="alert alert-danger" style={{ marginBottom: "var(--space-3)" }}>
           {error}
         </div>
       )}
 
       {items !== null && items.length === 0 && !error && (
-        <div style={{ textAlign: "center", padding: "40px 10px", color: "var(--muted)" }}>
-          <div style={{ fontSize: "var(--fs-md)", fontWeight: "var(--fw-medium)", color: "var(--text)" }}>No history yet</div>
-          <p style={{ fontSize: "var(--fs-sm)", marginTop: 6 }}>Your questions and answers will appear here.</p>
+        <div className="empty">
+          <div className="empty-title">No history yet</div>
+          <p>Your questions and answers will appear here.</p>
         </div>
       )}
 
       {items && items.length > 0 && (
-        <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+        <ul className="stack" style={{ listStyle: "none", margin: 0, padding: 0, gap: "var(--space-3)" }}>
           {items.map((it) => (
-            <li
-              key={it.id}
-              style={{
-                padding: "13px 14px",
-                borderRadius: "var(--radius-md)",
-                background: "var(--raised)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                <span
-                  style={{
-                    fontSize: "var(--fs-xs)",
-                    fontWeight: "var(--fw-semibold)",
-                    letterSpacing: ".04em",
-                    textTransform: "uppercase",
-                    padding: "2px 7px",
-                    borderRadius: "var(--radius-sm)",
-                    color: "var(--accent)",
-                    background: "var(--accent-soft)",
-                    border: "1px solid var(--accent-line)",
-                  }}
-                >
-                  {it.mode}
-                </span>
-                <time style={{ fontSize: "var(--fs-xs)", color: "var(--muted)" }} dateTime={it.created_at}>
+            <li key={it.id} className="card card-compact" style={{ background: "var(--raised)" }}>
+              <div className="row" style={{ marginBottom: "var(--space-2)" }}>
+                <span className="chip chip-accent">{it.mode}</span>
+                <time className="meta" dateTime={it.created_at}>
                   {formatDate(it.created_at)}
                 </time>
               </div>
               <div style={{ fontSize: "var(--fs-sm)", fontWeight: "var(--fw-semibold)", color: "var(--text)" }}>{it.question}</div>
               <p
                 style={{
-                  margin: "6px 0 0",
+                  marginTop: "var(--space-2)",
                   fontSize: "var(--fs-sm)",
                   lineHeight: 1.5,
-                  color: "var(--muted)",
+                  color: "var(--text-2)",
                   display: "-webkit-box",
                   WebkitLineClamp: 3,
                   WebkitBoxOrient: "vertical",

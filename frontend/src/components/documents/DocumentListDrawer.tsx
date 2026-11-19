@@ -71,39 +71,29 @@ export default function DocumentListDrawer({
   return (
     <RightSideDrawer open={open} onClose={onClose} title="Your documents">
       {docs === null && !error && (
-        <p style={mutedText} aria-live="polite">
+        <p className="meta" style={{ fontSize: "var(--fs-sm)" }} aria-live="polite">
           Loading documents…
         </p>
       )}
 
       {error && (
-        <div role="alert" style={errorBox}>
+        <div role="alert" className="alert alert-danger" style={{ marginBottom: "var(--space-3)" }}>
           {error}
         </div>
       )}
 
       {docs !== null && docs.length === 0 && !error && (
-        <div style={{ textAlign: "center", padding: "40px 10px", color: "var(--muted)" }}>
-          <div style={{ fontSize: "var(--fs-md)", fontWeight: "var(--fw-medium)", color: "var(--text)" }}>No documents yet</div>
-          <p style={{ fontSize: "var(--fs-sm)", marginTop: 6 }}>
-            Upload a PDF, TXT, or Markdown file to start asking questions.
-          </p>
+        <div className="empty">
+          <div className="empty-title">No documents yet</div>
+          <p>Upload a PDF, TXT, or Markdown file to start asking questions.</p>
         </div>
       )}
 
       {docs && docs.length > 0 && (
-        <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+        <ul className="stack" style={{ listStyle: "none", margin: 0, padding: 0, gap: "var(--space-2)" }}>
           {docs.map((d) => (
-            <li
-              key={d.id}
-              style={{
-                padding: "13px 14px",
-                borderRadius: "var(--radius-md)",
-                background: "var(--raised)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+            <li key={d.id} className="card card-compact" style={{ background: "var(--raised)" }}>
+              <div className="row" style={{ justifyContent: "space-between", gap: "var(--space-3)" }}>
                 <div style={{ minWidth: 0 }}>
                   <div
                     style={{
@@ -117,17 +107,16 @@ export default function DocumentListDrawer({
                   >
                     {d.filename}
                   </div>
-                  <div style={{ fontSize: "var(--fs-xs)", color: "var(--muted)", marginTop: 3 }}>
+                  <div className="meta" style={{ marginTop: "var(--space-1)" }}>
                     {d.file_type.toUpperCase()} · {d.chunk_count ?? 0} chunk
                     {(d.chunk_count ?? 0) === 1 ? "" : "s"}
                     {d.page_count ? ` · ${d.page_count} pages` : ""}
                   </div>
                   {d.summary && (
                     <div
+                      className="meta"
                       style={{
-                        fontSize: "var(--fs-xs)",
-                        color: "var(--muted)",
-                        marginTop: 4,
+                        marginTop: "var(--space-1)",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
@@ -139,23 +128,26 @@ export default function DocumentListDrawer({
                 </div>
 
                 {confirmId === d.id ? (
-                  <div style={{ display: "flex", gap: 6, flex: "none" }}>
+                  <div className="row" style={{ gap: "var(--space-2)", flex: "none" }}>
                     <button
+                      type="button"
+                      className="btn btn-sm btn-danger"
                       onClick={() => handleDelete(d.id)}
                       disabled={deletingId === d.id}
-                      style={dangerBtn}
                     >
                       {deletingId === d.id ? "Deleting…" : "Confirm"}
                     </button>
-                    <button onClick={() => setConfirmId(null)} style={ghostBtn}>
+                    <button type="button" className="btn btn-sm" onClick={() => setConfirmId(null)}>
                       Cancel
                     </button>
                   </div>
                 ) : (
                   <button
+                    type="button"
+                    className="btn btn-sm"
                     onClick={() => setConfirmId(d.id)}
                     aria-label={`Delete ${d.filename}`}
-                    style={ghostBtn}
+                    style={{ flex: "none" }}
                   >
                     Delete
                   </button>
@@ -172,37 +164,3 @@ export default function DocumentListDrawer({
 function isUnauthorized(e: unknown): boolean {
   return typeof e === "object" && e !== null && "status" in e && (e as { status: number }).status === 401;
 }
-
-const mutedText = { fontSize: "var(--fs-sm)", color: "var(--muted)" } as const;
-const errorBox = {
-  padding: "10px 14px",
-  borderRadius: "var(--radius-md)",
-  fontSize: "var(--fs-sm)",
-  color: "var(--danger)",
-  background: "var(--danger-soft)",
-  border: "1px solid var(--danger-line)",
-} as const;
-const ghostBtn = {
-  padding: "7px 12px",
-  borderRadius: "var(--radius-sm)",
-  border: "1px solid var(--border)",
-  background: "transparent",
-  color: "var(--text)",
-  fontFamily: "inherit",
-  fontSize: "var(--fs-sm)",
-  fontWeight: "var(--fw-medium)",
-  cursor: "pointer",
-  flex: "none",
-} as const;
-const dangerBtn = {
-  padding: "7px 12px",
-  borderRadius: "var(--radius-sm)",
-  border: "1px solid var(--danger-line)",
-  background: "var(--danger-soft)",
-  color: "var(--danger)",
-  fontFamily: "inherit",
-  fontSize: "var(--fs-sm)",
-  fontWeight: "var(--fw-semibold)",
-  cursor: "pointer",
-  flex: "none",
-} as const;

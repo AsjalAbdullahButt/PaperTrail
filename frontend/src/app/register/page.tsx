@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ApiError } from "@/api/backendClient";
 import { useAuthStore } from "@/state/authStore";
-import { AuthShell, fieldErrorStyle, inputStyle, labelStyle, linkStyle } from "../login/page";
+import AuthShell from "@/components/auth/AuthShell";
 import { PasswordInput, PasswordStrengthMeter, passwordComplexityError } from "@/components/ui/PasswordField";
 
 export default function RegisterPage() {
@@ -66,7 +66,7 @@ export default function RegisterPage() {
   return (
     <AuthShell
       title="Create your account"
-      subtitle="Register to start uploading and querying documents."
+      subtitle="Upload documents and ask questions about them"
       onSubmit={handleSubmit}
       busy={busy}
       submitLabel="Create account"
@@ -74,58 +74,56 @@ export default function RegisterPage() {
       footer={
         <>
           Already have an account?{" "}
-          <Link href="/login" style={linkStyle}>
+          <Link href="/login" className="link">
             Sign in
           </Link>
         </>
       }
     >
-      <label style={labelStyle}>
+      <label className="field">
         Email
         <input
           type="email"
           autoComplete="email"
           value={email}
           onChange={(e) => { setEmail(e.target.value); if (emailError) setEmailError(null); }}
-          style={inputStyle}
+          className="input"
           aria-invalid={emailError ? true : undefined}
         />
       </label>
-      {emailError && <div style={fieldErrorStyle}>{emailError}</div>}
-      <label style={{ ...labelStyle, marginTop: 14 }}>
-        Display name <span style={{ fontWeight: "var(--fw-regular)" }}>(optional)</span>
+      {emailError && <div className="field-error">{emailError}</div>}
+      <label className="field">
+        Display name <span style={{ fontWeight: "var(--fw-regular)", color: "var(--muted)" }}>(optional)</span>
         <input
           type="text"
           maxLength={100}
           autoComplete="name"
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
-          style={inputStyle}
+          className="input"
         />
       </label>
-      <label style={{ ...labelStyle, marginTop: 14 }}>
+      <label className="field">
         Password
         <PasswordInput
           autoComplete="new-password"
           value={password}
           onChange={(e) => { setPassword(e.target.value); if (passwordError) setPasswordError(null); }}
-          style={inputStyle}
           aria-invalid={passwordError ? true : undefined}
         />
       </label>
-      {passwordError && <div style={fieldErrorStyle}>{passwordError}</div>}
+      {passwordError && <div className="field-error">{passwordError}</div>}
       <PasswordStrengthMeter password={password} />
-      <label style={{ ...labelStyle, marginTop: 14 }}>
+      <label className="field">
         Confirm password
         <PasswordInput
           autoComplete="new-password"
           value={confirm}
           onChange={(e) => { setConfirm(e.target.value); if (confirmError) setConfirmError(null); }}
-          style={inputStyle}
           aria-invalid={confirmError ? true : undefined}
         />
       </label>
-      {confirmError && <div style={fieldErrorStyle}>{confirmError}</div>}
+      {confirmError && <div className="field-error">{confirmError}</div>}
     </AuthShell>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent } from "react";
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import AuthenticatedPageLayout from "@/components/layout/AuthenticatedPageLayout";
@@ -19,79 +19,6 @@ import {
   PasswordStrengthMeter,
   passwordComplexityError,
 } from "@/components/ui/PasswordField";
-
-const cardStyle: CSSProperties = {
-  padding: "22px 24px",
-  borderRadius: "var(--radius-md)",
-  background: "var(--surface)",
-  border: "1px solid var(--border)",
-};
-
-const labelStyle: CSSProperties = {
-  display: "block",
-  fontSize: "var(--fs-sm)",
-  fontWeight: "var(--fw-medium)",
-  color: "var(--muted)",
-  marginBottom: 6,
-};
-
-const inputStyle: CSSProperties = {
-  width: "100%",
-  padding: "12px 14px",
-  borderRadius: "var(--radius-md)",
-  background: "var(--raised)",
-  border: "1px solid var(--border)",
-  color: "var(--text)",
-  fontFamily: "inherit",
-  fontSize: "var(--fs-md)",
-  outline: "none",
-  marginTop: 6,
-};
-
-const textareaStyle: CSSProperties = { ...inputStyle, resize: "vertical", minHeight: 84 };
-
-const fieldErrorStyle: CSSProperties = { marginTop: 6, fontSize: "var(--fs-xs)", color: "var(--danger)" };
-
-const sectionTitleStyle: CSSProperties = {
-  fontSize: "var(--fs-xs)",
-  fontWeight: "var(--fw-semibold)",
-  letterSpacing: ".05em",
-  textTransform: "uppercase",
-  color: "var(--muted)",
-  marginBottom: 14,
-};
-
-const buttonStyle: CSSProperties = {
-  padding: "11px 20px",
-  borderRadius: "var(--radius-md)",
-  border: "none",
-  cursor: "pointer",
-  fontFamily: "inherit",
-  fontWeight: "var(--fw-semibold)",
-  fontSize: "var(--fs-sm)",
-  color: "var(--on-accent)",
-  background: "var(--accent)",
-};
-
-const dangerButtonStyle: CSSProperties = {
-  ...buttonStyle,
-  color: "var(--danger)",
-  background: "var(--danger-soft)",
-  border: "1px solid var(--danger-line)",
-  boxShadow: "none",
-};
-
-function bannerStyle(kind: "error" | "ok"): CSSProperties {
-  return {
-    marginTop: 14,
-    padding: "10px 14px",
-    borderRadius: "var(--radius-md)",
-    fontSize: "var(--fs-sm)",
-    color: kind === "error" ? "var(--danger)" : "var(--accent)",
-    background: kind === "error" ? "var(--danger-soft)" : "var(--accent-soft)",
-    border: `1px solid ${kind === "error" ? "var(--danger-line)" : "var(--accent-line)"}`,
-  };
-}
 
 const AVATAR_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
@@ -166,11 +93,12 @@ function ProfileForm() {
   const initials = (user?.display_name || user?.email || "?").trim().charAt(0).toUpperCase();
 
   return (
-    <form onSubmit={handleSubmit} noValidate style={cardStyle}>
-      <div style={sectionTitleStyle}>Profile</div>
+    <form onSubmit={handleSubmit} noValidate className="card" aria-labelledby="profile-title">
+      <h2 id="profile-title" className="h-section" style={{ marginBottom: "var(--space-4)" }}>Profile</h2>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
+      <div className="row" style={{ gap: "var(--space-4)", marginBottom: "var(--space-5)", flexWrap: "wrap" }}>
         <div
+          aria-hidden
           style={{
             width: 64, height: 64, borderRadius: "50%", overflow: "hidden", flex: "none",
             display: "flex", alignItems: "center", justifyContent: "center",
@@ -185,64 +113,53 @@ function ProfileForm() {
             initials
           )}
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              disabled={avatarBusy}
-              style={{ ...buttonStyle, padding: "8px 14px", fontSize: "var(--fs-sm)", opacity: avatarBusy ? 0.75 : 1 }}
-            >
+        <div className="stack" style={{ gap: "var(--space-2)" }}>
+          <div className="row" style={{ flexWrap: "wrap" }}>
+            <button type="button" className="btn btn-sm" onClick={() => fileRef.current?.click()} disabled={avatarBusy}>
               {avatarBusy ? "Uploading…" : "Upload avatar"}
             </button>
             {avatarSrc && (
-              <button
-                type="button"
-                onClick={handleAvatarRemove}
-                disabled={avatarBusy}
-                style={{
-                  padding: "8px 14px", borderRadius: "var(--radius-md)", border: "1px solid var(--border)",
-                  background: "var(--raised)", color: "var(--text)", fontFamily: "inherit",
-                  fontWeight: "var(--fw-semibold)", fontSize: "var(--fs-sm)", cursor: "pointer", opacity: avatarBusy ? 0.75 : 1,
-                }}
-              >
+              <button type="button" className="btn btn-sm btn-ghost" onClick={handleAvatarRemove} disabled={avatarBusy}>
                 Remove
               </button>
             )}
           </div>
-          <span style={{ fontSize: "var(--fs-xs)", color: "var(--muted)" }}>JPEG, PNG, WebP, or GIF — up to 2 MB.</span>
+          <span className="meta">JPEG, PNG, WebP, or GIF — up to 2 MB.</span>
         </div>
         <input
           ref={fileRef}
           type="file"
           accept="image/jpeg,image/png,image/webp,image/gif"
           onChange={handleAvatarChange}
+          aria-label="Avatar image"
           style={{ display: "none" }}
         />
       </div>
 
-      <label style={labelStyle}>
-        Display name
-        <input
-          type="text"
-          maxLength={100}
-          autoComplete="name"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          style={inputStyle}
-        />
-      </label>
-      <label style={{ ...labelStyle, marginTop: 14 }}>
-        Bio
-        <textarea
-          maxLength={2000}
-          value={bio}
-          onChange={(e) => setBio(e.target.value)}
-          style={textareaStyle}
-        />
-      </label>
-      {error && <div style={bannerStyle("error")} role="alert">{error}</div>}
-      <button type="submit" disabled={busy} style={{ ...buttonStyle, marginTop: 16, opacity: busy ? 0.75 : 1 }}>
+      <div className="stack">
+        <label className="field">
+          Display name
+          <input
+            type="text"
+            maxLength={100}
+            autoComplete="name"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            className="input"
+          />
+        </label>
+        <label className="field">
+          Bio
+          <textarea
+            maxLength={2000}
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+            className="input"
+          />
+        </label>
+      </div>
+      {error && <div className="alert alert-danger" role="alert" style={{ marginTop: "var(--space-4)" }}>{error}</div>}
+      <button type="submit" disabled={busy} className="btn btn-primary" style={{ marginTop: "var(--space-5)" }}>
         {busy ? "Saving…" : "Save changes"}
       </button>
     </form>
@@ -301,44 +218,43 @@ function ChangePasswordForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate style={{ ...cardStyle, marginTop: 20 }}>
-      <div style={sectionTitleStyle}>Change password</div>
-      <label style={labelStyle}>
-        Current password
-        <PasswordInput
-          autoComplete="current-password"
-          value={current}
-          onChange={(e) => { setCurrent(e.target.value); if (currentError) setCurrentError(null); }}
-          style={inputStyle}
-          aria-invalid={currentError ? true : undefined}
-        />
-      </label>
-      {currentError && <div style={fieldErrorStyle}>{currentError}</div>}
-      <label style={{ ...labelStyle, marginTop: 14 }}>
-        New password
-        <PasswordInput
-          autoComplete="new-password"
-          value={next}
-          onChange={(e) => { setNext(e.target.value); if (nextError) setNextError(null); }}
-          style={inputStyle}
-          aria-invalid={nextError ? true : undefined}
-        />
-      </label>
-      {nextError && <div style={fieldErrorStyle}>{nextError}</div>}
-      <PasswordStrengthMeter password={next} />
-      <label style={{ ...labelStyle, marginTop: 14 }}>
-        Confirm new password
-        <PasswordInput
-          autoComplete="new-password"
-          value={confirm}
-          onChange={(e) => { setConfirm(e.target.value); if (confirmError) setConfirmError(null); }}
-          style={inputStyle}
-          aria-invalid={confirmError ? true : undefined}
-        />
-      </label>
-      {confirmError && <div style={fieldErrorStyle}>{confirmError}</div>}
-      {error && <div style={bannerStyle("error")} role="alert">{error}</div>}
-      <button type="submit" disabled={busy} style={{ ...buttonStyle, marginTop: 16, opacity: busy ? 0.75 : 1 }}>
+    <form onSubmit={handleSubmit} noValidate className="card" aria-labelledby="password-title" style={{ marginTop: "var(--space-4)" }}>
+      <h2 id="password-title" className="h-section" style={{ marginBottom: "var(--space-4)" }}>Change password</h2>
+      <div className="stack">
+        <label className="field">
+          Current password
+          <PasswordInput
+            autoComplete="current-password"
+            value={current}
+            onChange={(e) => { setCurrent(e.target.value); if (currentError) setCurrentError(null); }}
+            aria-invalid={currentError ? true : undefined}
+          />
+        </label>
+        {currentError && <div className="field-error">{currentError}</div>}
+        <label className="field">
+          New password
+          <PasswordInput
+            autoComplete="new-password"
+            value={next}
+            onChange={(e) => { setNext(e.target.value); if (nextError) setNextError(null); }}
+            aria-invalid={nextError ? true : undefined}
+          />
+        </label>
+        {nextError && <div className="field-error">{nextError}</div>}
+        <PasswordStrengthMeter password={next} />
+        <label className="field">
+          Confirm new password
+          <PasswordInput
+            autoComplete="new-password"
+            value={confirm}
+            onChange={(e) => { setConfirm(e.target.value); if (confirmError) setConfirmError(null); }}
+            aria-invalid={confirmError ? true : undefined}
+          />
+        </label>
+        {confirmError && <div className="field-error">{confirmError}</div>}
+      </div>
+      {error && <div className="alert alert-danger" role="alert" style={{ marginTop: "var(--space-4)" }}>{error}</div>}
+      <button type="submit" disabled={busy} className="btn btn-primary" style={{ marginTop: "var(--space-5)" }}>
         {busy ? "Updating…" : "Update password"}
       </button>
     </form>
@@ -368,52 +284,48 @@ function DeleteAccountSection() {
   }
 
   return (
-    <div style={{ ...cardStyle, marginTop: 20, borderColor: "var(--danger-line)" }}>
-      <div style={{ ...sectionTitleStyle, color: "var(--danger)" }}>Danger zone</div>
-      <p style={{ margin: "0 0 14px", fontSize: "var(--fs-sm)", color: "var(--muted)" }}>
+    <section className="card" aria-labelledby="danger-title" style={{ marginTop: "var(--space-4)", borderColor: "var(--danger-line)" }}>
+      <h2 id="danger-title" className="h-section" style={{ color: "var(--danger)", marginBottom: "var(--space-2)" }}>Danger zone</h2>
+      <p style={{ marginBottom: "var(--space-4)", fontSize: "var(--fs-sm)", color: "var(--text-2)" }}>
         Deleting your account permanently removes your profile, documents, and query history. This cannot be undone.
       </p>
       {!confirming ? (
-        <button type="button" onClick={() => setConfirming(true)} style={dangerButtonStyle}>
+        <button type="button" onClick={() => setConfirming(true)} className="btn btn-danger">
           Delete account
         </button>
       ) : (
         <div>
-          <label style={labelStyle}>
+          <label className="field">
             Type DELETE to confirm
             <input
               type="text"
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
-              style={inputStyle}
+              className="input"
               autoComplete="off"
             />
           </label>
-          {error && <div style={bannerStyle("error")} role="alert">{error}</div>}
-          <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+          {error && <div className="alert alert-danger" role="alert" style={{ marginTop: "var(--space-3)" }}>{error}</div>}
+          <div className="row" style={{ marginTop: "var(--space-4)" }}>
             <button
               type="button"
+              className="btn btn-danger"
               onClick={handleDelete}
               disabled={confirmText.trim().toUpperCase() !== "DELETE" || busy}
-              style={{
-                ...dangerButtonStyle,
-                opacity: confirmText.trim().toUpperCase() === "DELETE" && !busy ? 1 : 0.5,
-                cursor: confirmText.trim().toUpperCase() === "DELETE" && !busy ? "pointer" : "default",
-              }}
             >
               {busy ? "Deleting…" : "Permanently delete"}
             </button>
             <button
               type="button"
+              className="btn"
               onClick={() => { setConfirming(false); setConfirmText(""); setError(null); }}
-              style={{ ...buttonStyle, background: "var(--raised)", color: "var(--text)", boxShadow: "none", border: "1px solid var(--border)" }}
             >
               Cancel
             </button>
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -421,8 +333,8 @@ function ProfilePageContent() {
   const user = useAuthStore((s) => s.user);
 
   return (
-    <div style={{ maxWidth: 560, margin: "0 auto" }}>
-      <h1 style={{ margin: "0 0 20px", fontSize: "var(--fs-xl)", fontWeight: "var(--fw-semibold)", color: "var(--text)" }}>
+    <div style={{ maxWidth: 640 }}>
+      <h1 className="h-page" style={{ marginBottom: "var(--space-5)" }}>
         Account settings
       </h1>
       {user && (

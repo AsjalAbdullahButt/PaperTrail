@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
+import { useState } from "react";
 import type { UploadResult } from "@/api/backendClient";
-
+import { ChevronDownIcon, CloseIcon } from "@/components/ui/Icons";
 
 const TYPE_ICON: Record<string, string> = {
   pdf: "PDF",
@@ -27,29 +27,21 @@ export default function UploadReadyCard({
   const topHighlights = result.highlights.slice(0, 3);
 
   return (
-    <div
-      style={{
-        marginTop: 20,
-        padding: "22px 24px",
-        borderRadius: "var(--radius-md)",
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
-        boxShadow: "var(--shadow-overlay)",
-        animation: "rise .4s ease both",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+    <div className="card" style={{ marginTop: "var(--space-5)", animation: "rise var(--dur-base) var(--ease) both" }}>
+      <div className="row" style={{ gap: "var(--space-3)" }}>
         <div
+          aria-hidden
           style={{
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            width: 42,
-            height: 42,
-            borderRadius: "var(--radius-md)",
-            background: "var(--accent)",
-            color: "var(--on-accent)",
-            fontWeight: "var(--fw-semibold)",
+            width: 40,
+            height: 40,
+            borderRadius: "var(--radius-sm)",
+            background: "var(--raised)",
+            border: "1px solid var(--border)",
+            color: "var(--text-2)",
+            fontWeight: "var(--fw-medium)",
             fontSize: "var(--fs-xs)",
             flex: "none",
           }}
@@ -57,7 +49,7 @@ export default function UploadReadyCard({
           {TYPE_ICON[result.file_type] || "DOC"}
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
+          <div className="row" style={{ flexWrap: "wrap" }}>
             <span
               style={{
                 fontSize: "var(--fs-md)",
@@ -70,27 +62,27 @@ export default function UploadReadyCard({
             >
               {result.filename}
             </span>
-            <span style={badge}>Ready</span>
+            <span className="chip chip-accent">Ready</span>
           </div>
-          <div style={{ marginTop: 3, fontSize: "var(--fs-xs)", color: "var(--muted)" }}>
+          <div className="meta" style={{ marginTop: "var(--space-1)" }}>
             {result.file_type.toUpperCase()}
             {result.page_count ? ` · ${result.page_count} page${result.page_count === 1 ? "" : "s"}` : ""}
             {` · ${result.word_count.toLocaleString()} words`}
             {` · ${result.chunks_created} chunk${result.chunks_created === 1 ? "" : "s"}`}
           </div>
         </div>
-        <button onClick={onDismiss} aria-label="Dismiss" style={dismissBtn}>
-          ✕
+        <button type="button" onClick={onDismiss} aria-label="Dismiss" title="Dismiss" className="btn btn-ghost btn-icon btn-sm">
+          <CloseIcon />
         </button>
       </div>
 
       {result.summary && (
-        <div style={{ marginTop: 18 }}>
-          <div style={sectionLabel}>✦ Summary</div>
+        <div style={{ marginTop: "var(--space-5)" }}>
+          <div className="section-label">Summary</div>
           <blockquote
             style={{
-              margin: "10px 0 0",
-              padding: "12px 15px",
+              margin: "var(--space-2) 0 0",
+              padding: "var(--space-3) var(--space-4)",
               borderLeft: "3px solid var(--accent)",
               borderRadius: "var(--radius-sm)",
               background: "var(--accent-soft)",
@@ -105,21 +97,21 @@ export default function UploadReadyCard({
       )}
 
       {topHighlights.length > 0 && (
-        <div style={{ marginTop: 18 }}>
-          <div style={sectionLabel}>Highlights</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
+        <div style={{ marginTop: "var(--space-5)" }}>
+          <div className="section-label">Highlights</div>
+          <div className="stack" style={{ gap: "var(--space-2)", marginTop: "var(--space-2)" }}>
             {topHighlights.map((h, i) => (
               <blockquote
                 key={i}
                 style={{
                   margin: 0,
-                  padding: "10px 14px",
-                  borderLeft: "3px solid var(--accent)",
+                  padding: "var(--space-3) var(--space-4)",
+                  borderLeft: "3px solid var(--border-strong)",
                   borderRadius: "var(--radius-sm)",
                   background: "var(--raised)",
                   fontSize: "var(--fs-sm)",
                   lineHeight: 1.5,
-                  color: "var(--muted)",
+                  color: "var(--text-2)",
                 }}
               >
                 {h.text}
@@ -130,40 +122,33 @@ export default function UploadReadyCard({
       )}
 
       {result.outline.length > 0 && (
-        <div style={{ marginTop: 18 }}>
+        <div style={{ marginTop: "var(--space-5)" }}>
           <button
+            type="button"
+            className="btn btn-ghost btn-sm"
             onClick={() => setOutlineOpen((v) => !v)}
             aria-expanded={outlineOpen}
-            style={{
-              ...sectionLabel,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              border: "none",
-              background: "none",
-              cursor: "pointer",
-              padding: 0,
-            }}
+            style={{ marginLeft: "calc(var(--space-3) * -1)" }}
           >
-            <span style={{ transform: outlineOpen ? "rotate(90deg)" : "none", transition: "transform .15s" }}>
-              ▸
+            <span style={{ display: "inline-flex", transform: outlineOpen ? "none" : "rotate(-90deg)" }}>
+              <ChevronDownIcon size={14} />
             </span>
             Outline ({result.outline.length})
           </button>
           {outlineOpen && (
-            <ul style={{ listStyle: "none", margin: "10px 0 0", padding: 0 }}>
+            <ul style={{ listStyle: "none", margin: "var(--space-2) 0 0", padding: 0 }}>
               {result.outline.map((o, i) => (
                 <li
                   key={i}
                   style={{
-                    padding: "4px 0",
+                    padding: "var(--space-1) 0",
                     paddingLeft: (o.level - 1) * 16,
                     fontSize: "var(--fs-sm)",
                     color: "var(--text)",
                     fontWeight: o.level === 1 ? "var(--fw-medium)" : "var(--fw-regular)",
                   }}
                 >
-                  <span style={{ color: "var(--accent)", marginRight: 7 }}>
+                  <span style={{ color: "var(--accent)", marginRight: "var(--space-2)" }}>
                     {"·".repeat(o.level)}
                   </span>
                   {o.heading}
@@ -176,35 +161,3 @@ export default function UploadReadyCard({
     </div>
   );
 }
-
-const badge: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  padding: "2px 9px",
-  borderRadius: "var(--radius-sm)",
-  fontSize: "var(--fs-xs)",
-  fontWeight: "var(--fw-semibold)",
-  color: "var(--accent)",
-  background: "var(--accent-soft)",
-  border: "1px solid var(--accent-line)",
-};
-
-const sectionLabel: CSSProperties = {
-  fontSize: "var(--fs-xs)",
-  fontWeight: "var(--fw-semibold)",
-  letterSpacing: ".05em",
-  textTransform: "uppercase",
-  color: "var(--muted)",
-};
-
-const dismissBtn: CSSProperties = {
-  flex: "none",
-  border: "1px solid var(--border)",
-  background: "var(--raised)",
-  color: "var(--muted)",
-  borderRadius: "var(--radius-sm)",
-  width: 30,
-  height: 30,
-  cursor: "pointer",
-  fontSize: "var(--fs-sm)",
-};

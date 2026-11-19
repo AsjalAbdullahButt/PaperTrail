@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type RefObject } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type RefObject } from "react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { ApiError, exportMyData, shareQuery, type QueryMode, type Source } from "@/api/backendClient";
 import { useFloatingRect } from "@/hooks/useFloatingRect";
 import { useQueryStore } from "@/state/queryStore";
 import PaperTrailLogo from "@/components/layout/PaperTrailLogo";
-
+import ThemeToggle from "@/components/ui/ThemeToggle";
+import { ChevronDownIcon, CloseIcon, DownloadIcon, FileTextIcon, LinkIcon, MenuIcon, UploadIcon } from "@/components/ui/Icons";
 
 function escapeHtml(s: string): string {
   return s
@@ -37,18 +38,21 @@ function downloadAnswerAsPdf(
     )
     .join("");
   const confPct = Math.round(confidenceScore * 100);
+  // The print window is its own white document, so it carries its own small
+  // stylesheet (same family of values as the app tokens, AA contrast on white).
   win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>PaperTrail — ${escapeHtml(askedQuestion).slice(0, 60)}</title>
 <style>
-  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #16181d; padding: 48px; max-width: 720px; margin: 0 auto; line-height: 1.6; }
-  .brand { font-weight: 800; font-size: 15px; letter-spacing: -.02em; color: #0d6b64; margin-bottom: 22px; }
-  h1 { font-size: 19px; margin: 0 0 20px; }
-  .answer { font-size: 15px; white-space: pre-wrap; margin-bottom: 30px; }
-  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #666; border-top: 1px solid #ddd; padding-top: 18px; margin-top: 6px; }
+  @page { margin: 20mm; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #1b1d21; padding: 48px; max-width: 720px; margin: 0 auto; line-height: 1.6; }
+  .brand { font-weight: 600; font-size: 16px; color: #0d6b64; margin-bottom: 24px; }
+  h1 { font-size: 20px; font-weight: 600; line-height: 1.25; margin: 0 0 20px; }
+  .answer { font-size: 16px; white-space: pre-wrap; margin-bottom: 32px; }
+  h2 { font-size: 14px; font-weight: 600; color: #484c53; border-top: 1px solid #d9d8d2; padding-top: 16px; margin: 8px 0 0; }
   ol { padding-left: 20px; margin: 12px 0 0; }
-  li { margin-bottom: 14px; font-size: 12.5px; }
-  .snippet { color: #555; }
-  .meta { font-size: 12px; color: #888; margin-top: 26px; }
-  @media print { body { padding: 0 32px; } }
+  li { margin-bottom: 12px; font-size: 14px; }
+  .snippet { color: #484c53; }
+  .meta { font-size: 12px; color: #5c616a; margin-top: 24px; }
+  @media print { body { padding: 0; } }
 </style></head>
 <body>
   <div class="brand">PaperTrail</div>
@@ -60,42 +64,6 @@ function downloadAnswerAsPdf(
   win.document.close();
   win.focus();
   win.onload = () => win.print();
-}
-
-function DownloadIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3v12" />
-      <path d="M7 10l5 5 5-5" />
-      <path d="M5 21h14" />
-    </svg>
-  );
-}
-function LinkIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 17H7a5 5 0 0 1 0-10h2" />
-      <path d="M15 7h2a5 5 0 0 1 0 10h-2" />
-      <line x1="8" y1="12" x2="16" y2="12" />
-    </svg>
-  );
-}
-function FileTextIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
-      <path d="M14 2v6h6" />
-      <line x1="8" y1="13" x2="16" y2="13" />
-      <line x1="8" y1="17" x2="13" y2="17" />
-    </svg>
-  );
-}
-function ChevronDownIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M6 9l6 6 6-6" />
-    </svg>
-  );
 }
 
 function ExportMenu({
@@ -133,108 +101,56 @@ function ExportMenu({
     };
   }, [open]);
 
-  const itemStyle: CSSProperties = {
-    display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 12px",
-    border: "none", background: "none", color: "var(--text)", fontFamily: "inherit",
-    fontSize: "var(--fs-sm)", fontWeight: "var(--fw-medium)", cursor: "pointer", textAlign: "left", borderRadius: "var(--radius-sm)",
-  };
-  const disabledItemStyle: CSSProperties = { ...itemStyle, color: "var(--muted)", cursor: "default", opacity: 0.5 };
-
   return (
-    <div ref={ref} style={{ position: "relative", flex: "none" }}>
+    <div ref={ref} className="app-export" style={{ position: "relative", flex: "none" }}>
       <button
+        type="button"
+        className="btn"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: "var(--radius-md)",
-          border: `1px solid ${open ? "var(--accent)" : "var(--border)"}`, background: "var(--raised)",
-          color: "var(--text)", fontFamily: "inherit", fontWeight: "var(--fw-medium)", fontSize: "var(--fs-sm)", cursor: "pointer",
-        }}
       >
         <DownloadIcon />
         Export
-        <span style={{ display: "inline-flex", transform: open ? "rotate(180deg)" : "none", transition: "transform .15s ease" }}>
-          <ChevronDownIcon />
-        </span>
+        <ChevronDownIcon size={14} />
       </button>
       {open && rect && typeof document !== "undefined" && createPortal(
         <div
           ref={menuRef}
           role="menu"
+          className="menu"
           style={{
             // Right-align to the trigger but never spill past either viewport edge on a phone.
-            position: "fixed", top: rect.bottom + 8, left: `clamp(8px, ${rect.right - 250}px, calc(100vw - 258px))`, width: "min(250px, calc(100vw - 16px))", padding: 6, borderRadius: "var(--radius-md)",
-            background: "var(--overlay)", border: "1px solid var(--border)", boxShadow: "var(--shadow-overlay)", zIndex: 1000,
-            animation: "rise .15s ease both",
+            position: "fixed", top: rect.bottom + 8, left: `clamp(8px, ${rect.right - 272}px, calc(100vw - 280px))`, width: "min(272px, calc(100vw - 16px))", zIndex: 1000,
+            animation: "rise var(--dur-fast) var(--ease) both",
           }}
         >
           <button
+            type="button"
             role="menuitem"
+            className="menu-item"
             disabled={!hasAnswer}
-            style={hasAnswer ? itemStyle : disabledItemStyle}
             onClick={() => { if (hasAnswer) { onDownloadPdf(); setOpen(false); } }}
           >
             <FileTextIcon /> Download this answer as PDF
           </button>
           <button
+            type="button"
             role="menuitem"
+            className="menu-item"
             disabled={!hasAnswer}
-            style={hasAnswer ? itemStyle : disabledItemStyle}
             onClick={() => { if (hasAnswer) { onCopyLink(); setOpen(false); } }}
           >
             <LinkIcon /> Copy share link
           </button>
-          <div style={{ height: 1, background: "var(--border)", margin: "6px 4px" }} />
-          <button role="menuitem" style={itemStyle} onClick={() => { onExportZip(); setOpen(false); }}>
+          <div className="menu-sep" />
+          <button type="button" role="menuitem" className="menu-item" onClick={() => { onExportZip(); setOpen(false); }}>
             <DownloadIcon /> Download account data (.zip)
           </button>
         </div>,
         document.body
       )}
     </div>
-  );
-}
-
-function HeaderButton({ label, onClick }: { label: string; onClick: () => void }) {
-  const [hover, setHover] = useState(false);
-  return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        padding: "9px 14px",
-        borderRadius: "var(--radius-md)",
-        border: `1px solid ${hover ? "var(--accent)" : "var(--border)"}`,
-        background: "var(--raised)",
-        color: "var(--text)",
-        fontFamily: "inherit",
-        fontWeight: "var(--fw-medium)",
-        fontSize: "var(--fs-sm)",
-        cursor: "pointer",
-        flex: "none",
-      }}
-    >
-      {label}
-    </button>
-  );
-}
-
-function Spinner() {
-  return (
-    <span
-      aria-hidden
-      style={{
-        width: 14,
-        height: 14,
-        borderRadius: "50%",
-        border: "2px solid currentColor",
-        borderTopColor: "transparent",
-        display: "inline-block",
-        animation: "spin .7s linear infinite",
-      }}
-    />
   );
 }
 
@@ -269,24 +185,33 @@ export default function HomeHeader({
   const currentSources = useQueryStore((s) => s.currentSources);
   const confidenceScore = useQueryStore((s) => s.confidenceScore);
   const answerMode = useQueryStore((s) => s.answerMode);
+  // Phone only: whether the folded menu is open. Purely presentational.
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  const accentBtn: CSSProperties = {
-    color: "var(--on-accent)",
-    background: "var(--accent)",
-  };
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenuOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
+
+  const act = (fn: () => void) => () => { setMenuOpen(false); fn(); };
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 16px", borderRadius: "var(--radius-md)", background: "var(--surface)", border: "1px solid var(--border)", flexWrap: "wrap" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0 }}>
+    <header className="app-header" data-open={menuOpen}>
+      <div className="app-brand">
         <PaperTrailLogo />
-        <span style={{ fontWeight: "var(--fw-semibold)", fontSize: "var(--fs-lg)", letterSpacing: "-.02em", color: "var(--text)" }}>PaperTrail</span>
+        PaperTrail
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto", flexWrap: "wrap" }}>
-        <HeaderButton label="Library" onClick={() => router.push("/library")} />
-        <HeaderButton label="Analytics" onClick={() => router.push("/analytics")} />
-        <HeaderButton label="Documents" onClick={onDocsOpen} />
-        <HeaderButton label="History" onClick={onHistoryOpen} />
+      <div id="app-menu" className="app-actions">
+        <nav className="app-nav" aria-label="Main">
+          <button type="button" className="btn btn-ghost" onClick={act(() => router.push("/library"))}>Library</button>
+          <button type="button" className="btn btn-ghost" onClick={act(() => router.push("/analytics"))}>Analytics</button>
+          <button type="button" className="btn btn-ghost" onClick={act(onDocsOpen)}>Documents</button>
+          <button type="button" className="btn btn-ghost" onClick={act(onHistoryOpen)}>History</button>
+        </nav>
+        <span className="app-spacer" />
         <ExportMenu
           hasAnswer={hasAnswer}
           onExportZip={async () => {
@@ -308,25 +233,35 @@ export default function HomeHeader({
             }
           }}
         />
-        <button
-          onClick={onToggleTheme}
-          aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
-          style={{ position: "relative", width: 60, height: 30, borderRadius: "var(--radius-md)", border: "1px solid var(--border)", background: "var(--raised)", cursor: "pointer", padding: 0, flex: "none" }}
-        >
-          <span style={{ position: "absolute", top: 3, left: isDark ? 33 : 3, width: 24, height: 24, borderRadius: "50%", background: "var(--accent)", transition: "left .28s cubic-bezier(.4,0,.2,1)" }} />
-        </button>
-        <button
-          onClick={() => fileRef.current?.click()}
-          disabled={uploading}
-          style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 15px", borderRadius: "var(--radius-md)", border: "none", cursor: uploading ? "default" : "pointer", fontFamily: "inherit", fontWeight: "var(--fw-medium)", fontSize: "var(--fs-sm)", opacity: uploading ? 0.7 : 1, ...accentBtn }}
-        >
-          {uploading ? <Spinner /> : <span style={{ fontSize: "var(--fs-md)", lineHeight: 1, marginTop: -1 }}>+</span>}
-          {uploading ? "Uploading…" : "Upload document"}
-        </button>
-        <input ref={fileRef} type="file" accept=".pdf,.docx,.pptx,.txt,.md,.xlsx,.csv" onChange={onFileChange} style={{ display: "none" }} />
-        <HeaderButton label="Profile" onClick={() => router.push("/profile")} />
-        <HeaderButton label="Sign out" onClick={onSignOut} />
+        <div className="app-account">
+          <button type="button" className="btn btn-ghost" onClick={act(() => router.push("/profile"))}>Profile</button>
+          <button type="button" className="btn btn-ghost" onClick={act(onSignOut)}>Sign out</button>
+          <ThemeToggle isDark={isDark} onToggle={onToggleTheme} />
+        </div>
       </div>
-    </div>
+
+      <button
+        type="button"
+        className="btn btn-primary app-primary-slot"
+        onClick={() => fileRef.current?.click()}
+        disabled={uploading}
+        aria-label={uploading ? undefined : "Upload document"}
+      >
+        {uploading ? <span className="spinner" aria-hidden="true" /> : <UploadIcon />}
+        {uploading ? "Uploading…" : <>Upload<span className="hide-xs"> document</span></>}
+      </button>
+      <input ref={fileRef} type="file" accept=".pdf,.docx,.pptx,.txt,.md,.xlsx,.csv" onChange={onFileChange} style={{ display: "none" }} />
+
+      <button
+        type="button"
+        className="btn btn-ghost btn-icon app-menu-toggle"
+        onClick={() => setMenuOpen((v) => !v)}
+        aria-expanded={menuOpen}
+        aria-controls="app-menu"
+        aria-label={menuOpen ? "Close menu" : "Open menu"}
+      >
+        {menuOpen ? <CloseIcon /> : <MenuIcon />}
+      </button>
+    </header>
   );
 }

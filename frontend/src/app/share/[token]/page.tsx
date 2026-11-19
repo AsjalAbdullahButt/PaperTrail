@@ -51,72 +51,60 @@ export default function SharedQueryPage() {
   }, [token]);
 
   const confPct = data?.confidence_score != null ? Math.round(data.confidence_score * 100) : null;
+  // Same rule as the main page: teal for a good result, amber for a weak one.
+  const confChip = confPct === null ? "" : confPct >= 75 ? "chip-accent" : confPct < 50 ? "chip-warn" : "";
 
   return (
-    <div style={{ position: "relative", minHeight: "100vh", background: "var(--bg)", ...t } as CSSProperties}>
-      <div style={{ position: "relative", zIndex: 1, maxWidth: 720, margin: "0 auto", padding: "28px clamp(14px, 4vw, 24px) 80px" }}>
-        <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 11, textDecoration: "none", marginBottom: 30 }}>
+    <div className="page" style={t as CSSProperties}>
+      <div className="page-inner" style={{ maxWidth: 720 }}>
+        <Link href="/" className="app-brand" style={{ marginBottom: "var(--space-5)" }}>
           <PaperTrailLogo />
-          <span style={{ fontWeight: "var(--fw-semibold)", fontSize: "var(--fs-lg)", letterSpacing: "-.02em", color: "var(--text)" }}>PaperTrail</span>
+          PaperTrail
         </Link>
 
-        {loading && (
-          <div style={{ padding: "40px 0", textAlign: "center", color: "var(--muted)", fontSize: "var(--fs-sm)" }}>
-            Loading shared answer…
-          </div>
-        )}
+        <main>
+          {loading && (
+            <div className="empty" role="status">Loading shared answer…</div>
+          )}
 
-        {!loading && error && (
-          <div
-            role="alert"
-            style={{
-              padding: "18px 20px", borderRadius: "var(--radius-md)", fontSize: "var(--fs-sm)", color: "var(--danger)",
-              background: "var(--danger-soft)", border: "1px solid var(--danger-line)",
-            }}
-          >
-            {error}
-          </div>
-        )}
+          {!loading && error && (
+            <div role="alert" className="alert alert-danger">
+              {error}
+            </div>
+          )}
 
-        {!loading && data && (
-          <div
-            style={{
-              padding: "clamp(20px, 5vw, 30px) clamp(18px, 5vw, 32px)", borderRadius: "var(--radius-md)", background: "var(--surface)",
-              border: "1px solid var(--border)", boxShadow: "var(--shadow-overlay)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 10 }}>
-              <div style={{ width: 22, height: 22, borderRadius: "var(--radius-sm)", background: "var(--accent)", flex: "none" }} />
-              <span style={{ fontSize: "var(--fs-xs)", fontWeight: "var(--fw-semibold)", letterSpacing: ".04em", textTransform: "uppercase", color: "var(--muted)" }}>
-                {MODE_LABEL[data.mode] ?? "Answer"}
-              </span>
-              {confPct !== null && (
-                <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: "var(--radius-md)", fontSize: "var(--fs-xs)", fontWeight: "var(--fw-semibold)", color: "var(--accent)", background: "var(--accent-soft)", border: "1px solid var(--accent-line)" }}>
-                  {confPct}% confidence
+          {!loading && data && (
+            <article className="card">
+              <div className="row" style={{ marginBottom: "var(--space-3)" }}>
+                <span className="section-label">{MODE_LABEL[data.mode] ?? "Answer"}</span>
+                {confPct !== null && (
+                  <span className={`chip tabular-nums ${confChip}`} style={{ marginLeft: "auto" }}>
+                    {confPct}% confidence
+                  </span>
+                )}
+              </div>
+
+              <h1 className="h-title" style={{ color: "var(--text-2)", marginBottom: "var(--space-4)" }}>{data.question}</h1>
+
+              <div className="answer-text">
+                {renderAnswerWithCitations(data.answer, data.source_count)}
+              </div>
+
+              <div className="row" style={{ gap: "var(--space-3)", marginTop: "var(--space-5)", paddingTop: "var(--space-4)", borderTop: "1px solid var(--border)", flexWrap: "wrap", fontSize: "var(--fs-sm)", color: "var(--text-2)" }}>
+                <span>
+                  {data.mode === "direct" ? "No retrieval" : `Grounded in ${data.source_count} source${data.source_count === 1 ? "" : "s"}`}
                 </span>
-              )}
-            </div>
+                <span aria-hidden style={{ color: "var(--muted)" }}>·</span>
+                <span>
+                  shared from PaperTrail · {new Date(data.created_at).toLocaleDateString()}
+                </span>
+              </div>
+            </article>
+          )}
+        </main>
 
-            <div style={{ fontSize: "var(--fs-md)", fontWeight: "var(--fw-semibold)", color: "var(--muted)", marginBottom: 18 }}>{data.question}</div>
-
-            <div style={{ fontSize: "var(--fs-lg)", lineHeight: 1.62, letterSpacing: "-.01em", color: "var(--text)" }}>
-              {renderAnswerWithCitations(data.answer, data.source_count)}
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 26, paddingTop: 18, borderTop: "1px solid var(--border)", flexWrap: "wrap" }}>
-              <span style={{ fontSize: "var(--fs-sm)", color: "var(--muted)" }}>
-                {data.mode === "direct" ? "No retrieval" : `Grounded in ${data.source_count} source${data.source_count === 1 ? "" : "s"}`}
-              </span>
-              <span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--muted)", opacity: 0.5 }} />
-              <span style={{ fontSize: "var(--fs-sm)", color: "var(--muted)" }}>
-                shared from PaperTrail · {new Date(data.created_at).toLocaleDateString()}
-              </span>
-            </div>
-          </div>
-        )}
-
-        <p style={{ textAlign: "center", marginTop: 26, fontSize: "var(--fs-sm)", color: "var(--muted)" }}>
-          Want answers like this from your own documents? <Link href="/register" style={{ color: "var(--accent)", fontWeight: "var(--fw-medium)" }}>Try PaperTrail</Link>
+        <p style={{ textAlign: "center", marginTop: "var(--space-5)", fontSize: "var(--fs-sm)", color: "var(--text-2)" }}>
+          Want answers like this from your own documents? <Link href="/register" className="link">Try PaperTrail</Link>
         </p>
       </div>
     </div>

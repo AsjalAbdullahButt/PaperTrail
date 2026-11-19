@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/state/authStore";
 import { THEMES, useTheme } from "@/theme/themes";
 import PaperTrailLogo from "@/components/layout/PaperTrailLogo";
-
+import ThemeToggle from "@/components/ui/ThemeToggle";
+import { CloseIcon, MenuIcon } from "@/components/ui/Icons";
 
 const NAV = [
   { href: "/", label: "Home" },
@@ -16,7 +17,8 @@ const NAV = [
 ];
 
 /** Themed page chrome (background + top nav) for secondary pages. Redirects to
- *  /login if the session can't be restored. */
+ *  /login if the session can't be restored. Uses the same header classes as the
+ *  home page so both read as one app. */
 export default function AuthenticatedPageLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -25,6 +27,8 @@ export default function AuthenticatedPageLayout({ children }: { children: ReactN
   const ready = useAuthStore((s) => s.ready);
   const restoreSession = useAuthStore((s) => s.restoreSession);
   const logout = useAuthStore((s) => s.logout);
+  // Phone only: whether the folded menu is open. Purely presentational.
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     restoreSession();
@@ -32,63 +36,61 @@ export default function AuthenticatedPageLayout({ children }: { children: ReactN
   useEffect(() => {
     if (ready && !isAuthenticated) router.replace("/login");
   }, [ready, isAuthenticated, router]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenuOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
 
-  const t = THEMES[theme];
   const isDark = theme === "dark";
 
   return (
-    <div style={{ position: "relative", minHeight: "100vh", background: "var(--bg)", ...t } as CSSProperties}>
-      <div style={{ position: "relative", zIndex: 1, maxWidth: 1200, margin: "0 auto", padding: "22px clamp(14px, 4vw, 28px) 80px" }}>
-        <nav style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 16px", borderRadius: "var(--radius-md)", background: "var(--surface)", border: "1px solid var(--border)", flexWrap: "wrap" }}>
-          <Link href="/" style={{ display: "flex", alignItems: "center", gap: 11, textDecoration: "none" }}>
+    <div className="page" style={THEMES[theme] as CSSProperties}>
+      <div className="page-inner">
+        <header className="app-header" data-open={menuOpen}>
+          <Link href="/" className="app-brand">
             <PaperTrailLogo />
-            <span style={{ fontWeight: "var(--fw-semibold)", fontSize: "var(--fs-lg)", letterSpacing: "-.02em", color: "var(--text)" }}>PaperTrail</span>
+            PaperTrail
           </Link>
 
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginLeft: 10 }}>
-            {NAV.map((n) => {
-              const active = pathname === n.href;
-              return (
+          <div id="app-menu" className="app-actions">
+            <nav className="app-nav" aria-label="Main">
+              {NAV.map((n) => (
                 <Link
                   key={n.href}
                   href={n.href}
-                  style={{
-                    padding: "8px 14px",
-                    borderRadius: "var(--radius-md)",
-                    fontSize: "var(--fs-sm)",
-                    fontWeight: active ? "var(--fw-semibold)" : "var(--fw-medium)",
-                    textDecoration: "none",
-                    color: active ? "var(--on-accent)" : "var(--muted)",
-                    background: active ? "var(--accent)" : "transparent",
-                    minHeight: 44,
-                    display: "inline-flex",
-                    alignItems: "center",
-                  }}
+                  className="btn btn-ghost"
+                  aria-current={pathname === n.href ? "page" : undefined}
+                  onClick={() => setMenuOpen(false)}
                 >
                   {n.label}
                 </Link>
-              );
-            })}
+              ))}
+            </nav>
+            <span className="app-spacer" />
+            <div className="app-account">
+              <button type="button" className="btn btn-ghost" onClick={() => { void logout(); router.replace("/login"); }}>
+                Sign out
+              </button>
+              <ThemeToggle isDark={isDark} onToggle={() => setTheme(isDark ? "light" : "dark")} />
+            </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto" }}>
-            <button
-              onClick={() => setTheme(isDark ? "light" : "dark")}
-              aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
-              style={{ position: "relative", width: 60, height: 30, borderRadius: "var(--radius-md)", border: "1px solid var(--border)", background: "var(--raised)", cursor: "pointer", padding: 0 }}
-            >
-              <span style={{ position: "absolute", top: 3, left: isDark ? 33 : 3, width: 24, height: 24, borderRadius: "50%", background: "var(--accent)", transition: "left .28s cubic-bezier(.4,0,.2,1)" }} />
-            </button>
-            <button
-              onClick={() => { void logout(); router.replace("/login"); }}
-              style={{ padding: "9px 14px", borderRadius: "var(--radius-md)", border: "1px solid var(--border)", background: "var(--raised)", color: "var(--text)", fontFamily: "inherit", fontWeight: "var(--fw-medium)", fontSize: "var(--fs-sm)", cursor: "pointer", minHeight: 44 }}
-            >
-              Sign out
-            </button>
-          </div>
-        </nav>
+          <button
+            type="button"
+            className="btn btn-ghost btn-icon app-menu-toggle"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-expanded={menuOpen}
+            aria-controls="app-menu"
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            style={{ marginLeft: "auto" }}
+          >
+            {menuOpen ? <CloseIcon /> : <MenuIcon />}
+          </button>
+        </header>
 
-        <div style={{ marginTop: 26 }}>{ready && isAuthenticated ? children : null}</div>
+        <main style={{ marginTop: "var(--space-5)" }}>{ready && isAuthenticated ? children : null}</main>
       </div>
     </div>
   );

@@ -78,6 +78,10 @@ export default function CommandPalette({
       style={{ position: "fixed", inset: 0, zIndex: 90, background: "var(--scrim)", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: "12vh" }}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
+        className="menu"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => Math.min(filtered.length - 1, a + 1)); }
@@ -85,7 +89,7 @@ export default function CommandPalette({
           else if (e.key === "Enter" && filtered[active]) { e.preventDefault(); choose(filtered[active]); }
           else if (e.key === "Escape") { onClose(); }
         }}
-        style={{ width: "min(560px, 92vw)", maxHeight: "70vh", overflow: "hidden", display: "flex", flexDirection: "column", borderRadius: "var(--radius-md)", background: "var(--surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-overlay)" }}
+        style={{ width: "min(560px, 92vw)", maxHeight: "70vh", overflow: "hidden", display: "flex", flexDirection: "column", padding: 0 }}
       >
         <input
           ref={inputRef}
@@ -93,21 +97,24 @@ export default function CommandPalette({
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search documents, collections, queries…"
-          style={{ padding: "16px 18px", background: "transparent", border: "none", borderBottom: "1px solid var(--border)", color: "var(--text)", fontFamily: "inherit", fontSize: "var(--fs-md)", outline: "none" }}
+          aria-label="Search documents, collections and queries"
+          style={{ padding: "var(--space-4)", background: "transparent", border: "none", borderBottom: "1px solid var(--border)", color: "var(--text)", fontFamily: "inherit", fontSize: "var(--fs-md)", outline: "none" }}
         />
-        <div style={{ overflowY: "auto" }}>
+        <div style={{ overflowY: "auto", padding: "var(--space-1)" }}>
           {filtered.length === 0 && (
-            <div style={{ padding: 18, color: "var(--muted)", fontSize: "var(--fs-sm)" }}>No matches.</div>
+            <div className="empty" style={{ padding: "var(--space-5) var(--space-4)" }}>No matches.</div>
           )}
           {filtered.map((it, i) => (
             <button
               key={it.id}
+              type="button"
+              className="menu-item"
               onMouseEnter={() => setActive(i)}
               onClick={() => choose(it)}
-              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", textAlign: "left", padding: "11px 18px", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: "var(--fs-sm)", color: "var(--text)", background: i === active ? "var(--raised)" : "transparent" }}
+              style={{ justifyContent: "space-between", background: i === active ? "var(--raised)" : undefined }}
             >
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.label}</span>
-              <span style={{ flex: "none", marginLeft: 12, fontSize: "var(--fs-xs)", color: "var(--muted)" }}>{it.group}</span>
+              <span className="meta" style={{ flex: "none", marginLeft: "var(--space-3)" }}>{it.group}</span>
             </button>
           ))}
         </div>

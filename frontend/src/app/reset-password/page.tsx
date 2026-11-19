@@ -4,7 +4,7 @@ import { Suspense, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ApiError, resetPassword } from "@/api/backendClient";
-import { AuthShell, fieldErrorStyle, inputStyle, labelStyle, linkStyle } from "../login/page";
+import AuthShell from "@/components/auth/AuthShell";
 import { PasswordInput, PasswordStrengthMeter, passwordComplexityError } from "@/components/ui/PasswordField";
 
 function ResetPasswordForm() {
@@ -59,7 +59,7 @@ function ResetPasswordForm() {
   return (
     <AuthShell
       title="Set a new password"
-      subtitle="Choose a new password for your account."
+      subtitle="Choose a new password for your account"
       onSubmit={handleSubmit}
       busy={busy}
       submitLabel={done ? "Redirecting…" : "Reset password"}
@@ -67,51 +67,39 @@ function ResetPasswordForm() {
       footer={
         <>
           Back to{" "}
-          <Link href="/login" style={linkStyle}>
+          <Link href="/login" className="link">
             Sign in
           </Link>
         </>
       }
     >
       {done ? (
-        <div
-          role="status"
-          style={{
-            padding: "10px 14px",
-            borderRadius: "var(--radius-md)",
-            fontSize: "var(--fs-sm)",
-            color: "var(--accent)",
-            background: "var(--accent-soft)",
-            border: "1px solid var(--accent-line)",
-          }}
-        >
+        <div role="status" className="alert alert-ok">
           Password reset. Redirecting you to sign in…
         </div>
       ) : (
         <>
-          <label style={labelStyle}>
+          <label className="field">
             New password
             <PasswordInput
               autoComplete="new-password"
               value={password}
               onChange={(e) => { setPassword(e.target.value); if (passwordError) setPasswordError(null); }}
-              style={inputStyle}
               aria-invalid={passwordError ? true : undefined}
             />
           </label>
-          {passwordError && <div style={fieldErrorStyle}>{passwordError}</div>}
+          {passwordError && <div className="field-error">{passwordError}</div>}
           <PasswordStrengthMeter password={password} />
-          <label style={{ ...labelStyle, marginTop: 14 }}>
+          <label className="field">
             Confirm new password
             <PasswordInput
               autoComplete="new-password"
               value={confirm}
               onChange={(e) => { setConfirm(e.target.value); if (confirmError) setConfirmError(null); }}
-              style={inputStyle}
               aria-invalid={confirmError ? true : undefined}
             />
           </label>
-          {confirmError && <div style={fieldErrorStyle}>{confirmError}</div>}
+          {confirmError && <div className="field-error">{confirmError}</div>}
         </>
       )}
     </AuthShell>

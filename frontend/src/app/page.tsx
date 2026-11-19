@@ -8,10 +8,8 @@ import { useQueryStore } from "@/state/queryStore";
 import { useToast } from "@/hooks/useToast";
 import { useDocumentUpload } from "@/hooks/useDocumentUpload";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
-import { useMouseParallax } from "@/hooks/useMouseParallax";
 import { useOnboardingHint } from "@/hooks/useOnboardingHint";
 import { THEMES, useTheme } from "@/theme/themes";
-import AmbientBackground from "@/components/layout/AmbientBackground";
 import HomeHeader from "@/components/layout/HomeHeader";
 import QueryPanel from "@/components/query/QueryPanel";
 import DocumentListDrawer from "@/components/documents/DocumentListDrawer";
@@ -44,7 +42,6 @@ export default function Home() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [docRefreshKey, setDocRefreshKey] = useState(0);
   const queryInputRef = useRef<HTMLInputElement>(null);
-  const parallax = useMouseParallax();
   const { showOnboarding, dismissOnboarding } = useOnboardingHint(authed);
 
   const { toast, showToast } = useToast();
@@ -89,10 +86,8 @@ export default function Home() {
   const isDark = theme === "dark";
 
   return (
-    <div style={{ position: "relative", minHeight: "100vh", background: "var(--bg)", transition: "background .4s ease", ...THEMES[theme] } as CSSProperties}>
-      <AmbientBackground parallax={parallax} />
-
-      <div style={{ position: "relative", zIndex: 1, maxWidth: 1200, margin: "0 auto", padding: "22px clamp(14px, 4vw, 28px) 80px" }}>
+    <div className="page" style={THEMES[theme] as CSSProperties}>
+      <div className="page-inner">
         {authed === true && (
           <>
             <HomeHeader

@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { ApiError, forgotPassword } from "@/api/backendClient";
-import { AuthShell, fieldErrorStyle, inputStyle, labelStyle, linkStyle } from "../login/page";
+import AuthShell from "@/components/auth/AuthShell";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -37,7 +37,7 @@ export default function ForgotPasswordPage() {
   return (
     <AuthShell
       title="Reset your password"
-      subtitle="Enter your account email and we'll send a reset link."
+      subtitle="Enter your account email and we'll send a reset link"
       onSubmit={handleSubmit}
       busy={busy}
       submitLabel={sent ? "Send again" : "Send reset link"}
@@ -45,40 +45,29 @@ export default function ForgotPasswordPage() {
       footer={
         <>
           Remembered it?{" "}
-          <Link href="/login" style={linkStyle}>
+          <Link href="/login" className="link">
             Sign in
           </Link>
         </>
       }
     >
       {sent && (
-        <div
-          role="status"
-          style={{
-            marginBottom: 16,
-            padding: "10px 14px",
-            borderRadius: "var(--radius-md)",
-            fontSize: "var(--fs-sm)",
-            color: "var(--accent)",
-            background: "var(--accent-soft)",
-            border: "1px solid var(--accent-line)",
-          }}
-        >
+        <div role="status" className="alert alert-ok">
           If that email is registered, a reset link is on its way.
         </div>
       )}
-      <label style={labelStyle}>
+      <label className="field">
         Email
         <input
           type="email"
           autoComplete="email"
           value={email}
           onChange={(e) => { setEmail(e.target.value); if (emailError) setEmailError(null); }}
-          style={inputStyle}
+          className="input"
           aria-invalid={emailError ? true : undefined}
         />
       </label>
-      {emailError && <div style={fieldErrorStyle}>{emailError}</div>}
+      {emailError && <div className="field-error">{emailError}</div>}
     </AuthShell>
   );
 }

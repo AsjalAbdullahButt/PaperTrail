@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
+import { CloseIcon } from "@/components/ui/Icons";
 
 type Props = {
   open: boolean;
@@ -40,7 +41,7 @@ export default function RightSideDrawer({ open, onClose, title, children }: Prop
           position: "absolute",
           inset: 0,
           background: "var(--scrim)",
-          animation: "rise .2s ease both",
+          animation: "rise var(--dur-base) var(--ease) both",
         }}
       />
       <aside
@@ -49,14 +50,14 @@ export default function RightSideDrawer({ open, onClose, title, children }: Prop
         aria-label={title}
         style={{
           position: "relative",
-          width: "min(440px, 92vw)",
+          width: "min(440px, 100vw)",
           height: "100%",
           overflowY: "auto",
-          padding: "22px 22px 40px",
+          padding: "var(--space-5) var(--space-5) var(--space-7)",
           background: "var(--surface)",
           borderLeft: "1px solid var(--border)",
           boxShadow: "var(--shadow-overlay)",
-          animation: "slideIn .25s cubic-bezier(.4,0,.2,1) both",
+          animation: "slideIn var(--dur-base) var(--ease) both",
         }}
       >
         <div
@@ -64,29 +65,12 @@ export default function RightSideDrawer({ open, onClose, title, children }: Prop
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            marginBottom: 18,
+            marginBottom: "var(--space-4)",
           }}
         >
-          <h2 style={{ margin: 0, fontSize: "var(--fs-md)", fontWeight: "var(--fw-semibold)", color: "var(--text)", letterSpacing: "-.01em" }}>
-            {title}
-          </h2>
-          <button
-            onClick={onClose}
-            aria-label="Close panel"
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: "var(--radius-sm)",
-              border: "1px solid var(--border)",
-              background: "var(--raised)",
-              color: "var(--text)",
-              fontSize: "var(--fs-lg)",
-              lineHeight: 1,
-              cursor: "pointer",
-              flex: "none",
-            }}
-          >
-            ×
+          <h2 className="h-section">{title}</h2>
+          <button type="button" className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close panel" title="Close panel">
+            <CloseIcon />
           </button>
         </div>
         {children}

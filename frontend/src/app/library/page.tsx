@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import toast from "react-hot-toast";
 import AuthenticatedPageLayout from "@/components/layout/AuthenticatedPageLayout";
 import DropdownSelect from "@/components/ui/DropdownSelect";
+import { CloseIcon, PlusIcon, StarIcon, WarningIcon } from "@/components/ui/Icons";
 import {
   addToCollection,
   addTags,
@@ -28,15 +29,6 @@ const TYPE_ICON: Record<string, string> = {
   pdf: "PDF", docx: "DOC", pptx: "PPT", txt: "TXT", md: "MD", xlsx: "XLS", csv: "CSV",
 };
 
-const card: CSSProperties = {
-  padding: "16px 18px", borderRadius: "var(--radius-md)", background: "var(--surface)",
-  border: "1px solid var(--border)",
-};
-const label: CSSProperties = {
-  fontSize: "var(--fs-xs)", fontWeight: "var(--fw-semibold)", letterSpacing: ".05em", textTransform: "uppercase",
-  color: "var(--muted)",
-};
-
 export default function LibraryPage() {
   return (
     <AuthenticatedPageLayout>
@@ -54,6 +46,9 @@ function LibraryInner() {
   const [tagFilter, setTagFilter] = useState("");
   const [bookmarks, setBookmarks] = useState<QueryHistoryItem[]>([]);
   const [newCollection, setNewCollection] = useState("");
+  // Display state for the list: first load in flight, and a failed load.
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const refreshCollections = useCallback(async () => {
     try { setCollections(await listCollections()); } catch { /* ignore */ }
@@ -73,15 +68,23 @@ function LibraryInner() {
     setDocs(await listDocumentsFiltered(params));
   }, [view, search, typeFilter, tagFilter]);
 
+  const loadDocs = useCallback(() => {
+    setLoadError(false);
+    refreshDocs()
+      .catch(() => setLoadError(true))
+      .finally(() => setLoading(false));
+  }, [refreshDocs]);
+
   // Network-driven data fetches, not state derivable during render — the
   // setState calls inside these run after an `await`, not synchronously, but
   // the lint rule can't see through that async boundary.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { refreshCollections(); }, [refreshCollections]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { refreshDocs(); }, [refreshDocs]);
+  useEffect(() => { loadDocs(); }, [loadDocs]);
 
   const duplicates = docs.filter((d) => d.is_duplicate);
+  const filtered = Boolean(search || typeFilter || tagFilter) || view.kind === "collection";
 
   async function handleCreateCollection() {
     const name = newCollection.trim();
@@ -96,100 +99,130 @@ function LibraryInner() {
   }
 
   return (
-    <div style={{ display: "flex", gap: 22, alignItems: "flex-start", flexWrap: "wrap" }}>
-      {/* Sidebar */}
-      <aside style={{ flex: "0 0 240px", minWidth: "min(200px, 100%)", display: "flex", flexDirection: "column", gap: 8 }}>
-        <SidebarItem active={view.kind === "all"} label="All Documents" onClick={() => setView({ kind: "all" })} />
-        <SidebarItem active={view.kind === "bookmarks"} label="★ Bookmarks" onClick={() => setView({ kind: "bookmarks" })} />
-        <div style={{ ...label, marginTop: 14, padding: "0 4px" }}>Collections</div>
-        {collections.map((c) => (
-          <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <SidebarItem
-              active={view.kind === "collection" && view.id === c.id}
-              label={`${c.name} (${c.document_count ?? 0})`}
-              onClick={() => setView({ kind: "collection", id: c.id })}
+    <>
+      <h1 className="h-page" style={{ marginBottom: "var(--space-5)" }}>Library</h1>
+      <div className="split">
+        {/* Sidebar */}
+        <aside className="split-side" aria-label="Library views">
+          <SidebarItem active={view.kind === "all"} onClick={() => setView({ kind: "all" })}>All documents</SidebarItem>
+          <SidebarItem active={view.kind === "bookmarks"} onClick={() => setView({ kind: "bookmarks" })}>
+            <StarIcon /> Bookmarks
+          </SidebarItem>
+          <div className="section-label" style={{ margin: "var(--space-5) var(--space-1) var(--space-1)" }}>Collections</div>
+          {collections.map((c) => (
+            <div key={c.id} className="row" style={{ gap: "var(--space-1)" }}>
+              <SidebarItem
+                active={view.kind === "collection" && view.id === c.id}
+                onClick={() => setView({ kind: "collection", id: c.id })}
+              >
+                {`${c.name} (${c.document_count ?? 0})`}
+              </SidebarItem>
+              <button
+                type="button"
+                className="btn btn-ghost btn-icon btn-sm"
+                onClick={async () => { await deleteCollection(c.id); if (view.id === c.id) setView({ kind: "all" }); refreshCollections(); }}
+                aria-label={`Delete ${c.name}`}
+                title={`Delete ${c.name}`}
+              >
+                <CloseIcon size={14} />
+              </button>
+            </div>
+          ))}
+          <div className="row" style={{ marginTop: "var(--space-2)" }}>
+            <input
+              className="input input-sm"
+              value={newCollection}
+              onChange={(e) => setNewCollection(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleCreateCollection(); }}
+              placeholder="New collection"
+              aria-label="New collection name"
             />
-            <button
-              onClick={async () => { await deleteCollection(c.id); if (view.id === c.id) setView({ kind: "all" }); refreshCollections(); }}
-              aria-label={`Delete ${c.name}`}
-              style={{ border: "none", background: "none", color: "var(--muted)", cursor: "pointer", fontSize: "var(--fs-sm)" }}
-            >✕</button>
+            <button type="button" className="btn btn-icon btn-sm" onClick={handleCreateCollection} aria-label="Create collection" title="Create collection">
+              <PlusIcon />
+            </button>
           </div>
-        ))}
-        <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-          <input
-            value={newCollection}
-            onChange={(e) => setNewCollection(e.target.value)}
-            placeholder="New collection"
-            style={{ flex: 1, minWidth: 0, padding: "8px 10px", borderRadius: "var(--radius-sm)", background: "var(--raised)", border: "1px solid var(--border)", color: "var(--text)", fontFamily: "inherit", fontSize: "var(--fs-sm)", outline: "none" }}
-          />
-          <button onClick={handleCreateCollection} style={{ border: "1px solid var(--border)", background: "var(--raised)", color: "var(--text)", borderRadius: "var(--radius-sm)", padding: "0 12px", cursor: "pointer", fontWeight: "var(--fw-semibold)" }}>+</button>
-        </div>
-      </aside>
+        </aside>
 
-      {/* Main */}
-      <main style={{ flex: "1 1 520px", minWidth: "min(300px, 100%)" }}>
-        {duplicates.length > 0 && view.kind !== "bookmarks" && (
-          <div style={{ ...card, marginBottom: 16, borderColor: "var(--warn-line)", background: "var(--warn-soft)", color: "var(--warn)", fontSize: "var(--fs-sm)" }}>
-            ⚠ {duplicates.length} document{duplicates.length === 1 ? "" : "s"} look like duplicates of existing uploads.
-          </div>
-        )}
-
-        {view.kind === "bookmarks" ? (
-          <BookmarksList items={bookmarks} />
-        ) : (
-          <>
-            {/* Filters */}
-            <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name…"
-                style={{ flex: "1 1 200px", padding: "10px 12px", borderRadius: "var(--radius-md)", background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)", fontFamily: "inherit", fontSize: "var(--fs-sm)", outline: "none" }}
-              />
-              <DropdownSelect
-                value={typeFilter}
-                onChange={setTypeFilter}
-                placeholder="All types"
-                ariaLabel="Filter by file type"
-                options={["pdf", "docx", "txt", "md", "xlsx", "csv"].map((t) => ({ value: t, label: t.toUpperCase() }))}
-              />
-              <input
-                value={tagFilter}
-                onChange={(e) => setTagFilter(e.target.value)}
-                placeholder="tag"
-                style={{ ...selectStyle, width: 120 }}
-              />
+        {/* Main */}
+        <section style={{ minWidth: 0 }}>
+          {duplicates.length > 0 && view.kind !== "bookmarks" && (
+            <div className="alert alert-warn" style={{ marginBottom: "var(--space-4)" }}>
+              <WarningIcon style={{ marginTop: 2 }} />
+              <span>{duplicates.length} document{duplicates.length === 1 ? "" : "s"} look like duplicates of existing uploads.</span>
             </div>
+          )}
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}>
-              {docs.map((d) => (
-                <DocumentCard key={d.id} doc={d} collections={collections} onChanged={refreshDocs} />
-              ))}
-              {docs.length === 0 && (
-                <div style={{ ...card, color: "var(--muted)", fontSize: "var(--fs-sm)" }}>No documents match.</div>
+          {view.kind === "bookmarks" ? (
+            <BookmarksList items={bookmarks} />
+          ) : (
+            <>
+              {/* Filters */}
+              <div className="toolbar" style={{ marginBottom: "var(--space-4)" }}>
+                <input
+                  className="input"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search by name…"
+                  aria-label="Search documents by name"
+                  style={{ flex: "1 1 200px", width: "auto" }}
+                />
+                <DropdownSelect
+                  value={typeFilter}
+                  onChange={setTypeFilter}
+                  placeholder="All types"
+                  ariaLabel="Filter by file type"
+                  options={["pdf", "docx", "txt", "md", "xlsx", "csv"].map((t) => ({ value: t, label: t.toUpperCase() }))}
+                />
+                <input
+                  className="input"
+                  value={tagFilter}
+                  onChange={(e) => setTagFilter(e.target.value)}
+                  placeholder="Tag"
+                  aria-label="Filter by tag"
+                  style={{ width: 120 }}
+                />
+              </div>
+
+              {loadError ? (
+                <div className="alert alert-danger" role="alert" style={{ justifyContent: "space-between", alignItems: "center" }}>
+                  <span>Couldn&rsquo;t load your documents.</span>
+                  <button type="button" className="btn btn-sm" onClick={loadDocs}>Try again</button>
+                </div>
+              ) : loading ? (
+                <div className="doc-grid" aria-busy="true">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="card skeleton" style={{ height: 140, animationDelay: `${i * 0.1}s` }} />
+                  ))}
+                </div>
+              ) : docs.length === 0 ? (
+                <div className="card empty">
+                  <div className="empty-title">{filtered ? "No documents match" : "No documents yet"}</div>
+                  {filtered ? "Try a different search or filter." : "Upload a document from the home page to get started."}
+                </div>
+              ) : (
+                <div className="doc-grid">
+                  {docs.map((d) => (
+                    <DocumentCard key={d.id} doc={d} collections={collections} onChanged={loadDocs} />
+                  ))}
+                </div>
               )}
-            </div>
-          </>
-        )}
-      </main>
-    </div>
+            </>
+          )}
+        </section>
+      </div>
+    </>
   );
 }
 
-function SidebarItem({ active, label: text, onClick }: { active: boolean; label: string; onClick: () => void }) {
+function SidebarItem({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
+      type="button"
       onClick={onClick}
-      style={{
-        flex: 1, textAlign: "left", padding: "10px 12px", borderRadius: "var(--radius-md)", cursor: "pointer",
-        fontFamily: "inherit", fontSize: "var(--fs-sm)", fontWeight: active ? "var(--fw-semibold)" : "var(--fw-medium)", minHeight: 44,
-        color: active ? "var(--on-accent)" : "var(--text)",
-        background: active ? "var(--accent)" : "var(--raised)",
-        border: "1px solid var(--border)",
-      }}
+      className={`btn btn-ghost side-item${active ? " is-active" : ""}`}
+      aria-current={active ? "true" : undefined}
     >
-      {text}
+      {children}
     </button>
   );
 }
@@ -210,48 +243,54 @@ function DocumentCard({ doc, collections, onChanged }: { doc: DocumentInfo; coll
   }
 
   return (
-    <div style={card}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ width: 34, height: 34, borderRadius: "var(--radius-sm)", background: "var(--accent)", color: "var(--on-accent)", fontWeight: "var(--fw-semibold)", fontSize: "var(--fs-xs)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
+    <div className="card card-compact">
+      <div className="row" style={{ gap: "var(--space-3)" }}>
+        <div aria-hidden style={{ width: 36, height: 36, borderRadius: "var(--radius-sm)", background: "var(--raised)", border: "1px solid var(--border)", color: "var(--text-2)", fontWeight: "var(--fw-medium)", fontSize: "var(--fs-xs)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
           {TYPE_ICON[doc.file_type] || "DOC"}
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontSize: "var(--fs-sm)", fontWeight: "var(--fw-semibold)", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.filename}</div>
-          <div style={{ fontSize: "var(--fs-xs)", color: "var(--muted)" }}>
+          <div className="meta">
             {doc.page_count ? `${doc.page_count}p · ` : ""}{doc.chunk_count ?? 0} chunks · v{doc.version_number}
           </div>
         </div>
       </div>
 
       {doc.is_duplicate && (
-        <div style={{ marginTop: 8, fontSize: "var(--fs-xs)", color: "var(--warn)" }}>
-          ⚠ Duplicate of {doc.duplicate_of_name}
+        <div className="row" style={{ marginTop: "var(--space-2)", gap: "var(--space-1)", fontSize: "var(--fs-xs)", color: "var(--warn)" }}>
+          <WarningIcon size={14} /> Duplicate of {doc.duplicate_of_name}
         </div>
       )}
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-        {doc.tags.map((tag) => (
-          <span key={tag} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 8px", borderRadius: "var(--radius-sm)", fontSize: "var(--fs-xs)", color: "var(--accent)", background: "var(--accent-soft)", border: "1px solid var(--accent-line)" }}>
-            {tag}
-            <button onClick={async () => { await removeTag(doc.id, tag); onChanged(); }} aria-label={`Remove ${tag}`} style={{ border: "none", background: "none", color: "inherit", cursor: "pointer", padding: 0, fontSize: "var(--fs-xs)" }}>✕</button>
-          </span>
-        ))}
-      </div>
+      {doc.tags.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-1)", marginTop: "var(--space-3)" }}>
+          {doc.tags.map((tag) => (
+            <span key={tag} className="chip chip-accent" style={{ paddingRight: 2 }}>
+              {tag}
+              <button type="button" className="btn btn-ghost btn-icon" onClick={async () => { await removeTag(doc.id, tag); onChanged(); }} aria-label={`Remove ${tag}`} title={`Remove ${tag}`} style={{ width: 20, minHeight: 20, height: 20, color: "inherit" }}>
+                <CloseIcon size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-        <input value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleAddTag(); }} placeholder="add tag" style={{ flex: "1 1 100px", minWidth: 0, padding: "6px 9px", borderRadius: "var(--radius-sm)", background: "var(--raised)", border: "1px solid var(--border)", color: "var(--text)", fontFamily: "inherit", fontSize: "var(--fs-xs)", outline: "none" }} />
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)", marginTop: "var(--space-3)" }}>
+        <input className="input input-sm" value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleAddTag(); }} placeholder="Add tag" aria-label={`Add a tag to ${doc.filename}`} style={{ flex: "1 1 100px", width: "auto", minWidth: 0 }} />
         <DropdownSelect
           value=""
           onChange={async (v) => { if (v) await addToCollection(v, [doc.id]); }}
-          placeholder="+ collection"
+          placeholder="Add to collection"
           ariaLabel={`Add ${doc.filename} to a collection`}
           options={collections.map((c) => ({ value: c.id, label: c.name }))}
-          style={{ flex: "1 1 110px", minWidth: 0, fontSize: "var(--fs-xs)", padding: "6px 8px" }}
+          style={{ flex: "1 1 130px", minWidth: 0, minHeight: 32, padding: "0 var(--space-3)", fontSize: "var(--fs-sm)" }}
         />
-        <button onClick={toggleCoverage} style={{ flex: "0 0 auto", border: "1px solid var(--border)", background: "var(--raised)", color: "var(--text)", borderRadius: "var(--radius-sm)", padding: "0 10px", height: 30, cursor: "pointer", fontSize: "var(--fs-xs)" }}>
+      </div>
+      <div className="row" style={{ marginTop: "var(--space-2)" }}>
+        <button type="button" className="btn btn-sm" onClick={toggleCoverage}>
           {coverage ? "Hide" : "Coverage"}
         </button>
-        <button onClick={() => setShowTimeline((v) => !v)} style={{ flex: "0 0 auto", border: "1px solid var(--border)", background: "var(--raised)", color: "var(--text)", borderRadius: "var(--radius-sm)", padding: "0 10px", height: 30, cursor: "pointer", fontSize: "var(--fs-xs)" }}>
+        <button type="button" className="btn btn-sm" onClick={() => setShowTimeline((v) => !v)}>
           Timeline
         </button>
       </div>
@@ -265,8 +304,8 @@ function DocumentCard({ doc, collections, onChanged }: { doc: DocumentInfo; coll
 function CoverageHeatmap({ cells }: { cells: CoverageCell[] }) {
   const max = Math.max(1, ...cells.map((c) => c.retrieved_count));
   return (
-    <div style={{ marginTop: 10 }}>
-      <div style={{ ...label, marginBottom: 6 }}>Coverage</div>
+    <div style={{ marginTop: "var(--space-3)" }}>
+      <div className="section-label" style={{ marginBottom: "var(--space-2)" }}>Coverage</div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
         {cells.map((c) => {
           const intensity = c.retrieved_count / max;
@@ -287,22 +326,16 @@ function CoverageHeatmap({ cells }: { cells: CoverageCell[] }) {
 }
 
 function BookmarksList({ items }: { items: QueryHistoryItem[] }) {
-  if (items.length === 0) return <div style={{ ...card, color: "var(--muted)" }}>No bookmarked queries yet.</div>;
+  if (items.length === 0) return <div className="card empty"><div className="empty-title">No bookmarked queries yet</div></div>;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <div className="stack" style={{ gap: "var(--space-3)" }}>
       {items.map((q) => (
-        <div key={q.id} style={card}>
+        <div key={q.id} className="card card-compact">
           <div style={{ fontSize: "var(--fs-sm)", fontWeight: "var(--fw-semibold)", color: "var(--text)" }}>{q.question}</div>
-          <div style={{ fontSize: "var(--fs-sm)", color: "var(--muted)", marginTop: 6, lineHeight: 1.5 }}>{q.answer.slice(0, 220)}{q.answer.length > 220 ? "…" : ""}</div>
-          {q.bookmark_note && <div style={{ fontSize: "var(--fs-xs)", color: "var(--accent)", marginTop: 6 }}>Note: {q.bookmark_note}</div>}
+          <div style={{ fontSize: "var(--fs-sm)", color: "var(--text-2)", marginTop: "var(--space-2)", lineHeight: 1.5 }}>{q.answer.slice(0, 220)}{q.answer.length > 220 ? "…" : ""}</div>
+          {q.bookmark_note && <div className="meta" style={{ color: "var(--accent)", marginTop: "var(--space-2)" }}>Note: {q.bookmark_note}</div>}
         </div>
       ))}
     </div>
   );
 }
-
-const selectStyle: CSSProperties = {
-  padding: "10px 12px", borderRadius: "var(--radius-md)", background: "var(--surface)",
-  border: "1px solid var(--border)", color: "var(--text)", fontFamily: "inherit",
-  fontSize: "var(--fs-sm)", outline: "none", cursor: "pointer",
-};

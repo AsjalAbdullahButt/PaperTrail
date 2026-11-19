@@ -9,17 +9,13 @@ export default function FollowUpQuestionChips({
 }) {
   if (questions.length === 0) return null;
   return (
-    <div style={{ marginTop: 20 }}>
-      <div style={{ fontSize: "var(--fs-xs)", fontWeight: "var(--fw-semibold)", letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)", marginBottom: 10 }}>
+    <div style={{ marginTop: "var(--space-5)" }}>
+      <div className="section-label" style={{ marginBottom: "var(--space-2)" }}>
         Follow-up questions
       </div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
         {questions.map((q, i) => (
-          <button
-            key={i}
-            onClick={() => onPick(q)}
-            style={{ padding: "8px 13px", borderRadius: "var(--radius-md)", cursor: "pointer", fontFamily: "inherit", fontSize: "var(--fs-sm)", color: "var(--text)", background: "var(--raised)", border: "1px solid var(--border)" }}
-          >
+          <button key={i} type="button" className="btn btn-wrap btn-sm" onClick={() => onPick(q)}>
             {q}
           </button>
         ))}

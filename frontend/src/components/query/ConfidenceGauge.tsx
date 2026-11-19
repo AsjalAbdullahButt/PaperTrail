@@ -36,22 +36,25 @@ export default function ConfidenceGauge({ value }: { value: number }) {
       : v >= LOW_MAX
       ? "Moderate — review sources"
       : "Low — answer may not be in documents";
+  // Colour follows the word: accent for high, neutral for moderate, amber for
+  // low. The label stays the main signal; no number or threshold changed.
+  const tone = v > HIGH_MIN ? "var(--accent)" : v >= LOW_MAX ? "var(--text-2)" : "var(--warn)";
 
   return (
     <div
       title={tooltip}
-      style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 2 }}
+      style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: "var(--space-1)" }}
     >
       <svg viewBox="0 0 120 70" width="120" height="70" role="img" aria-label={`Confidence ${pct} percent`}>
         <path d={arcPath(180, 360)} fill="none" stroke="var(--raised)" strokeWidth={9} strokeLinecap="round" />
         {v > 0 && (
-          <path d={arcPath(180, end)} fill="none" stroke="var(--accent)" strokeWidth={9} strokeLinecap="round" />
+          <path d={arcPath(180, end)} fill="none" stroke={tone} strokeWidth={9} strokeLinecap="round" />
         )}
         <text className="tabular-nums" x={CX} y={CY - 6} textAnchor="middle" fontSize={18} fontWeight={600} fill="var(--text)">
           {pct}%
         </text>
       </svg>
-      <span style={{ fontSize: "var(--fs-xs)", fontWeight: "var(--fw-medium)", color: "var(--muted)" }}>{label}</span>
+      <span style={{ fontSize: "var(--fs-sm)", fontWeight: "var(--fw-medium)", color: v >= LOW_MAX ? "var(--text-2)" : "var(--warn)" }}>{label}</span>
     </div>
   );
 }

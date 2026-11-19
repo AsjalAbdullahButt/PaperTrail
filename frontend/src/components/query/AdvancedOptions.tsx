@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { ResetIcon } from "@/components/ui/Icons";
 import { useQueryStore } from "@/state/queryStore";
 
 type Chip = {
@@ -12,28 +12,6 @@ type Chip = {
   unavailableHint?: string;
   appliesTo: boolean;
   onToggle: () => void;
-};
-
-const chipBase: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 6,
-  padding: "6px 12px",
-  borderRadius: "var(--radius-md)",
-  fontFamily: "inherit",
-  fontSize: "var(--fs-xs)",
-  fontWeight: "var(--fw-medium)",
-  cursor: "pointer",
-  border: "1px solid var(--border)",
-  color: "var(--muted)",
-  background: "var(--raised)",
-};
-
-const chipActive: CSSProperties = {
-  ...chipBase,
-  color: "var(--on-accent)",
-  border: "1px solid var(--accent)",
-  background: "var(--accent)",
 };
 
 /**
@@ -105,11 +83,9 @@ export default function AdvancedOptions() {
     <div
       role="group"
       aria-label="NLP pipeline options"
-      style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 12 }}
+      style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", flexWrap: "wrap", marginTop: "var(--space-3)" }}
     >
-      <span style={{ fontSize: "var(--fs-xs)", fontWeight: "var(--fw-semibold)", letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)" }}>
-        NLP pipeline
-      </span>
+      <span className="section-label">NLP pipeline</span>
       {chips.map((c) => {
         const disabled = !c.available || !c.appliesTo;
         const title = !c.available
@@ -121,11 +97,12 @@ export default function AdvancedOptions() {
           <button
             key={c.key}
             type="button"
+            className="chip"
             title={title}
             aria-pressed={c.active && !disabled}
             disabled={disabled}
             onClick={c.onToggle}
-            style={{ ...(c.active && !disabled ? chipActive : chipBase), opacity: disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "pointer" }}
+            style={{ minHeight: 28, padding: "0 var(--space-3)" }}
           >
             {c.label}
           </button>
@@ -134,10 +111,10 @@ export default function AdvancedOptions() {
       {customised && (
         <button
           type="button"
+          className="btn btn-ghost btn-sm"
           onClick={() => (["rerank", "expansion", "grounding", "abstain"] as const).forEach((k) => setOption(k, undefined))}
-          style={{ border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", fontSize: "var(--fs-xs)", fontWeight: "var(--fw-medium)", color: "var(--muted)" }}
         >
-          ↺ server defaults
+          <ResetIcon size={14} /> server defaults
         </button>
       )}
     </div>

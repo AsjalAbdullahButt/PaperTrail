@@ -3,16 +3,9 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useFloatingRect } from "@/hooks/useFloatingRect";
+import { ChevronDownIcon } from "@/components/ui/Icons";
 
 export type SelectOption = { value: string; label: string };
-
-function ChevronDownIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M6 9l6 6 6-6" />
-    </svg>
-  );
-}
 
 /** A themed dropdown that fully replaces the native <select>.
  *
@@ -68,65 +61,43 @@ export default function DropdownSelect({
     setOpen(false);
   }
 
-  const optionStyle = (active: boolean): CSSProperties => ({
-    display: "block",
-    width: "100%",
-    padding: "9px 12px",
-    borderRadius: "var(--radius-sm)",
-    border: "none",
-    background: active ? "var(--accent-soft)" : "none",
-    color: active ? "var(--accent)" : "var(--text)",
-    fontFamily: "inherit",
-    fontSize: "var(--fs-sm)",
-    fontWeight: active ? "var(--fw-semibold)" : "var(--fw-medium)",
-    textAlign: "left",
-    cursor: "pointer",
-  });
-
   return (
     <>
       <button
         type="button"
         ref={anchorRef}
+        className="btn btn-select"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={ariaLabel}
-        style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-          fontFamily: "inherit", cursor: "pointer", textAlign: "left",
-          color: "var(--text)", background: "var(--surface)",
-          border: `1px solid ${open ? "var(--accent)" : "var(--border)"}`,
-          borderRadius: "var(--radius-md)", padding: "10px 12px", fontSize: "var(--fs-sm)",
-          ...style,
-        }}
+        style={style}
       >
         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {selected ? selected.label : placeholder}
         </span>
-        <span style={{ display: "inline-flex", flex: "none", opacity: 0.7, transform: open ? "rotate(180deg)" : "none", transition: "transform .15s ease" }}>
-          <ChevronDownIcon />
+        <span style={{ display: "inline-flex", flex: "none", color: "var(--muted)", transform: open ? "rotate(180deg)" : "none" }}>
+          <ChevronDownIcon size={14} />
         </span>
       </button>
       {open && rect && typeof document !== "undefined" && createPortal(
         <div
           ref={menuRef}
           role="listbox"
+          className="menu"
           style={{
             position: "fixed", top: rect.bottom + 6, left: `min(${rect.left}px, calc(100vw - ${Math.max(rect.width, 160) + 8}px))`, width: Math.max(rect.width, 160),
-            maxHeight: 280, overflowY: "auto", padding: 6, borderRadius: "var(--radius-md)",
-            background: "var(--overlay)", border: "1px solid var(--border)",
-            boxShadow: "var(--shadow-overlay)", zIndex: 1000,
-            animation: "rise .12s ease both",
+            maxHeight: 280, overflowY: "auto", zIndex: 1000,
+            animation: "rise var(--dur-fast) var(--ease) both",
           }}
         >
           {placeholder && (
-            <button type="button" role="option" aria-selected={value === ""} onClick={() => pick("")} style={optionStyle(value === "")}>
+            <button type="button" role="option" className="menu-item" aria-selected={value === ""} onClick={() => pick("")}>
               {placeholder}
             </button>
           )}
           {options.map((o) => (
-            <button key={o.value} type="button" role="option" aria-selected={o.value === value} onClick={() => pick(o.value)} style={optionStyle(o.value === value)}>
+            <button key={o.value} type="button" role="option" className="menu-item" aria-selected={o.value === value} onClick={() => pick(o.value)}>
               {o.label}
             </button>
           ))}
