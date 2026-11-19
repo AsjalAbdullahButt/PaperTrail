@@ -3,7 +3,6 @@
 import { useState, type CSSProperties } from "react";
 import type { UploadResult } from "@/api/backendClient";
 
-const ACCENT_GRADIENT = "linear-gradient(135deg,var(--accent),var(--accent2))";
 
 const TYPE_ICON: Record<string, string> = {
   pdf: "PDF",
@@ -32,12 +31,10 @@ export default function UploadReadyCard({
       style={{
         marginTop: 20,
         padding: "22px 24px",
-        borderRadius: 20,
-        background: "var(--card-bg)",
-        border: "1px solid var(--card-border)",
-        backdropFilter: "blur(22px) saturate(150%)",
-        WebkitBackdropFilter: "blur(22px) saturate(150%)",
-        boxShadow: "var(--elev-2)",
+        borderRadius: "var(--radius-md)",
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        boxShadow: "var(--shadow-overlay)",
         animation: "rise .4s ease both",
       }}
     >
@@ -49,12 +46,11 @@ export default function UploadReadyCard({
             justifyContent: "center",
             width: 42,
             height: 42,
-            borderRadius: 11,
-            background: ACCENT_GRADIENT,
-            color: "var(--onAccent)",
-            fontWeight: 800,
-            fontSize: 12,
-            boxShadow: "0 4px 14px var(--accentGlow)",
+            borderRadius: "var(--radius-md)",
+            background: "var(--accent)",
+            color: "var(--on-accent)",
+            fontWeight: "var(--fw-semibold)",
+            fontSize: "var(--fs-xs)",
             flex: "none",
           }}
         >
@@ -64,8 +60,8 @@ export default function UploadReadyCard({
           <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
             <span
               style={{
-                fontSize: 15.5,
-                fontWeight: 700,
+                fontSize: "var(--fs-md)",
+                fontWeight: "var(--fw-semibold)",
                 color: "var(--text)",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -76,7 +72,7 @@ export default function UploadReadyCard({
             </span>
             <span style={badge}>Ready</span>
           </div>
-          <div style={{ marginTop: 3, fontSize: 12.5, color: "var(--muted)" }}>
+          <div style={{ marginTop: 3, fontSize: "var(--fs-xs)", color: "var(--muted)" }}>
             {result.file_type.toUpperCase()}
             {result.page_count ? ` · ${result.page_count} page${result.page_count === 1 ? "" : "s"}` : ""}
             {` · ${result.word_count.toLocaleString()} words`}
@@ -95,10 +91,10 @@ export default function UploadReadyCard({
             style={{
               margin: "10px 0 0",
               padding: "12px 15px",
-              borderLeft: "3px solid var(--accent2)",
-              borderRadius: 8,
-              background: "var(--chip-bg)",
-              fontSize: 14,
+              borderLeft: "3px solid var(--accent)",
+              borderRadius: "var(--radius-sm)",
+              background: "var(--accent-soft)",
+              fontSize: "var(--fs-sm)",
               lineHeight: 1.55,
               color: "var(--text)",
             }}
@@ -119,9 +115,9 @@ export default function UploadReadyCard({
                   margin: 0,
                   padding: "10px 14px",
                   borderLeft: "3px solid var(--accent)",
-                  borderRadius: 8,
-                  background: "var(--seg-bg)",
-                  fontSize: 13.5,
+                  borderRadius: "var(--radius-sm)",
+                  background: "var(--raised)",
+                  fontSize: "var(--fs-sm)",
                   lineHeight: 1.5,
                   color: "var(--muted)",
                 }}
@@ -162,12 +158,12 @@ export default function UploadReadyCard({
                   style={{
                     padding: "4px 0",
                     paddingLeft: (o.level - 1) * 16,
-                    fontSize: 13.5,
+                    fontSize: "var(--fs-sm)",
                     color: "var(--text)",
-                    fontWeight: o.level === 1 ? 600 : 400,
+                    fontWeight: o.level === 1 ? "var(--fw-medium)" : "var(--fw-regular)",
                   }}
                 >
-                  <span style={{ color: "var(--accent2)", marginRight: 7 }}>
+                  <span style={{ color: "var(--accent)", marginRight: 7 }}>
                     {"·".repeat(o.level)}
                   </span>
                   {o.heading}
@@ -185,17 +181,17 @@ const badge: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   padding: "2px 9px",
-  borderRadius: 8,
-  fontSize: 11,
-  fontWeight: 700,
+  borderRadius: "var(--radius-sm)",
+  fontSize: "var(--fs-xs)",
+  fontWeight: "var(--fw-semibold)",
   color: "var(--accent)",
-  background: "var(--chip-bg)",
-  border: "1px solid var(--chip-border)",
+  background: "var(--accent-soft)",
+  border: "1px solid var(--accent-line)",
 };
 
 const sectionLabel: CSSProperties = {
-  fontSize: 11.5,
-  fontWeight: 700,
+  fontSize: "var(--fs-xs)",
+  fontWeight: "var(--fw-semibold)",
   letterSpacing: ".05em",
   textTransform: "uppercase",
   color: "var(--muted)",
@@ -203,12 +199,12 @@ const sectionLabel: CSSProperties = {
 
 const dismissBtn: CSSProperties = {
   flex: "none",
-  border: "1px solid var(--card-border)",
-  background: "var(--seg-bg)",
+  border: "1px solid var(--border)",
+  background: "var(--raised)",
   color: "var(--muted)",
-  borderRadius: 9,
+  borderRadius: "var(--radius-sm)",
   width: 30,
   height: 30,
   cursor: "pointer",
-  fontSize: 13,
+  fontSize: "var(--fs-sm)",
 };

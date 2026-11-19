@@ -17,16 +17,14 @@ const SUGGESTIONS = [
   "How does onboarding work for new hires?",
 ];
 
-const ACCENT_GRADIENT = "linear-gradient(135deg,var(--accent),var(--accent2))";
 
 const segActive: CSSProperties = {
-  border: "none", cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 13,
-  padding: "7px 14px", borderRadius: 10, color: "var(--onAccent)", background: ACCENT_GRADIENT,
-  boxShadow: "0 3px 10px var(--accentGlow)",
+  border: "none", cursor: "pointer", fontFamily: "inherit", fontWeight: "var(--fw-semibold)", fontSize: "var(--fs-sm)",
+  padding: "7px 14px", borderRadius: "var(--radius-sm)", color: "var(--on-accent)", background: "var(--accent)",
 };
 const segIdle: CSSProperties = {
-  border: "none", cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 13,
-  padding: "7px 14px", borderRadius: 10, color: "var(--muted)", background: "transparent",
+  border: "none", cursor: "pointer", fontFamily: "inherit", fontWeight: "var(--fw-medium)", fontSize: "var(--fs-sm)",
+  padding: "7px 14px", borderRadius: "var(--radius-sm)", color: "var(--muted)", background: "transparent",
 };
 
 const MODE_INFO: Record<QueryMode, { label: string; description: string }> = {
@@ -62,18 +60,16 @@ function ModeButton({ mode, active, onClick }: { mode: QueryMode; active: boolea
             transform: "translateX(-50%)",
             width: 220,
             padding: "10px 13px",
-            borderRadius: 12,
-            background: "var(--menu-bg)",
-            border: "1px solid var(--card-border)",
+            borderRadius: "var(--radius-md)",
+            background: "var(--overlay)",
+            border: "1px solid var(--border)",
             color: "var(--text)",
-            fontSize: 12.5,
+            fontSize: "var(--fs-xs)",
             lineHeight: 1.5,
-            fontWeight: 500,
+            fontWeight: "var(--fw-medium)",
             textAlign: "center",
             zIndex: 1000,
-            boxShadow: "var(--elev-2)",
-            backdropFilter: "blur(18px) saturate(140%)",
-            WebkitBackdropFilter: "blur(18px) saturate(140%)",
+            boxShadow: "var(--shadow-overlay)",
             pointerEvents: "none",
             animation: "rise .15s ease both",
           }}
@@ -100,22 +96,21 @@ function SuggestionChip({ q, onPick }: { q: string; onPick: () => void }) {
     <button
       onClick={onPick}
       style={{
-        display: "inline-flex", alignItems: "center", gap: 9, padding: "11px 17px", borderRadius: 14,
-        maxWidth: "100%", textAlign: "left", cursor: "pointer", fontFamily: "inherit", fontWeight: 500, fontSize: 14, color: "var(--text)",
-        background: "var(--card-bg)", border: "1px solid var(--card-border)",
-        backdropFilter: "blur(14px) saturate(140%)", WebkitBackdropFilter: "blur(14px)",
+        display: "inline-flex", alignItems: "center", gap: 9, padding: "11px 17px", borderRadius: "var(--radius-md)",
+        maxWidth: "100%", textAlign: "left", cursor: "pointer", fontFamily: "inherit", fontWeight: "var(--fw-medium)", fontSize: "var(--fs-sm)", color: "var(--text)",
+        background: "var(--surface)", border: "1px solid var(--border)",
       }}
     >
-      <span style={{ color: "var(--muted)", fontSize: 13 }}>try</span>
+      <span style={{ color: "var(--muted)", fontSize: "var(--fs-sm)" }}>try</span>
       {q}
-      <span style={{ color: "var(--accent)", fontWeight: 700 }}>→</span>
+      <span style={{ color: "var(--accent)", fontWeight: "var(--fw-semibold)" }}>→</span>
     </button>
   );
 }
 
 function Spinner() {
   return (
-    <span aria-hidden style={{ width: 14, height: 14, borderRadius: "50%", border: "2px solid rgba(255,255,255,.45)", borderTopColor: "#fff", display: "inline-block", animation: "spin .7s linear infinite" }} />
+    <span aria-hidden style={{ width: 14, height: 14, borderRadius: "50%", border: "2px solid currentColor", borderTopColor: "transparent", display: "inline-block", animation: "spin .7s linear infinite" }} />
   );
 }
 
@@ -128,14 +123,14 @@ function BlinkingCursor() {
 function SkeletonCard() {
   return (
     <div style={{ display: "flex", gap: 22, flexWrap: "wrap", alignItems: "flex-start" }}>
-      <div style={{ flex: "1 1 520px", minWidth: "min(300px, 100%)", padding: "clamp(20px, 5vw, 30px) clamp(18px, 5vw, 32px)", borderRadius: 22, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px)" }}>
+      <div style={{ flex: "1 1 520px", minWidth: "min(300px, 100%)", padding: "clamp(20px, 5vw, 30px) clamp(18px, 5vw, 32px)", borderRadius: "var(--radius-md)", background: "var(--surface)", border: "1px solid var(--border)", }}>
         {[92, 88, 80, 60].map((w, i) => (
-          <div key={i} style={{ height: 14, width: `${w}%`, borderRadius: 7, margin: "0 0 14px", background: "var(--seg-bg)", animation: "pulse 1.2s ease-in-out infinite", animationDelay: `${i * 0.1}s` }} />
+          <div key={i} style={{ height: 14, width: `${w}%`, borderRadius: "var(--radius-sm)", margin: "0 0 14px", background: "var(--raised)", animation: "var(--anim-pulse)", animationDelay: `${i * 0.1}s` }} />
         ))}
       </div>
       <div style={{ flex: "1 1 300px", minWidth: "min(270px, 100%)", maxWidth: 380, display: "flex", flexDirection: "column", gap: 12 }}>
         {[0, 1].map((i) => (
-          <div key={i} style={{ height: 92, borderRadius: 16, background: "var(--card-bg)", border: "1px solid var(--card-border)", animation: "pulse 1.2s ease-in-out infinite", animationDelay: `${i * 0.15}s` }} />
+          <div key={i} style={{ height: 92, borderRadius: "var(--radius-md)", background: "var(--surface)", border: "1px solid var(--border)", animation: "var(--anim-pulse)", animationDelay: `${i * 0.15}s` }} />
         ))}
       </div>
     </div>
@@ -192,19 +187,19 @@ export default function QueryPanel({
     void runQuery(q, onUnauthorized);
   }
 
-  const accentBtn: CSSProperties = { color: "var(--onAccent)", background: ACCENT_GRADIENT, boxShadow: "0 4px 14px var(--accentGlow)" };
+  const accentBtn: CSSProperties = { color: "var(--on-accent)", background: "var(--accent)", };
 
   return (
     <>
       <div style={{ marginTop: 40 }}>
-        <div role="group" aria-label="Answer mode" style={{ display: "flex", gap: 3, padding: 4, borderRadius: 13, background: "var(--seg-bg)", border: "1px solid var(--card-border)", marginBottom: 14, width: "fit-content", maxWidth: "100%", flexWrap: "wrap" }}>
+        <div role="group" aria-label="Answer mode" style={{ display: "flex", gap: 3, padding: 4, borderRadius: "var(--radius-md)", background: "var(--raised)", border: "1px solid var(--border)", marginBottom: 14, width: "fit-content", maxWidth: "100%", flexWrap: "wrap" }}>
           <ModeButton mode="rag" active={mode === "rag"} onClick={() => setMode("rag")} />
           <ModeButton mode="multihop" active={mode === "multihop"} onClick={() => setMode("multihop")} />
           <ModeButton mode="direct" active={mode === "direct"} onClick={() => setMode("direct")} />
           <ModeButton mode="compare" active={mode === "compare"} onClick={() => setMode("compare")} />
         </div>
 
-        <div data-ring-host style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px 9px 16px", borderRadius: 20, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px) saturate(150%)", WebkitBackdropFilter: "blur(22px) saturate(150%)", boxShadow: "var(--elev-2)" }}>
+        <div data-ring-host style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px 9px 16px", borderRadius: "var(--radius-md)", background: "var(--surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-overlay)" }}>
           <MagnifierIcon />
           <input
             ref={queryInputRef}
@@ -214,16 +209,16 @@ export default function QueryPanel({
             onKeyDown={(e) => { if (e.key === "Enter" && !compareBlocked) ask(query || SUGGESTIONS[0]); }}
             placeholder="Ask anything about your documents…"
             aria-label="Ask a question about your documents"
-            style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", fontFamily: "inherit", fontSize: 16.5, color: "var(--text)", padding: "2px 4px" }}
+            style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", fontFamily: "inherit", fontSize: "var(--fs-md)", color: "var(--text)", padding: "2px 4px" }}
           />
           <button
             onClick={() => ask(query || SUGGESTIONS[0])}
             disabled={asking || compareBlocked}
-            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px 20px", borderRadius: 14, border: "none", cursor: asking || compareBlocked ? "default" : "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 14, flex: "none", opacity: asking || compareBlocked ? 0.75 : 1, ...accentBtn }}
+            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px 20px", borderRadius: "var(--radius-md)", border: "none", cursor: asking || compareBlocked ? "default" : "pointer", fontFamily: "inherit", fontWeight: "var(--fw-medium)", fontSize: "var(--fs-sm)", flex: "none", opacity: asking || compareBlocked ? 0.75 : 1, ...accentBtn }}
           >
             {asking ? <Spinner /> : null}
             {asking ? "Asking…" : "Ask"}
-            {!asking && <span style={{ fontSize: 15, marginTop: -1 }}>→</span>}
+            {!asking && <span style={{ fontSize: "var(--fs-md)", marginTop: -1 }}>→</span>}
           </button>
         </div>
         <AdvancedOptions />
@@ -231,30 +226,30 @@ export default function QueryPanel({
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
             <button
               onClick={startNewConversation}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 10, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 12.5, color: "var(--muted)" }}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: "var(--radius-sm)", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", fontWeight: "var(--fw-medium)", fontSize: "var(--fs-xs)", color: "var(--muted)" }}
             >
               <span aria-hidden>↺</span> New conversation
             </button>
           </div>
         )}
         {error && (
-          <div role="alert" style={{ marginTop: 12, padding: "10px 14px", borderRadius: 12, fontSize: 13.5, color: "#ff8a80", background: "rgba(255,80,80,.10)", border: "1px solid rgba(255,120,120,.35)" }}>
+          <div role="alert" style={{ marginTop: 12, padding: "10px 14px", borderRadius: "var(--radius-md)", fontSize: "var(--fs-sm)", color: "var(--danger)", background: "var(--danger-soft)", border: "1px solid var(--danger-line)" }}>
             {error}
           </div>
         )}
       </div>
 
       {mode === "compare" && (
-        <div style={{ marginTop: 16, padding: "14px 16px", borderRadius: 16, background: "var(--card-bg)", border: "1px solid var(--card-border)" }}>
+        <div style={{ marginTop: 16, padding: "14px 16px", borderRadius: "var(--radius-md)", background: "var(--surface)", border: "1px solid var(--border)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-            <span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--muted)" }}>Documents to compare</span>
+            <span style={{ fontSize: "var(--fs-xs)", fontWeight: "var(--fw-semibold)", letterSpacing: ".04em", textTransform: "uppercase", color: "var(--muted)" }}>Documents to compare</span>
             {selectedDocIds.length < 2 && (
-              <span style={{ fontSize: 12.5, color: "var(--muted)" }}>Select 2+ documents to compare.</span>
+              <span style={{ fontSize: "var(--fs-xs)", color: "var(--muted)" }}>Select 2+ documents to compare.</span>
             )}
           </div>
-          {compareDocs === null && <span style={{ fontSize: 13, color: "var(--muted)" }}>Loading documents…</span>}
+          {compareDocs === null && <span style={{ fontSize: "var(--fs-sm)", color: "var(--muted)" }}>Loading documents…</span>}
           {compareDocs !== null && compareDocs.length === 0 && (
-            <span style={{ fontSize: 13, color: "var(--muted)" }}>Upload at least two documents to use compare mode.</span>
+            <span style={{ fontSize: "var(--fs-sm)", color: "var(--muted)" }}>Upload at least two documents to use compare mode.</span>
           )}
           {compareDocs !== null && compareDocs.length > 0 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -265,7 +260,7 @@ export default function QueryPanel({
                     key={d.id}
                     onClick={() => toggleSelectedDoc(d.id)}
                     aria-pressed={selected}
-                    style={{ padding: "7px 13px", borderRadius: 12, cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600, color: selected ? "var(--onAccent)" : "var(--text)", background: selected ? ACCENT_GRADIENT : "var(--seg-bg)", border: `1px solid ${selected ? "var(--accent)" : "var(--card-border)"}` }}
+                    style={{ padding: "7px 13px", borderRadius: "var(--radius-md)", cursor: "pointer", fontFamily: "inherit", fontSize: "var(--fs-sm)", fontWeight: "var(--fw-medium)", color: selected ? "var(--on-accent)" : "var(--text)", background: selected ? "var(--accent)" : "var(--raised)", border: `1px solid ${selected ? "var(--accent)" : "var(--border)"}` }}
                   >
                     {d.filename}
                   </button>
@@ -278,14 +273,14 @@ export default function QueryPanel({
 
       {!hasAnswer && !asking && (
         <div style={{ textAlign: "center", marginTop: "clamp(40px, 12vw, 90px)", animation: "rise .5s ease both" }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 13px", borderRadius: 20, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(14px)", fontSize: 12.5, fontWeight: 600, color: "var(--muted)", letterSpacing: ".01em" }}>
-            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--accent)", boxShadow: "0 0 8px var(--accent)" }} />
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 13px", borderRadius: "var(--radius-md)", background: "var(--surface)", border: "1px solid var(--border)", fontSize: "var(--fs-xs)", fontWeight: "var(--fw-medium)", color: "var(--muted)", letterSpacing: ".01em" }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--accent)", }} />
             Grounded in your documents
           </div>
-          <h1 style={{ margin: "22px auto 0", maxWidth: 640, fontSize: "clamp(30px, 8vw, 44px)", lineHeight: 1.08, letterSpacing: "-.03em", fontWeight: 800, color: "var(--text)" }}>
+          <h1 style={{ margin: "22px auto 0", maxWidth: 640, fontSize: "clamp(30px, 8vw, 44px)", lineHeight: 1.08, letterSpacing: "-.03em", fontWeight: "var(--fw-semibold)", color: "var(--text)" }}>
             Answers you can trace back<br />to the source.
           </h1>
-          <p style={{ margin: "16px auto 0", maxWidth: 500, fontSize: 16, lineHeight: 1.55, color: "var(--muted)" }}>
+          <p style={{ margin: "16px auto 0", maxWidth: 500, fontSize: "var(--fs-md)", lineHeight: 1.55, color: "var(--muted)" }}>
             Ask a question and PaperTrail retrieves the exact passages, cites them inline, and shows you how confident it is.
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 11, justifyContent: "center", marginTop: 34 }}>
@@ -304,14 +299,14 @@ export default function QueryPanel({
 
       {hasAnswer && (
         <div style={{ display: "flex", gap: 22, marginTop: 34, flexWrap: "wrap", alignItems: "flex-start", animation: "rise .45s ease both" }}>
-          <div style={{ flex: "1 1 520px", minWidth: "min(300px, 100%)", padding: "clamp(20px, 5vw, 30px) clamp(18px, 5vw, 32px)", borderRadius: 22, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px) saturate(150%)", WebkitBackdropFilter: "blur(22px) saturate(150%)", boxShadow: "var(--elev-2)" }}>
+          <div style={{ flex: "1 1 520px", minWidth: "min(300px, 100%)", padding: "clamp(20px, 5vw, 30px) clamp(18px, 5vw, 32px)", borderRadius: "var(--radius-md)", background: "var(--surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-overlay)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 18 }}>
-              <div style={{ width: 22, height: 22, borderRadius: 7, background: ACCENT_GRADIENT, flex: "none" }} />
-              <span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--muted)" }}>
+              <div style={{ width: 22, height: 22, borderRadius: "var(--radius-sm)", background: "var(--accent)", flex: "none" }} />
+              <span style={{ fontSize: "var(--fs-xs)", fontWeight: "var(--fw-semibold)", letterSpacing: ".04em", textTransform: "uppercase", color: "var(--muted)" }}>
                 {answerMode === "direct" ? "Direct answer" : answerMode === "multihop" ? "Multi-hop answer" : answerMode === "compare" ? "Comparison answer" : "Retrieved answer"}
               </span>
               {answerMode !== "direct" && (
-                <span className="tabular-nums" style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 700, color: "var(--accent)", background: "var(--chip-bg)", border: "1px solid var(--chip-border)" }}>
+                <span className="tabular-nums" style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: "var(--radius-md)", fontSize: "var(--fs-xs)", fontWeight: "var(--fw-semibold)", color: "var(--accent)", background: "var(--accent-soft)", border: "1px solid var(--accent-line)" }}>
                   {isStreaming ? "Answering…" : `${confPct}% confidence`}
                 </span>
               )}
@@ -320,14 +315,14 @@ export default function QueryPanel({
               <div
                 role="status"
                 data-testid="abstained-banner"
-                style={{ marginBottom: 14, padding: "10px 13px", borderRadius: 12, fontSize: 13, lineHeight: 1.5, color: "#e0a53a", background: "rgba(224,165,58,.10)", border: "1px solid rgba(224,165,58,.35)" }}
+                style={{ marginBottom: 14, padding: "10px 13px", borderRadius: "var(--radius-md)", fontSize: "var(--fs-sm)", lineHeight: 1.5, color: "var(--warn)", background: "var(--warn-soft)", border: "1px solid var(--warn-line)" }}
               >
                 ⚠ Declined to answer: the best matching passage scored{" "}
                 {pipeline?.retrieval_signal != null ? `${Math.round(pipeline.retrieval_signal * 100)}%` : "low"} relevance, below the
                 abstention threshold. The retrieved passages are listed so you can judge for yourself.
               </div>
             )}
-            <div style={{ fontSize: "clamp(16px, 4.2vw, 19px)", lineHeight: 1.62, letterSpacing: "-.01em", color: "var(--text)", fontWeight: 400, whiteSpace: isStreaming ? "pre-wrap" : undefined }}>
+            <div style={{ fontSize: "clamp(16px, 4.2vw, 19px)", lineHeight: 1.62, letterSpacing: "-.01em", color: "var(--text)", fontWeight: "var(--fw-regular)", whiteSpace: isStreaming ? "pre-wrap" : undefined }}>
               {isStreaming ? (
                 <>
                   {currentAnswer}
@@ -338,17 +333,17 @@ export default function QueryPanel({
               )}
             </div>
             {!isStreaming && (
-              <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 26, paddingTop: 18, borderTop: "1px solid var(--card-border)", flexWrap: "wrap" }}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
-                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--accent)", boxShadow: "0 0 8px var(--accent)" }} />
+              <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 26, paddingTop: 18, borderTop: "1px solid var(--border)", flexWrap: "wrap" }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: "var(--fs-sm)", fontWeight: "var(--fw-medium)", color: "var(--text)" }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--accent)", }} />
                   {answerMode === "direct" ? "Direct answer" : abstained ? "Abstained" : confidenceLabel}
                 </span>
                 <span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--muted)", opacity: 0.5 }} />
-                <span style={{ fontSize: 13, color: "var(--muted)" }}>
+                <span style={{ fontSize: "var(--fs-sm)", color: "var(--muted)" }}>
                   {answerMode === "direct" ? "No retrieval" : `Grounded in ${currentSources.length} source${currentSources.length === 1 ? "" : "s"}`}
                 </span>
                 <span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--muted)", opacity: 0.5 }} />
-                <span style={{ fontSize: 13, color: "var(--muted)" }}>answered in {timing.toFixed(1)}s</span>
+                <span style={{ fontSize: "var(--fs-sm)", color: "var(--muted)" }}>answered in {timing.toFixed(1)}s</span>
               </div>
             )}
             {!isStreaming && answerMode !== "direct" && <PipelineBadges pipeline={pipeline} />}

@@ -26,10 +26,10 @@ export default function DocumentTimeline({ documentId }: { documentId: string })
     return () => { active = false; };
   }, [documentId]);
 
-  if (loading) return <div style={{ color: "var(--muted)", fontSize: 13, padding: 12 }}>Extracting timeline…</div>;
+  if (loading) return <div style={{ color: "var(--muted)", fontSize: "var(--fs-sm)", padding: 12 }}>Extracting timeline…</div>;
   if (!events || events.length === 0) {
     return (
-      <div style={{ color: "var(--muted)", fontSize: 13, padding: 12 }}>
+      <div style={{ color: "var(--muted)", fontSize: "var(--fs-sm)", padding: 12 }}>
         No dated events detected in this document.
       </div>
     );
@@ -38,15 +38,15 @@ export default function DocumentTimeline({ documentId }: { documentId: string })
   return (
     <div style={{ position: "relative", padding: "10px 0", marginTop: 8 }}>
       {/* Center spine */}
-      <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 2, background: "var(--card-border)", transform: "translateX(-1px)" }} />
+      <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 2, background: "var(--border)", transform: "translateX(-1px)" }} />
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {events.map((ev, i) => {
           const left = i % 2 === 0;
           return (
             <div key={i} style={{ display: "flex", justifyContent: left ? "flex-start" : "flex-end" }}>
-              <div style={{ width: "46%", padding: "12px 14px", borderRadius: 14, background: "var(--card-bg)", border: "1px solid var(--card-border)", boxShadow: "var(--elev-1)" }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "var(--accent)" }}>{ev.date}</div>
-                <div style={{ fontSize: 13, color: "var(--text)", marginTop: 4, lineHeight: 1.45 }}>{ev.event}</div>
+              <div style={{ width: "46%", padding: "12px 14px", borderRadius: "var(--radius-md)", background: "var(--surface)", border: "1px solid var(--border)", }}>
+                <div style={{ fontSize: "var(--fs-sm)", fontWeight: "var(--fw-semibold)", color: "var(--accent)" }}>{ev.date}</div>
+                <div style={{ fontSize: "var(--fs-sm)", color: "var(--text)", marginTop: 4, lineHeight: 1.45 }}>{ev.event}</div>
               </div>
             </div>
           );

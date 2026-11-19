@@ -93,7 +93,7 @@ export default function RegisterPage() {
       </label>
       {emailError && <div style={fieldErrorStyle}>{emailError}</div>}
       <label style={{ ...labelStyle, marginTop: 14 }}>
-        Display name <span style={{ fontWeight: 400 }}>(optional)</span>
+        Display name <span style={{ fontWeight: "var(--fw-regular)" }}>(optional)</span>
         <input
           type="text"
           maxLength={100}

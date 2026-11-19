@@ -1,14 +1,51 @@
-/* PaperTrail uses a hand-authored inline-style + CSS-variable design system
-   (see page.tsx / components). Tailwind was installed but never used, so it was
-   removed to eliminate the contradiction and trim the dependency tree. */
+/* PaperTrail design tokens and base rules. See frontend/DESIGN.md.
 
-/* ---- Reset / base (ported from the reference design) ---- */
+   Colour and shadow tokens depend on the theme and live in theme/themes.ts
+   (applied on each page root and mirrored onto :root by GlobalNotifications).
+   Everything that does not change with the theme lives here. */
+
 :root {
   /* Matches useTheme()'s initial state; GlobalNotifications overwrites this once the
      persisted preference loads, so native controls (selects, checkboxes,
      scrollbars) never flash light-mode chrome before that effect runs. */
   color-scheme: dark;
+
+  /* Spacing: 4px grid. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* Radius: two sizes. Fully round only for dots, avatars and the toggle. */
+  --radius-sm: 8px; /* buttons, inputs, chips, menu items */
+  --radius-md: 12px; /* cards, panels, modals, drawers, toasts */
+  --radius-full: 999px;
+
+  /* Type: five sizes, three weights. One family (Plus Jakarta Sans). */
+  --fs-xs: 12px; /* meta, captions, chips */
+  --fs-sm: 14px; /* interface text */
+  --fs-md: 16px; /* answers, inputs */
+  --fs-lg: 20px; /* titles */
+  --fs-xl: 28px; /* page heading */
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --lh-text: 1.5;
+  --lh-heading: 1.25;
+
+  /* Motion: two durations, one curve. */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Loading skeletons: a slow, low-contrast pulse. Switched off for
+     prefers-reduced-motion at the bottom of this file. */
+  --anim-pulse: pulse 2.4s ease-in-out infinite;
 }
+
 * {
   box-sizing: border-box;
 }
@@ -19,46 +56,21 @@ body {
 }
 body {
   font-family: var(--font-jakarta), system-ui, sans-serif;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-text);
+  background: var(--bg, #111215);
+  color: var(--text, #ecece9);
   -webkit-font-smoothing: antialiased;
 }
 a {
   color: inherit;
 }
 
-/* ---- Ambient floating blob animations ---- */
-@keyframes floatA {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(40px, -30px) scale(1.08);
-  }
-}
-@keyframes floatB {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(-50px, 40px) scale(1.12);
-  }
-}
-@keyframes floatC {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(30px, 50px) scale(1.06);
-  }
-}
-
 /* ---- Entrance animation ---- */
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -87,7 +99,7 @@ a {
 @keyframes pulse {
   0%,
   100% {
-    opacity: 0.55;
+    opacity: 0.7;
   }
   50% {
     opacity: 1;
@@ -107,19 +119,12 @@ a {
 
 /* ---- Themed selection + placeholder (vars set inline on root) ---- */
 ::selection {
-  background: var(--sel);
+  background: var(--selection);
   color: var(--text);
 }
 ::placeholder {
   color: var(--muted);
 }
-
-/* ===========================================================================
-   UI polish layer — base-element rules only, so it never fights component
-   inline styles (except where noted with !important). Reads the --ring /
-   --scrollbar tokens from theme/themes.ts, mirrored onto :root by
-   GlobalNotifications so portalled UI (menus, toasts) sees them too.
-   =========================================================================== */
 
 html {
   scroll-behavior: smooth;
@@ -136,7 +141,7 @@ body {
   font-feature-settings: "tnum" 1;
 }
 
-/* Keyboard focus ring — visible for keyboard users only, never on mouse click. */
+/* Keyboard focus ring: solid accent, visible for keyboard users only. */
 :focus-visible {
   outline: 2px solid var(--ring, var(--accent));
   outline-offset: 2px;
@@ -163,20 +168,16 @@ input[data-bare]:focus-visible {
   outline-offset: 2px;
 }
 
-/* Gentle, consistent interaction feel on native controls (inline styles still
-   win on anything a component sets explicitly). */
+/* Interaction feel on native controls: colour, background, border and opacity
+   only. Nothing moves, scales or glows on hover or press. */
 button,
 [role="button"],
 a,
 input,
 textarea,
 select {
-  transition: color 0.18s ease, background-color 0.18s ease,
-    border-color 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease;
-}
-button:not(:disabled):active,
-[role="button"]:active {
-  transform: translateY(0.5px) scale(0.995);
+  transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
 }
 
 /* Themed, slim scrollbars. Chromium 121+ and Firefox honour the standard
@@ -194,7 +195,7 @@ button:not(:disabled):active,
 }
 ::-webkit-scrollbar-thumb {
   background: var(--scrollbar, rgba(128, 128, 128, 0.3));
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   border: 2px solid transparent;
   background-clip: content-box;
 }
@@ -203,25 +204,15 @@ button:not(:disabled):active,
   background-clip: content-box;
 }
 
-/* Phones: the ambient blobs are 420–620px with a 90–110px blur filter, which
-   is both wider than the viewport and costly to repaint. Shrink them. */
-@media (max-width: 640px) {
-  .ambient-blob {
-    width: 320px !important;
-    height: 320px !important;
-    filter: blur(60px) !important;
-  }
-}
-
-/* Reduced motion: stop the decorative ambient drift and the smooth scroll and
-   shorten transitions. Spinners, the streaming cursor and skeleton pulses are
-   deliberately left running — they communicate loading state. */
+/* Reduced motion: smooth scroll off, transitions near-instant, and the
+   skeleton pulse stops. Spinners and the streaming cursor keep running because
+   they communicate that work is in progress. */
 @media (prefers-reduced-motion: reduce) {
+  :root {
+    --anim-pulse: none;
+  }
   html {
     scroll-behavior: auto;
-  }
-  .ambient-blob {
-    animation: none !important;
   }
   *,
   *::before,

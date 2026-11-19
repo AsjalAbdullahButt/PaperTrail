@@ -22,17 +22,15 @@ import {
 
 const cardStyle: CSSProperties = {
   padding: "22px 24px",
-  borderRadius: 20,
-  background: "var(--card-bg)",
-  border: "1px solid var(--card-border)",
-  backdropFilter: "blur(18px) saturate(140%)",
-  boxShadow: "var(--elev-1)",
+  borderRadius: "var(--radius-md)",
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
 };
 
 const labelStyle: CSSProperties = {
   display: "block",
-  fontSize: 13,
-  fontWeight: 600,
+  fontSize: "var(--fs-sm)",
+  fontWeight: "var(--fw-medium)",
   color: "var(--muted)",
   marginBottom: 6,
 };
@@ -40,23 +38,23 @@ const labelStyle: CSSProperties = {
 const inputStyle: CSSProperties = {
   width: "100%",
   padding: "12px 14px",
-  borderRadius: 12,
-  background: "var(--seg-bg)",
-  border: "1px solid var(--card-border)",
+  borderRadius: "var(--radius-md)",
+  background: "var(--raised)",
+  border: "1px solid var(--border)",
   color: "var(--text)",
   fontFamily: "inherit",
-  fontSize: 15,
+  fontSize: "var(--fs-md)",
   outline: "none",
   marginTop: 6,
 };
 
 const textareaStyle: CSSProperties = { ...inputStyle, resize: "vertical", minHeight: 84 };
 
-const fieldErrorStyle: CSSProperties = { marginTop: 6, fontSize: 12.5, color: "#ff8a80" };
+const fieldErrorStyle: CSSProperties = { marginTop: 6, fontSize: "var(--fs-xs)", color: "var(--danger)" };
 
 const sectionTitleStyle: CSSProperties = {
-  fontSize: 11.5,
-  fontWeight: 700,
+  fontSize: "var(--fs-xs)",
+  fontWeight: "var(--fw-semibold)",
   letterSpacing: ".05em",
   textTransform: "uppercase",
   color: "var(--muted)",
@@ -65,22 +63,21 @@ const sectionTitleStyle: CSSProperties = {
 
 const buttonStyle: CSSProperties = {
   padding: "11px 20px",
-  borderRadius: 12,
+  borderRadius: "var(--radius-md)",
   border: "none",
   cursor: "pointer",
   fontFamily: "inherit",
-  fontWeight: 700,
-  fontSize: 14,
-  color: "var(--onAccent)",
-  background: "linear-gradient(135deg,var(--accent),var(--accent2))",
-  boxShadow: "0 4px 14px var(--accentGlow)",
+  fontWeight: "var(--fw-semibold)",
+  fontSize: "var(--fs-sm)",
+  color: "var(--on-accent)",
+  background: "var(--accent)",
 };
 
 const dangerButtonStyle: CSSProperties = {
   ...buttonStyle,
-  color: "#ff8a80",
-  background: "rgba(255,80,80,.10)",
-  border: "1px solid rgba(255,120,120,.35)",
+  color: "var(--danger)",
+  background: "var(--danger-soft)",
+  border: "1px solid var(--danger-line)",
   boxShadow: "none",
 };
 
@@ -88,11 +85,11 @@ function bannerStyle(kind: "error" | "ok"): CSSProperties {
   return {
     marginTop: 14,
     padding: "10px 14px",
-    borderRadius: 12,
-    fontSize: 13.5,
-    color: kind === "error" ? "#ff8a80" : "var(--accent)",
-    background: kind === "error" ? "rgba(255,80,80,.10)" : "var(--chip-bg)",
-    border: `1px solid ${kind === "error" ? "rgba(255,120,120,.35)" : "var(--chip-border)"}`,
+    borderRadius: "var(--radius-md)",
+    fontSize: "var(--fs-sm)",
+    color: kind === "error" ? "var(--danger)" : "var(--accent)",
+    background: kind === "error" ? "var(--danger-soft)" : "var(--accent-soft)",
+    border: `1px solid ${kind === "error" ? "var(--danger-line)" : "var(--accent-line)"}`,
   };
 }
 
@@ -177,8 +174,8 @@ function ProfileForm() {
           style={{
             width: 64, height: 64, borderRadius: "50%", overflow: "hidden", flex: "none",
             display: "flex", alignItems: "center", justifyContent: "center",
-            background: "linear-gradient(135deg,var(--accent),var(--accent2))",
-            color: "var(--onAccent)", fontSize: 24, fontWeight: 800,
+            background: "var(--accent)",
+            color: "var(--on-accent)", fontSize: "var(--fs-xl)", fontWeight: "var(--fw-semibold)",
           }}
         >
           {avatarSrc ? (
@@ -194,7 +191,7 @@ function ProfileForm() {
               type="button"
               onClick={() => fileRef.current?.click()}
               disabled={avatarBusy}
-              style={{ ...buttonStyle, padding: "8px 14px", fontSize: 13, opacity: avatarBusy ? 0.75 : 1 }}
+              style={{ ...buttonStyle, padding: "8px 14px", fontSize: "var(--fs-sm)", opacity: avatarBusy ? 0.75 : 1 }}
             >
               {avatarBusy ? "Uploading…" : "Upload avatar"}
             </button>
@@ -204,16 +201,16 @@ function ProfileForm() {
                 onClick={handleAvatarRemove}
                 disabled={avatarBusy}
                 style={{
-                  padding: "8px 14px", borderRadius: 12, border: "1px solid var(--card-border)",
-                  background: "var(--seg-bg)", color: "var(--text)", fontFamily: "inherit",
-                  fontWeight: 700, fontSize: 13, cursor: "pointer", opacity: avatarBusy ? 0.75 : 1,
+                  padding: "8px 14px", borderRadius: "var(--radius-md)", border: "1px solid var(--border)",
+                  background: "var(--raised)", color: "var(--text)", fontFamily: "inherit",
+                  fontWeight: "var(--fw-semibold)", fontSize: "var(--fs-sm)", cursor: "pointer", opacity: avatarBusy ? 0.75 : 1,
                 }}
               >
                 Remove
               </button>
             )}
           </div>
-          <span style={{ fontSize: 12, color: "var(--muted)" }}>JPEG, PNG, WebP, or GIF — up to 2 MB.</span>
+          <span style={{ fontSize: "var(--fs-xs)", color: "var(--muted)" }}>JPEG, PNG, WebP, or GIF — up to 2 MB.</span>
         </div>
         <input
           ref={fileRef}
@@ -371,9 +368,9 @@ function DeleteAccountSection() {
   }
 
   return (
-    <div style={{ ...cardStyle, marginTop: 20, borderColor: "rgba(255,120,120,.25)" }}>
-      <div style={{ ...sectionTitleStyle, color: "#ff8a80" }}>Danger zone</div>
-      <p style={{ margin: "0 0 14px", fontSize: 13.5, color: "var(--muted)" }}>
+    <div style={{ ...cardStyle, marginTop: 20, borderColor: "var(--danger-line)" }}>
+      <div style={{ ...sectionTitleStyle, color: "var(--danger)" }}>Danger zone</div>
+      <p style={{ margin: "0 0 14px", fontSize: "var(--fs-sm)", color: "var(--muted)" }}>
         Deleting your account permanently removes your profile, documents, and query history. This cannot be undone.
       </p>
       {!confirming ? (
@@ -409,7 +406,7 @@ function DeleteAccountSection() {
             <button
               type="button"
               onClick={() => { setConfirming(false); setConfirmText(""); setError(null); }}
-              style={{ ...buttonStyle, background: "var(--seg-bg)", color: "var(--text)", boxShadow: "none", border: "1px solid var(--card-border)" }}
+              style={{ ...buttonStyle, background: "var(--raised)", color: "var(--text)", boxShadow: "none", border: "1px solid var(--border)" }}
             >
               Cancel
             </button>
@@ -425,7 +422,7 @@ function ProfilePageContent() {
 
   return (
     <div style={{ maxWidth: 560, margin: "0 auto" }}>
-      <h1 style={{ margin: "0 0 20px", fontSize: 24, fontWeight: 700, color: "var(--text)" }}>
+      <h1 style={{ margin: "0 0 20px", fontSize: "var(--fs-xl)", fontWeight: "var(--fw-semibold)", color: "var(--text)" }}>
         Account settings
       </h1>
       {user && (

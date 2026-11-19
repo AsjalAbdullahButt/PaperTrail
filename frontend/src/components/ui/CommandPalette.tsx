@@ -75,7 +75,7 @@ export default function CommandPalette({
   return (
     <div
       onClick={onClose}
-      style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(0,0,0,.45)", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: "12vh" }}
+      style={{ position: "fixed", inset: 0, zIndex: 90, background: "var(--scrim)", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: "12vh" }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
@@ -85,7 +85,7 @@ export default function CommandPalette({
           else if (e.key === "Enter" && filtered[active]) { e.preventDefault(); choose(filtered[active]); }
           else if (e.key === "Escape") { onClose(); }
         }}
-        style={{ width: "min(560px, 92vw)", maxHeight: "70vh", overflow: "hidden", display: "flex", flexDirection: "column", borderRadius: 18, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(24px) saturate(150%)", boxShadow: "var(--elev-2)" }}
+        style={{ width: "min(560px, 92vw)", maxHeight: "70vh", overflow: "hidden", display: "flex", flexDirection: "column", borderRadius: "var(--radius-md)", background: "var(--surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-overlay)" }}
       >
         <input
           ref={inputRef}
@@ -93,21 +93,21 @@ export default function CommandPalette({
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search documents, collections, queries…"
-          style={{ padding: "16px 18px", background: "transparent", border: "none", borderBottom: "1px solid var(--card-border)", color: "var(--text)", fontFamily: "inherit", fontSize: 16, outline: "none" }}
+          style={{ padding: "16px 18px", background: "transparent", border: "none", borderBottom: "1px solid var(--border)", color: "var(--text)", fontFamily: "inherit", fontSize: "var(--fs-md)", outline: "none" }}
         />
         <div style={{ overflowY: "auto" }}>
           {filtered.length === 0 && (
-            <div style={{ padding: 18, color: "var(--muted)", fontSize: 14 }}>No matches.</div>
+            <div style={{ padding: 18, color: "var(--muted)", fontSize: "var(--fs-sm)" }}>No matches.</div>
           )}
           {filtered.map((it, i) => (
             <button
               key={it.id}
               onMouseEnter={() => setActive(i)}
               onClick={() => choose(it)}
-              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", textAlign: "left", padding: "11px 18px", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 14, color: "var(--text)", background: i === active ? "var(--seg-bg)" : "transparent" }}
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", textAlign: "left", padding: "11px 18px", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: "var(--fs-sm)", color: "var(--text)", background: i === active ? "var(--raised)" : "transparent" }}
             >
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.label}</span>
-              <span style={{ flex: "none", marginLeft: 12, fontSize: 11, color: "var(--muted)" }}>{it.group}</span>
+              <span style={{ flex: "none", marginLeft: 12, fontSize: "var(--fs-xs)", color: "var(--muted)" }}>{it.group}</span>
             </button>
           ))}
         </div>

@@ -50,10 +50,10 @@ export default function GlobalNotifications() {
             zIndex: 100,
             padding: "8px 16px",
             textAlign: "center",
-            fontSize: 13.5,
-            fontWeight: 600,
-            color: "#3a2c05",
-            background: "#e0a53a",
+            fontSize: "var(--fs-sm)",
+            fontWeight: "var(--fw-medium)",
+            color: "var(--bg)",
+            background: "var(--warn)",
           }}
         >
           You&rsquo;re offline — queries and uploads are paused.
@@ -64,16 +64,15 @@ export default function GlobalNotifications() {
         toastOptions={{
           duration: 4000,
           style: {
-            background: "var(--card-bg)",
+            background: "var(--surface)",
             color: "var(--text)",
-            border: "1px solid var(--card-border)",
-            borderRadius: 12,
-            fontSize: 13.5,
-            backdropFilter: "blur(18px) saturate(140%)",
-            boxShadow: "var(--elev-2)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)",
+            fontSize: "var(--fs-sm)",
+            boxShadow: "var(--shadow-overlay)",
           },
-          success: { iconTheme: { primary: "var(--accent)", secondary: "var(--onAccent)" } },
-          error: { iconTheme: { primary: "#ff8a80", secondary: "var(--onAccent)" } },
+          success: { iconTheme: { primary: "var(--accent)", secondary: "var(--on-accent)" } },
+          error: { iconTheme: { primary: "var(--danger)", secondary: "var(--on-accent)" } },
         }}
       />
     </>

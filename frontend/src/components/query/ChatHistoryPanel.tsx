@@ -46,21 +46,21 @@ export default function ChatHistoryPanel({ open, onClose, refreshKey, onUnauthor
   return (
     <RightSideDrawer open={open} onClose={onClose} title="Chat history">
       {items === null && !error && (
-        <p style={{ fontSize: 14, color: "var(--muted)" }} aria-live="polite">
+        <p style={{ fontSize: "var(--fs-sm)", color: "var(--muted)" }} aria-live="polite">
           Loading history…
         </p>
       )}
 
       {error && (
-        <div role="alert" style={{ padding: "10px 14px", borderRadius: 12, fontSize: 13.5, color: "#ff8a80", background: "rgba(255,80,80,.10)", border: "1px solid rgba(255,120,120,.35)" }}>
+        <div role="alert" style={{ padding: "10px 14px", borderRadius: "var(--radius-md)", fontSize: "var(--fs-sm)", color: "var(--danger)", background: "var(--danger-soft)", border: "1px solid var(--danger-line)" }}>
           {error}
         </div>
       )}
 
       {items !== null && items.length === 0 && !error && (
         <div style={{ textAlign: "center", padding: "40px 10px", color: "var(--muted)" }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text)" }}>No history yet</div>
-          <p style={{ fontSize: 13.5, marginTop: 6 }}>Your questions and answers will appear here.</p>
+          <div style={{ fontSize: "var(--fs-md)", fontWeight: "var(--fw-medium)", color: "var(--text)" }}>No history yet</div>
+          <p style={{ fontSize: "var(--fs-sm)", marginTop: 6 }}>Your questions and answers will appear here.</p>
         </div>
       )}
 
@@ -71,36 +71,36 @@ export default function ChatHistoryPanel({ open, onClose, refreshKey, onUnauthor
               key={it.id}
               style={{
                 padding: "13px 14px",
-                borderRadius: 14,
-                background: "var(--doc-bg)",
-                border: "1px solid var(--card-border)",
+                borderRadius: "var(--radius-md)",
+                background: "var(--raised)",
+                border: "1px solid var(--border)",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                 <span
                   style={{
-                    fontSize: 10.5,
-                    fontWeight: 700,
+                    fontSize: "var(--fs-xs)",
+                    fontWeight: "var(--fw-semibold)",
                     letterSpacing: ".04em",
                     textTransform: "uppercase",
                     padding: "2px 7px",
-                    borderRadius: 7,
+                    borderRadius: "var(--radius-sm)",
                     color: "var(--accent)",
-                    background: "var(--chip-bg)",
-                    border: "1px solid var(--chip-border)",
+                    background: "var(--accent-soft)",
+                    border: "1px solid var(--accent-line)",
                   }}
                 >
                   {it.mode}
                 </span>
-                <time style={{ fontSize: 11.5, color: "var(--muted)" }} dateTime={it.created_at}>
+                <time style={{ fontSize: "var(--fs-xs)", color: "var(--muted)" }} dateTime={it.created_at}>
                   {formatDate(it.created_at)}
                 </time>
               </div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>{it.question}</div>
+              <div style={{ fontSize: "var(--fs-sm)", fontWeight: "var(--fw-semibold)", color: "var(--text)" }}>{it.question}</div>
               <p
                 style={{
                   margin: "6px 0 0",
-                  fontSize: 13,
+                  fontSize: "var(--fs-sm)",
                   lineHeight: 1.5,
                   color: "var(--muted)",
                   display: "-webkit-box",

@@ -84,8 +84,8 @@ export default function DocumentListDrawer({
 
       {docs !== null && docs.length === 0 && !error && (
         <div style={{ textAlign: "center", padding: "40px 10px", color: "var(--muted)" }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text)" }}>No documents yet</div>
-          <p style={{ fontSize: 13.5, marginTop: 6 }}>
+          <div style={{ fontSize: "var(--fs-md)", fontWeight: "var(--fw-medium)", color: "var(--text)" }}>No documents yet</div>
+          <p style={{ fontSize: "var(--fs-sm)", marginTop: 6 }}>
             Upload a PDF, TXT, or Markdown file to start asking questions.
           </p>
         </div>
@@ -98,17 +98,17 @@ export default function DocumentListDrawer({
               key={d.id}
               style={{
                 padding: "13px 14px",
-                borderRadius: 14,
-                background: "var(--doc-bg)",
-                border: "1px solid var(--card-border)",
+                borderRadius: "var(--radius-md)",
+                background: "var(--raised)",
+                border: "1px solid var(--border)",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
                 <div style={{ minWidth: 0 }}>
                   <div
                     style={{
-                      fontSize: 14,
-                      fontWeight: 700,
+                      fontSize: "var(--fs-sm)",
+                      fontWeight: "var(--fw-semibold)",
                       color: "var(--text)",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
@@ -117,7 +117,7 @@ export default function DocumentListDrawer({
                   >
                     {d.filename}
                   </div>
-                  <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>
+                  <div style={{ fontSize: "var(--fs-xs)", color: "var(--muted)", marginTop: 3 }}>
                     {d.file_type.toUpperCase()} · {d.chunk_count ?? 0} chunk
                     {(d.chunk_count ?? 0) === 1 ? "" : "s"}
                     {d.page_count ? ` · ${d.page_count} pages` : ""}
@@ -125,7 +125,7 @@ export default function DocumentListDrawer({
                   {d.summary && (
                     <div
                       style={{
-                        fontSize: 12,
+                        fontSize: "var(--fs-xs)",
                         color: "var(--muted)",
                         marginTop: 4,
                         overflow: "hidden",
@@ -173,36 +173,36 @@ function isUnauthorized(e: unknown): boolean {
   return typeof e === "object" && e !== null && "status" in e && (e as { status: number }).status === 401;
 }
 
-const mutedText = { fontSize: 14, color: "var(--muted)" } as const;
+const mutedText = { fontSize: "var(--fs-sm)", color: "var(--muted)" } as const;
 const errorBox = {
   padding: "10px 14px",
-  borderRadius: 12,
-  fontSize: 13.5,
-  color: "#ff8a80",
-  background: "rgba(255,80,80,.10)",
-  border: "1px solid rgba(255,120,120,.35)",
+  borderRadius: "var(--radius-md)",
+  fontSize: "var(--fs-sm)",
+  color: "var(--danger)",
+  background: "var(--danger-soft)",
+  border: "1px solid var(--danger-line)",
 } as const;
 const ghostBtn = {
   padding: "7px 12px",
-  borderRadius: 10,
-  border: "1px solid var(--card-border)",
+  borderRadius: "var(--radius-sm)",
+  border: "1px solid var(--border)",
   background: "transparent",
   color: "var(--text)",
   fontFamily: "inherit",
-  fontSize: 13,
-  fontWeight: 600,
+  fontSize: "var(--fs-sm)",
+  fontWeight: "var(--fw-medium)",
   cursor: "pointer",
   flex: "none",
 } as const;
 const dangerBtn = {
   padding: "7px 12px",
-  borderRadius: 10,
-  border: "1px solid rgba(255,120,120,.4)",
-  background: "rgba(255,80,80,.12)",
-  color: "#ff8a80",
+  borderRadius: "var(--radius-sm)",
+  border: "1px solid var(--danger-line)",
+  background: "var(--danger-soft)",
+  color: "var(--danger)",
   fontFamily: "inherit",
-  fontSize: 13,
-  fontWeight: 700,
+  fontSize: "var(--fs-sm)",
+  fontWeight: "var(--fw-semibold)",
   cursor: "pointer",
   flex: "none",
 } as const;

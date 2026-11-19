@@ -36,8 +36,8 @@ function strengthOf(password: string): Strength {
 }
 
 const STRENGTH_META: Record<Strength, { label: string; color: string; pct: string }> = {
-  weak: { label: "Weak", color: "#ff8a80", pct: "33%" },
-  medium: { label: "Medium", color: "#e0a53a", pct: "66%" },
+  weak: { label: "Weak", color: "var(--danger)", pct: "33%" },
+  medium: { label: "Medium", color: "var(--warn)", pct: "66%" },
   strong: { label: "Strong", color: "var(--accent)", pct: "100%" },
 };
 
@@ -52,7 +52,7 @@ export function PasswordStrengthMeter({ password }: { password: string }) {
   return (
     <div style={{ marginTop: 10 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ flex: 1, height: 4, borderRadius: 2, background: "var(--seg-bg)", overflow: "hidden" }}>
+        <div style={{ flex: 1, height: 4, borderRadius: "var(--radius-full)", background: "var(--raised)", overflow: "hidden" }}>
           <div
             style={{
               width: meta.pct,
@@ -62,14 +62,14 @@ export function PasswordStrengthMeter({ password }: { password: string }) {
             }}
           />
         </div>
-        <span style={{ fontSize: 12, fontWeight: 700, color: meta.color, whiteSpace: "nowrap" }}>
+        <span style={{ fontSize: "var(--fs-xs)", fontWeight: "var(--fw-semibold)", color: meta.color, whiteSpace: "nowrap" }}>
           {meta.label}
         </span>
       </div>
       <ul style={{ listStyle: "none", margin: "8px 0 0", padding: 0, display: "flex", flexDirection: "column", gap: 3 }}>
         {rules.map((r) => (
-          <li key={r.label} style={{ fontSize: 12, color: "var(--muted)", display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ color: r.met ? "var(--accent)" : "#ff8a80", fontWeight: 700 }} aria-hidden>
+          <li key={r.label} style={{ fontSize: "var(--fs-xs)", color: "var(--muted)", display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ color: r.met ? "var(--accent)" : "var(--danger)", fontWeight: "var(--fw-semibold)" }} aria-hidden>
               {r.met ? "✓" : "✗"}
             </span>
             {r.label}

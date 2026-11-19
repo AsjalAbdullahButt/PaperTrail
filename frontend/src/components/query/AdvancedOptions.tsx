@@ -19,21 +19,21 @@ const chipBase: CSSProperties = {
   alignItems: "center",
   gap: 6,
   padding: "6px 12px",
-  borderRadius: 11,
+  borderRadius: "var(--radius-md)",
   fontFamily: "inherit",
-  fontSize: 12.5,
-  fontWeight: 600,
+  fontSize: "var(--fs-xs)",
+  fontWeight: "var(--fw-medium)",
   cursor: "pointer",
-  border: "1px solid var(--card-border)",
+  border: "1px solid var(--border)",
   color: "var(--muted)",
-  background: "var(--seg-bg)",
+  background: "var(--raised)",
 };
 
 const chipActive: CSSProperties = {
   ...chipBase,
-  color: "var(--onAccent)",
+  color: "var(--on-accent)",
   border: "1px solid var(--accent)",
-  background: "linear-gradient(135deg,var(--accent),var(--accent2))",
+  background: "var(--accent)",
 };
 
 /**
@@ -107,7 +107,7 @@ export default function AdvancedOptions() {
       aria-label="NLP pipeline options"
       style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 12 }}
     >
-      <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)" }}>
+      <span style={{ fontSize: "var(--fs-xs)", fontWeight: "var(--fw-semibold)", letterSpacing: ".05em", textTransform: "uppercase", color: "var(--muted)" }}>
         NLP pipeline
       </span>
       {chips.map((c) => {
@@ -135,7 +135,7 @@ export default function AdvancedOptions() {
         <button
           type="button"
           onClick={() => (["rerank", "expansion", "grounding", "abstain"] as const).forEach((k) => setOption(k, undefined))}
-          style={{ border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, color: "var(--muted)" }}
+          style={{ border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", fontSize: "var(--fs-xs)", fontWeight: "var(--fw-medium)", color: "var(--muted)" }}
         >
           ↺ server defaults
         </button>

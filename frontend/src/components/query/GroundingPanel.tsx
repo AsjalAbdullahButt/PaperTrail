@@ -2,9 +2,9 @@
 
 import type { GroundingMethod, GroundingSentence, Source } from "@/api/backendClient";
 
-const OK = "#3fb68b";
-const WARN = "#e0a53a";
-const BAD = "#e5604f";
+const OK = "var(--ok)";
+const WARN = "var(--warn)";
+const BAD = "var(--danger)";
 
 function verdictColor(g: GroundingSentence): string {
   if (g.supported) return OK;
@@ -45,12 +45,12 @@ export default function GroundingPanel({
   return (
     <details
       data-testid="grounding-panel"
-      style={{ marginBottom: 12, borderRadius: 14, background: "var(--card-bg)", border: "1px solid var(--card-border)", padding: "10px 13px" }}
+      style={{ marginBottom: 12, borderRadius: "var(--radius-md)", background: "var(--surface)", border: "1px solid var(--border)", padding: "10px 13px" }}
     >
-      <summary style={{ cursor: "pointer", fontSize: 12.5, fontWeight: 700, color: "var(--text)", listStyle: "none" }}>
+      <summary style={{ cursor: "pointer", fontSize: "var(--fs-xs)", fontWeight: "var(--fw-semibold)", color: "var(--text)", listStyle: "none" }}>
         {method === "nli" ? "NLI grounding" : "Lexical grounding"} · {supported}/{grounding.length} claims supported
       </summary>
-      <p style={{ margin: "8px 0 10px", fontSize: 11.5, lineHeight: 1.45, color: "var(--muted)" }}>
+      <p style={{ margin: "8px 0 10px", fontSize: "var(--fs-xs)", lineHeight: 1.45, color: "var(--muted)" }}>
         {method === "nli"
           ? "Each answer sentence is tested against the retrieved passages with a natural-language-inference model."
           : "Heuristic: a sentence is flagged when too few of its key terms appear in any retrieved passage. It is not proof of grounding."}
@@ -64,10 +64,10 @@ export default function GroundingPanel({
             style={{ display: "flex", gap: 8, alignItems: "flex-start", cursor: g.supported ? "pointer" : "default" }}
           >
             <span aria-hidden style={{ flex: "none", width: 8, height: 8, borderRadius: "50%", marginTop: 6, background: verdictColor(g) }} />
-            <span style={{ fontSize: 12.5, lineHeight: 1.5, color: "var(--text)" }}>
+            <span style={{ fontSize: "var(--fs-xs)", lineHeight: 1.5, color: "var(--text)" }}>
               {g.sentence}
               {method === "nli" && g.entailment != null && (
-                <span className="tabular-nums" style={{ marginLeft: 6, fontSize: 11.5, fontWeight: 700, color: verdictColor(g) }}>
+                <span className="tabular-nums" style={{ marginLeft: 6, fontSize: "var(--fs-xs)", fontWeight: "var(--fw-semibold)", color: verdictColor(g) }}>
                   {Math.round(g.entailment * 100)}%
                 </span>
               )}

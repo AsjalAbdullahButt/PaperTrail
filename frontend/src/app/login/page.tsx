@@ -9,17 +9,16 @@ import { THEMES, useTheme } from "@/theme/themes";
 import { PasswordInput } from "@/components/ui/PasswordField";
 import PaperTrailLogo from "@/components/layout/PaperTrailLogo";
 
-const ACCENT_GRADIENT = "linear-gradient(135deg,var(--accent),var(--accent2))";
 
 export const inputStyle: CSSProperties = {
   width: "100%",
   padding: "12px 14px",
-  borderRadius: 12,
-  background: "var(--seg-bg)",
-  border: "1px solid var(--card-border)",
+  borderRadius: "var(--radius-md)",
+  background: "var(--raised)",
+  border: "1px solid var(--border)",
   color: "var(--text)",
   fontFamily: "inherit",
-  fontSize: 15,
+  fontSize: "var(--fs-md)",
   outline: "none",
   marginTop: 6,
 };
@@ -106,7 +105,7 @@ export default function LoginPage() {
       </label>
       {passwordError && <div style={fieldErrorStyle}>{passwordError}</div>}
       <div style={{ marginTop: 10, textAlign: "right" }}>
-        <Link href="/forgot-password" style={{ ...linkStyle, fontSize: 13 }}>
+        <Link href="/forgot-password" style={{ ...linkStyle, fontSize: "var(--fs-sm)" }}>
           Forgot password?
         </Link>
       </div>
@@ -117,22 +116,22 @@ export default function LoginPage() {
 /* ---- shared shell + tokens, reused by every auth-styled page --- */
 export const labelStyle: CSSProperties = {
   display: "block",
-  fontSize: 13,
-  fontWeight: 600,
+  fontSize: "var(--fs-sm)",
+  fontWeight: "var(--fw-medium)",
   color: "var(--muted)",
   marginBottom: 6,
 };
 
 export const linkStyle: CSSProperties = {
-  fontWeight: 700,
+  fontWeight: "var(--fw-semibold)",
   color: "var(--accent)",
   textDecoration: "none",
 };
 
 export const fieldErrorStyle: CSSProperties = {
   marginTop: 6,
-  fontSize: 12.5,
-  color: "#ff8a80",
+  fontSize: "var(--fs-xs)",
+  color: "var(--danger)",
 };
 
 export function AuthShell({
@@ -180,9 +179,9 @@ export function AuthShell({
           right: 20,
           width: 60,
           height: 30,
-          borderRadius: 16,
-          border: "1px solid var(--card-border)",
-          background: "var(--seg-bg)",
+          borderRadius: "var(--radius-md)",
+          border: "1px solid var(--border)",
+          background: "var(--raised)",
           cursor: "pointer",
           padding: 0,
         }}
@@ -195,8 +194,7 @@ export function AuthShell({
             width: 24,
             height: 24,
             borderRadius: "50%",
-            background: ACCENT_GRADIENT,
-            boxShadow: "0 2px 8px var(--accentGlow)",
+            background: "var(--accent)",
             transition: "left .28s cubic-bezier(.4,0,.2,1)",
           }}
         />
@@ -209,20 +207,18 @@ export function AuthShell({
           width: "100%",
           maxWidth: 400,
           padding: "clamp(24px, 6vw, 34px) clamp(20px, 5vw, 32px)",
-          borderRadius: 22,
-          background: "var(--card-bg)",
-          border: "1px solid var(--card-border)",
-          backdropFilter: "blur(22px) saturate(150%)",
-          WebkitBackdropFilter: "blur(22px) saturate(150%)",
-          boxShadow: "var(--elev-2)",
+          borderRadius: "var(--radius-md)",
+          background: "var(--surface)",
+          border: "1px solid var(--border)",
+          boxShadow: "var(--shadow-overlay)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 6 }}>
           <PaperTrailLogo />
           <span
             style={{
-              fontWeight: 800,
-              fontSize: 20,
+              fontWeight: "var(--fw-semibold)",
+              fontSize: "var(--fs-lg)",
               letterSpacing: "-.02em",
               color: "var(--text)",
             }}
@@ -230,10 +226,10 @@ export function AuthShell({
             PaperTrail
           </span>
         </div>
-        <h1 style={{ margin: "10px 0 4px", fontSize: 22, fontWeight: 700, color: "var(--text)" }}>
+        <h1 style={{ margin: "10px 0 4px", fontSize: "var(--fs-lg)", fontWeight: "var(--fw-semibold)", color: "var(--text)" }}>
           {title}
         </h1>
-        <p style={{ margin: "0 0 22px", fontSize: 14, color: "var(--muted)" }}>{subtitle}</p>
+        <p style={{ margin: "0 0 22px", fontSize: "var(--fs-sm)", color: "var(--muted)" }}>{subtitle}</p>
 
         {children}
 
@@ -243,11 +239,11 @@ export function AuthShell({
             style={{
               marginTop: 16,
               padding: "10px 14px",
-              borderRadius: 12,
-              fontSize: 13.5,
-              color: "#ff8a80",
-              background: "rgba(255,80,80,.10)",
-              border: "1px solid rgba(255,120,120,.35)",
+              borderRadius: "var(--radius-md)",
+              fontSize: "var(--fs-sm)",
+              color: "var(--danger)",
+              background: "var(--danger-soft)",
+              border: "1px solid var(--danger-line)",
             }}
           >
             {error}
@@ -261,22 +257,21 @@ export function AuthShell({
             width: "100%",
             marginTop: 20,
             padding: "13px 20px",
-            borderRadius: 14,
+            borderRadius: "var(--radius-md)",
             border: "none",
             cursor: busy ? "default" : "pointer",
             fontFamily: "inherit",
-            fontWeight: 700,
-            fontSize: 15,
-            color: "var(--onAccent)",
-            background: ACCENT_GRADIENT,
-            boxShadow: "0 4px 14px var(--accentGlow)",
+            fontWeight: "var(--fw-semibold)",
+            fontSize: "var(--fs-md)",
+            color: "var(--on-accent)",
+            background: "var(--accent)",
             opacity: busy ? 0.75 : 1,
           }}
         >
           {busy ? "Please wait…" : submitLabel}
         </button>
 
-        <p style={{ margin: "18px 0 0", fontSize: 13.5, color: "var(--muted)", textAlign: "center" }}>
+        <p style={{ margin: "18px 0 0", fontSize: "var(--fs-sm)", color: "var(--muted)", textAlign: "center" }}>
           {footer}
         </p>
       </form>

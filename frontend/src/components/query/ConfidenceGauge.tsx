@@ -43,21 +43,15 @@ export default function ConfidenceGauge({ value }: { value: number }) {
       style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 2 }}
     >
       <svg viewBox="0 0 120 70" width="120" height="70" role="img" aria-label={`Confidence ${pct} percent`}>
-        <defs>
-          <linearGradient id="conf-grad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="var(--accent)" />
-            <stop offset="100%" stopColor="var(--accent2)" />
-          </linearGradient>
-        </defs>
-        <path d={arcPath(180, 360)} fill="none" stroke="var(--seg-bg)" strokeWidth={9} strokeLinecap="round" />
+        <path d={arcPath(180, 360)} fill="none" stroke="var(--raised)" strokeWidth={9} strokeLinecap="round" />
         {v > 0 && (
-          <path d={arcPath(180, end)} fill="none" stroke="url(#conf-grad)" strokeWidth={9} strokeLinecap="round" />
+          <path d={arcPath(180, end)} fill="none" stroke="var(--accent)" strokeWidth={9} strokeLinecap="round" />
         )}
-        <text className="tabular-nums" x={CX} y={CY - 6} textAnchor="middle" fontSize={18} fontWeight={800} fill="var(--text)">
+        <text className="tabular-nums" x={CX} y={CY - 6} textAnchor="middle" fontSize={18} fontWeight={600} fill="var(--text)">
           {pct}%
         </text>
       </svg>
-      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)" }}>{label}</span>
+      <span style={{ fontSize: "var(--fs-xs)", fontWeight: "var(--fw-medium)", color: "var(--muted)" }}>{label}</span>
     </div>
   );
 }

@@ -6,12 +6,12 @@ const badge = {
   display: "inline-flex",
   alignItems: "center",
   padding: "2px 9px",
-  borderRadius: 20,
-  fontSize: 11.5,
-  fontWeight: 700,
+  borderRadius: "var(--radius-md)",
+  fontSize: "var(--fs-xs)",
+  fontWeight: "var(--fw-semibold)",
   color: "var(--accent)",
-  background: "var(--chip-bg)",
-  border: "1px solid var(--chip-border)",
+  background: "var(--accent-soft)",
+  border: "1px solid var(--accent-line)",
 } as const;
 
 /** Compact record of which NLP stages produced this answer (so a result is never
@@ -35,7 +35,7 @@ export default function PipelineBadges({ pipeline }: { pipeline: PipelineInfo | 
         ))}
       </div>
       {pipeline.notes.map((note) => (
-        <span key={note} style={{ fontSize: 12, color: "var(--muted)" }}>
+        <span key={note} style={{ fontSize: "var(--fs-xs)", color: "var(--muted)" }}>
           ℹ {note}
         </span>
       ))}

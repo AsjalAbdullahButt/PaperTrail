@@ -14,12 +14,11 @@ import {
 } from "@/api/backendClient";
 
 const card: CSSProperties = {
-  padding: "18px 20px", borderRadius: 18, background: "var(--card-bg)",
-  border: "1px solid var(--card-border)", backdropFilter: "blur(18px) saturate(140%)",
-  boxShadow: "var(--elev-1)",
+  padding: "18px 20px", borderRadius: "var(--radius-md)", background: "var(--surface)",
+  border: "1px solid var(--border)",
 };
 const label: CSSProperties = {
-  fontSize: 11.5, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase",
+  fontSize: "var(--fs-xs)", fontWeight: "var(--fw-semibold)", letterSpacing: ".05em", textTransform: "uppercase",
   color: "var(--muted)",
 };
 
@@ -76,9 +75,9 @@ function AnalyticsInner() {
               <div key={d.date} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
                 <div
                   title={`${d.count} queries`}
-                  style={{ width: "100%", maxWidth: 40, height: `${(d.count / maxDay) * 100}px`, minHeight: 3, borderRadius: 8, background: "linear-gradient(180deg,var(--accent),var(--accent2))" }}
+                  style={{ width: "100%", maxWidth: 40, height: `${(d.count / maxDay) * 100}px`, minHeight: 3, borderRadius: "var(--radius-sm)", background: "var(--accent)" }}
                 />
-                <span style={{ fontSize: 10.5, color: "var(--muted)" }}>{d.date.slice(5)}</span>
+                <span style={{ fontSize: "var(--fs-xs)", color: "var(--muted)" }}>{d.date.slice(5)}</span>
               </div>
             ))}
           </div>
@@ -95,7 +94,7 @@ function AnalyticsInner() {
             <Empty />
           ) : (
             <div style={{ overflowX: "auto", marginTop: 12 }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--fs-sm)" }}>
                 <thead>
                   <tr style={{ color: "var(--muted)", textAlign: "left" }}>
                     <Th onClick={() => setSortKey("name")}>Name</Th>
@@ -105,7 +104,7 @@ function AnalyticsInner() {
                 </thead>
                 <tbody>
                   {sortedUsage.map((u) => (
-                    <tr key={u.document_id} style={{ borderTop: "1px solid var(--card-border)", color: "var(--text)" }}>
+                    <tr key={u.document_id} style={{ borderTop: "1px solid var(--border)", color: "var(--text)" }}>
                       <td style={{ padding: "8px 6px" }}>{u.name}</td>
                       <td className="tabular-nums" style={{ padding: "8px 6px" }}>{u.total_retrievals}</td>
                       <td className="tabular-nums" style={{ padding: "8px 6px" }}>{Math.round(u.avg_similarity * 100)}%</td>
@@ -123,13 +122,13 @@ function AnalyticsInner() {
           {!gaps ? (
             <Skeleton height={120} />
           ) : gaps.length === 0 ? (
-            <div style={{ marginTop: 10, fontSize: 13, color: "var(--muted)" }}>No under-explored documents.</div>
+            <div style={{ marginTop: 10, fontSize: "var(--fs-sm)", color: "var(--muted)" }}>No under-explored documents.</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
               {gaps.map((g) => (
                 <div key={g.document_id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 13, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</span>
-                  <span style={{ flex: "none", padding: "3px 9px", borderRadius: 8, fontSize: 11.5, fontWeight: 700, color: "#e0a53a", background: "rgba(224,165,58,.12)", border: "1px solid rgba(224,165,58,.35)" }}>
+                  <span style={{ fontSize: "var(--fs-sm)", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</span>
+                  <span style={{ flex: "none", padding: "3px 9px", borderRadius: "var(--radius-sm)", fontSize: "var(--fs-xs)", fontWeight: "var(--fw-semibold)", color: "var(--warn)", background: "var(--warn-soft)", border: "1px solid var(--warn-line)" }}>
                     {g.unexplored_pct}% unexplored
                   </span>
                 </div>
@@ -147,7 +146,7 @@ function AnalyticsInner() {
         ) : top.length === 0 ? (
           <Empty />
         ) : (
-          <ol style={{ margin: "12px 0 0", paddingLeft: 20, color: "var(--text)", fontSize: 13.5, lineHeight: 1.9 }}>
+          <ol style={{ margin: "12px 0 0", paddingLeft: 20, color: "var(--text)", fontSize: "var(--fs-sm)", lineHeight: 1.9 }}>
             {top.map((q, i) => (
               <li key={i}>{q.query} <span style={{ color: "var(--muted)" }}>· {q.count}×</span></li>
             ))}
@@ -165,7 +164,7 @@ function Metric({ title, value, small }: { title: string; value?: number | strin
       {value === undefined ? (
         <Skeleton height={30} />
       ) : (
-        <div className="tabular-nums" style={{ marginTop: 8, fontSize: small ? 16 : 28, fontWeight: 800, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div className="tabular-nums" style={{ marginTop: 8, fontSize: small ? "var(--fs-md)" : "var(--fs-xl)", fontWeight: "var(--fw-semibold)", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {value}
         </div>
       )}
@@ -175,16 +174,16 @@ function Metric({ title, value, small }: { title: string; value?: number | strin
 
 function Th({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
   return (
-    <th onClick={onClick} style={{ padding: "6px", cursor: "pointer", fontWeight: 700, userSelect: "none" }}>
+    <th onClick={onClick} style={{ padding: "6px", cursor: "pointer", fontWeight: "var(--fw-semibold)", userSelect: "none" }}>
       {children} ↕
     </th>
   );
 }
 
 function Skeleton({ height }: { height: number }) {
-  return <div style={{ height, marginTop: 10, borderRadius: 10, background: "var(--seg-bg)", animation: "pulse 1.2s ease-in-out infinite" }} />;
+  return <div style={{ height, marginTop: 10, borderRadius: "var(--radius-sm)", background: "var(--raised)", animation: "var(--anim-pulse)" }} />;
 }
 
 function Empty() {
-  return <div style={{ marginTop: 10, fontSize: 13, color: "var(--muted)" }}>No data yet.</div>;
+  return <div style={{ marginTop: 10, fontSize: "var(--fs-sm)", color: "var(--muted)" }}>No data yet.</div>;
 }

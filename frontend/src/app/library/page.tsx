@@ -29,12 +29,11 @@ const TYPE_ICON: Record<string, string> = {
 };
 
 const card: CSSProperties = {
-  padding: "16px 18px", borderRadius: 16, background: "var(--card-bg)",
-  border: "1px solid var(--card-border)", backdropFilter: "blur(18px) saturate(140%)",
-  boxShadow: "var(--elev-1)",
+  padding: "16px 18px", borderRadius: "var(--radius-md)", background: "var(--surface)",
+  border: "1px solid var(--border)",
 };
 const label: CSSProperties = {
-  fontSize: 11.5, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase",
+  fontSize: "var(--fs-xs)", fontWeight: "var(--fw-semibold)", letterSpacing: ".05em", textTransform: "uppercase",
   color: "var(--muted)",
 };
 
@@ -113,7 +112,7 @@ function LibraryInner() {
             <button
               onClick={async () => { await deleteCollection(c.id); if (view.id === c.id) setView({ kind: "all" }); refreshCollections(); }}
               aria-label={`Delete ${c.name}`}
-              style={{ border: "none", background: "none", color: "var(--muted)", cursor: "pointer", fontSize: 13 }}
+              style={{ border: "none", background: "none", color: "var(--muted)", cursor: "pointer", fontSize: "var(--fs-sm)" }}
             >✕</button>
           </div>
         ))}
@@ -122,16 +121,16 @@ function LibraryInner() {
             value={newCollection}
             onChange={(e) => setNewCollection(e.target.value)}
             placeholder="New collection"
-            style={{ flex: 1, minWidth: 0, padding: "8px 10px", borderRadius: 10, background: "var(--seg-bg)", border: "1px solid var(--card-border)", color: "var(--text)", fontFamily: "inherit", fontSize: 13, outline: "none" }}
+            style={{ flex: 1, minWidth: 0, padding: "8px 10px", borderRadius: "var(--radius-sm)", background: "var(--raised)", border: "1px solid var(--border)", color: "var(--text)", fontFamily: "inherit", fontSize: "var(--fs-sm)", outline: "none" }}
           />
-          <button onClick={handleCreateCollection} style={{ border: "1px solid var(--card-border)", background: "var(--seg-bg)", color: "var(--text)", borderRadius: 10, padding: "0 12px", cursor: "pointer", fontWeight: 700 }}>+</button>
+          <button onClick={handleCreateCollection} style={{ border: "1px solid var(--border)", background: "var(--raised)", color: "var(--text)", borderRadius: "var(--radius-sm)", padding: "0 12px", cursor: "pointer", fontWeight: "var(--fw-semibold)" }}>+</button>
         </div>
       </aside>
 
       {/* Main */}
       <main style={{ flex: "1 1 520px", minWidth: "min(300px, 100%)" }}>
         {duplicates.length > 0 && view.kind !== "bookmarks" && (
-          <div style={{ ...card, marginBottom: 16, borderColor: "rgba(224,165,58,.4)", background: "rgba(224,165,58,.08)", color: "#e0a53a", fontSize: 13.5 }}>
+          <div style={{ ...card, marginBottom: 16, borderColor: "var(--warn-line)", background: "var(--warn-soft)", color: "var(--warn)", fontSize: "var(--fs-sm)" }}>
             ⚠ {duplicates.length} document{duplicates.length === 1 ? "" : "s"} look like duplicates of existing uploads.
           </div>
         )}
@@ -146,7 +145,7 @@ function LibraryInner() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by name…"
-                style={{ flex: "1 1 200px", padding: "10px 12px", borderRadius: 12, background: "var(--card-bg)", border: "1px solid var(--card-border)", color: "var(--text)", fontFamily: "inherit", fontSize: 14, outline: "none" }}
+                style={{ flex: "1 1 200px", padding: "10px 12px", borderRadius: "var(--radius-md)", background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)", fontFamily: "inherit", fontSize: "var(--fs-sm)", outline: "none" }}
               />
               <DropdownSelect
                 value={typeFilter}
@@ -168,7 +167,7 @@ function LibraryInner() {
                 <DocumentCard key={d.id} doc={d} collections={collections} onChanged={refreshDocs} />
               ))}
               {docs.length === 0 && (
-                <div style={{ ...card, color: "var(--muted)", fontSize: 14 }}>No documents match.</div>
+                <div style={{ ...card, color: "var(--muted)", fontSize: "var(--fs-sm)" }}>No documents match.</div>
               )}
             </div>
           </>
@@ -183,11 +182,11 @@ function SidebarItem({ active, label: text, onClick }: { active: boolean; label:
     <button
       onClick={onClick}
       style={{
-        flex: 1, textAlign: "left", padding: "10px 12px", borderRadius: 11, cursor: "pointer",
-        fontFamily: "inherit", fontSize: 13.5, fontWeight: active ? 700 : 600, minHeight: 44,
-        color: active ? "var(--onAccent)" : "var(--text)",
-        background: active ? "linear-gradient(135deg,var(--accent),var(--accent2))" : "var(--seg-bg)",
-        border: "1px solid var(--card-border)",
+        flex: 1, textAlign: "left", padding: "10px 12px", borderRadius: "var(--radius-md)", cursor: "pointer",
+        fontFamily: "inherit", fontSize: "var(--fs-sm)", fontWeight: active ? "var(--fw-semibold)" : "var(--fw-medium)", minHeight: 44,
+        color: active ? "var(--on-accent)" : "var(--text)",
+        background: active ? "var(--accent)" : "var(--raised)",
+        border: "1px solid var(--border)",
       }}
     >
       {text}
@@ -213,46 +212,46 @@ function DocumentCard({ doc, collections, onChanged }: { doc: DocumentInfo; coll
   return (
     <div style={card}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ width: 34, height: 34, borderRadius: 9, background: "linear-gradient(135deg,var(--accent),var(--accent2))", color: "var(--onAccent)", fontWeight: 800, fontSize: 10.5, display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
+        <div style={{ width: 34, height: 34, borderRadius: "var(--radius-sm)", background: "var(--accent)", color: "var(--on-accent)", fontWeight: "var(--fw-semibold)", fontSize: "var(--fs-xs)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
           {TYPE_ICON[doc.file_type] || "DOC"}
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.filename}</div>
-          <div style={{ fontSize: 11.5, color: "var(--muted)" }}>
+          <div style={{ fontSize: "var(--fs-sm)", fontWeight: "var(--fw-semibold)", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.filename}</div>
+          <div style={{ fontSize: "var(--fs-xs)", color: "var(--muted)" }}>
             {doc.page_count ? `${doc.page_count}p · ` : ""}{doc.chunk_count ?? 0} chunks · v{doc.version_number}
           </div>
         </div>
       </div>
 
       {doc.is_duplicate && (
-        <div style={{ marginTop: 8, fontSize: 11.5, color: "#e0a53a" }}>
+        <div style={{ marginTop: 8, fontSize: "var(--fs-xs)", color: "var(--warn)" }}>
           ⚠ Duplicate of {doc.duplicate_of_name}
         </div>
       )}
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
         {doc.tags.map((tag) => (
-          <span key={tag} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 8px", borderRadius: 8, fontSize: 11.5, color: "var(--accent)", background: "var(--chip-bg)", border: "1px solid var(--chip-border)" }}>
+          <span key={tag} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 8px", borderRadius: "var(--radius-sm)", fontSize: "var(--fs-xs)", color: "var(--accent)", background: "var(--accent-soft)", border: "1px solid var(--accent-line)" }}>
             {tag}
-            <button onClick={async () => { await removeTag(doc.id, tag); onChanged(); }} aria-label={`Remove ${tag}`} style={{ border: "none", background: "none", color: "inherit", cursor: "pointer", padding: 0, fontSize: 11 }}>✕</button>
+            <button onClick={async () => { await removeTag(doc.id, tag); onChanged(); }} aria-label={`Remove ${tag}`} style={{ border: "none", background: "none", color: "inherit", cursor: "pointer", padding: 0, fontSize: "var(--fs-xs)" }}>✕</button>
           </span>
         ))}
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-        <input value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleAddTag(); }} placeholder="add tag" style={{ flex: "1 1 100px", minWidth: 0, padding: "6px 9px", borderRadius: 9, background: "var(--seg-bg)", border: "1px solid var(--card-border)", color: "var(--text)", fontFamily: "inherit", fontSize: 12, outline: "none" }} />
+        <input value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleAddTag(); }} placeholder="add tag" style={{ flex: "1 1 100px", minWidth: 0, padding: "6px 9px", borderRadius: "var(--radius-sm)", background: "var(--raised)", border: "1px solid var(--border)", color: "var(--text)", fontFamily: "inherit", fontSize: "var(--fs-xs)", outline: "none" }} />
         <DropdownSelect
           value=""
           onChange={async (v) => { if (v) await addToCollection(v, [doc.id]); }}
           placeholder="+ collection"
           ariaLabel={`Add ${doc.filename} to a collection`}
           options={collections.map((c) => ({ value: c.id, label: c.name }))}
-          style={{ flex: "1 1 110px", minWidth: 0, fontSize: 12, padding: "6px 8px" }}
+          style={{ flex: "1 1 110px", minWidth: 0, fontSize: "var(--fs-xs)", padding: "6px 8px" }}
         />
-        <button onClick={toggleCoverage} style={{ flex: "0 0 auto", border: "1px solid var(--card-border)", background: "var(--seg-bg)", color: "var(--text)", borderRadius: 9, padding: "0 10px", height: 30, cursor: "pointer", fontSize: 12 }}>
+        <button onClick={toggleCoverage} style={{ flex: "0 0 auto", border: "1px solid var(--border)", background: "var(--raised)", color: "var(--text)", borderRadius: "var(--radius-sm)", padding: "0 10px", height: 30, cursor: "pointer", fontSize: "var(--fs-xs)" }}>
           {coverage ? "Hide" : "Coverage"}
         </button>
-        <button onClick={() => setShowTimeline((v) => !v)} style={{ flex: "0 0 auto", border: "1px solid var(--card-border)", background: "var(--seg-bg)", color: "var(--text)", borderRadius: 9, padding: "0 10px", height: 30, cursor: "pointer", fontSize: 12 }}>
+        <button onClick={() => setShowTimeline((v) => !v)} style={{ flex: "0 0 auto", border: "1px solid var(--border)", background: "var(--raised)", color: "var(--text)", borderRadius: "var(--radius-sm)", padding: "0 10px", height: 30, cursor: "pointer", fontSize: "var(--fs-xs)" }}>
           Timeline
         </button>
       </div>
@@ -272,13 +271,13 @@ function CoverageHeatmap({ cells }: { cells: CoverageCell[] }) {
         {cells.map((c) => {
           const intensity = c.retrieved_count / max;
           const bg = c.retrieved_count === 0
-            ? "var(--seg-bg)"
-            : `rgba(52,211,153,${0.25 + 0.75 * intensity})`;
+            ? "var(--raised)"
+            : `color-mix(in srgb, var(--accent) ${Math.round((0.25 + 0.75 * intensity) * 100)}%, transparent)`;
           return (
             <div
               key={c.chunk_id}
               title={`chunk ${c.chunk_index + 1}: retrieved ${c.retrieved_count}×`}
-              style={{ width: 12, height: 12, borderRadius: 3, background: bg, border: "1px solid var(--card-border)" }}
+              style={{ width: 12, height: 12, borderRadius: "var(--radius-full)", background: bg, border: "1px solid var(--border)" }}
             />
           );
         })}
@@ -293,9 +292,9 @@ function BookmarksList({ items }: { items: QueryHistoryItem[] }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {items.map((q) => (
         <div key={q.id} style={card}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>{q.question}</div>
-          <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 6, lineHeight: 1.5 }}>{q.answer.slice(0, 220)}{q.answer.length > 220 ? "…" : ""}</div>
-          {q.bookmark_note && <div style={{ fontSize: 12, color: "var(--accent)", marginTop: 6 }}>Note: {q.bookmark_note}</div>}
+          <div style={{ fontSize: "var(--fs-sm)", fontWeight: "var(--fw-semibold)", color: "var(--text)" }}>{q.question}</div>
+          <div style={{ fontSize: "var(--fs-sm)", color: "var(--muted)", marginTop: 6, lineHeight: 1.5 }}>{q.answer.slice(0, 220)}{q.answer.length > 220 ? "…" : ""}</div>
+          {q.bookmark_note && <div style={{ fontSize: "var(--fs-xs)", color: "var(--accent)", marginTop: 6 }}>Note: {q.bookmark_note}</div>}
         </div>
       ))}
     </div>
@@ -303,7 +302,7 @@ function BookmarksList({ items }: { items: QueryHistoryItem[] }) {
 }
 
 const selectStyle: CSSProperties = {
-  padding: "10px 12px", borderRadius: 12, background: "var(--card-bg)",
-  border: "1px solid var(--card-border)", color: "var(--text)", fontFamily: "inherit",
-  fontSize: 14, outline: "none", cursor: "pointer",
+  padding: "10px 12px", borderRadius: "var(--radius-md)", background: "var(--surface)",
+  border: "1px solid var(--border)", color: "var(--text)", fontFamily: "inherit",
+  fontSize: "var(--fs-sm)", outline: "none", cursor: "pointer",
 };

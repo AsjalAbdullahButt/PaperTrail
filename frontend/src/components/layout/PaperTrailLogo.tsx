@@ -13,9 +13,8 @@ export default function PaperTrailLogo({ size = 30 }: { size?: number }) {
         width: size,
         height: size,
         flex: "none",
-        borderRadius: size * 0.3,
-        background: "linear-gradient(135deg,var(--accent),var(--accent2))",
-        boxShadow: "0 4px 14px var(--accentGlow)",
+        borderRadius: "var(--radius-sm)",
+        background: "var(--accent)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -34,8 +33,8 @@ export default function PaperTrailLogo({ size = 30 }: { size?: number }) {
           fill="none"
           opacity=".6"
         />
-        <rect x="6.8" y="11" width="6.6" height="1.4" rx=".7" fill="var(--accent2)" opacity=".65" />
-        <rect x="6.8" y="13.8" width="8.6" height="1.4" rx=".7" fill="var(--accent2)" opacity=".4" />
+        <rect x="6.8" y="11" width="6.6" height="1.4" rx=".7" fill="var(--accent)" opacity=".55" />
+        <rect x="6.8" y="13.8" width="8.6" height="1.4" rx=".7" fill="var(--accent)" opacity=".35" />
         <path
           d="M6.8 18.3l2.1 2.1 4.3-4.6"
           stroke="var(--accent)"

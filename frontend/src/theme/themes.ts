@@ -1,8 +1,15 @@
 "use client";
 
-// Shared PaperTrail theme tokens + a persistence hook. The token values match
-// the design system exactly (previously inline in page.tsx). Persisted to
-// localStorage and synced across tabs (Phase 9.3).
+// PaperTrail colour tokens (one source of truth, see frontend/DESIGN.md) plus
+// the theme persistence hook. Colours and shadows live here because they
+// change with the theme; spacing, radius, type and motion tokens are theme
+// independent and live in app/globals.css. Persisted to localStorage and
+// synced across tabs.
+//
+// One solid accent (teal) carries primary actions, active tabs, links, the
+// focus ring and meters. There are no gradients, glows or colour blobs.
+// Every text/background pair below is measured for WCAG AA (4.5:1) in
+// DESIGN.md.
 
 import { useEffect, useState } from "react";
 
@@ -11,64 +18,73 @@ export type ThemeVars = Record<string, string>;
 
 export const THEMES: Record<ThemeName, ThemeVars> = {
   dark: {
-    "--bg": "radial-gradient(1200px 800px at 20% 0%, #14161d 0%, #0a0b0f 55%, #08090c 100%)",
-    "--text": "#f3f4f7",
-    "--muted": "rgba(243,244,247,.55)",
-    "--onAccent": "#08130f",
-    "--card-bg": "rgba(255,255,255,.045)",
-    "--card-border": "rgba(255,255,255,.10)",
-    "--seg-bg": "rgba(255,255,255,.05)",
-    "--doc-bg": "rgba(255,255,255,.05)",
-    "--accent": "#34d399",
-    "--accent2": "#a78bfa",
-    "--accentGlow": "rgba(52,211,153,.28)",
-    "--chip-bg": "rgba(52,211,153,.13)",
-    "--chip-border": "rgba(52,211,153,.30)",
-    "--blob1": "#10b981",
-    "--blob2": "#8b5cf6",
-    "--blob3": "#22d3ee",
-    "--blobOp": ".22",
-    "--blobOp3": ".12",
-    "--cardShadow": "rgba(0,0,0,.5)",
-    "--sel": "rgba(52,211,153,.3)",
-    // Near-opaque (unlike --card-bg) so floating menus/tooltips stay legible
-    // over whatever they overlap even where backdrop-filter isn't rendered.
-    "--menu-bg": "rgba(17,19,25,.98)",
-    // Polish tokens: focus ring + scrollbar are consumed by globals.css, the
-    // elevation pair by component box-shadows (cards = 1, floating layers = 2).
-    "--ring": "rgba(52,211,153,.55)",
-    "--scrollbar": "rgba(255,255,255,.14)",
-    "--scrollbar-hover": "rgba(255,255,255,.26)",
-    "--elev-1": "0 1px 2px rgba(0,0,0,.40), 0 4px 16px rgba(0,0,0,.34)",
-    "--elev-2": "0 10px 44px rgba(0,0,0,.55)",
+    // Surfaces: a neutral ramp, flat. Depth comes from a step in tone plus a hairline.
+    "--bg": "#111215",
+    "--surface": "#181a1e",
+    "--raised": "#1f2227",
+    // Floating layers (menus, modals, drawers, toasts) are opaque.
+    "--overlay": "#1f2227",
+    "--scrim": "rgba(0,0,0,.55)",
+    "--border": "rgba(236,236,233,.10)",
+    "--border-strong": "rgba(236,236,233,.20)",
+    // Text: three roles.
+    "--text": "#ecece9",
+    "--text-2": "#a9acb2",
+    "--muted": "#8f939b",
+    // The one accent.
+    "--accent": "#2dd4bf",
+    "--accent-hover": "#5eead4",
+    "--on-accent": "#0b1f1c",
+    "--accent-soft": "rgba(45,212,191,.12)",
+    "--accent-line": "rgba(45,212,191,.32)",
+    // Status colours carry meaning only (error, caution, success).
+    "--danger": "#ff8f86",
+    "--danger-soft": "rgba(255,143,134,.10)",
+    "--danger-line": "rgba(255,143,134,.35)",
+    "--warn": "#e8b84f",
+    "--warn-soft": "rgba(232,184,79,.10)",
+    "--warn-line": "rgba(232,184,79,.35)",
+    "--ok": "#5fd08a",
+    "--ok-soft": "rgba(95,208,138,.10)",
+    "--ok-line": "rgba(95,208,138,.35)",
+    // Interaction.
+    "--ring": "#2dd4bf",
+    "--selection": "rgba(45,212,191,.28)",
+    "--scrollbar": "rgba(236,236,233,.16)",
+    "--scrollbar-hover": "rgba(236,236,233,.28)",
+    // One shadow, for floating layers only. Cards have none.
+    "--shadow-overlay": "0 8px 32px rgba(0,0,0,.5)",
   },
   light: {
-    "--bg": "radial-gradient(1200px 800px at 15% -5%, #ffffff 0%, #f4f5f2 55%, #eef0ec 100%)",
-    "--text": "#171a20",
-    "--muted": "rgba(23,26,32,.55)",
-    "--onAccent": "#ffffff",
-    "--card-bg": "rgba(255,255,255,.58)",
-    "--card-border": "rgba(20,25,35,.09)",
-    "--seg-bg": "rgba(20,25,35,.05)",
-    "--doc-bg": "rgba(255,255,255,.7)",
-    "--accent": "#0d9488",
-    "--accent2": "#4f46e5",
-    "--accentGlow": "rgba(13,148,136,.22)",
-    "--chip-bg": "rgba(13,148,136,.11)",
-    "--chip-border": "rgba(13,148,136,.28)",
-    "--blob1": "#2dd4bf",
-    "--blob2": "#6366f1",
-    "--blob3": "#5eead4",
-    "--blobOp": ".30",
-    "--blobOp3": ".20",
-    "--cardShadow": "rgba(30,40,60,.12)",
-    "--sel": "rgba(13,148,136,.2)",
-    "--menu-bg": "rgba(255,255,255,.98)",
-    "--ring": "rgba(13,148,136,.45)",
-    "--scrollbar": "rgba(20,25,35,.18)",
-    "--scrollbar-hover": "rgba(20,25,35,.32)",
-    "--elev-1": "0 1px 2px rgba(30,40,60,.08), 0 4px 16px rgba(30,40,60,.10)",
-    "--elev-2": "0 12px 44px rgba(30,40,60,.16)",
+    "--bg": "#f6f5f1",
+    "--surface": "#ffffff",
+    "--raised": "#efeee9",
+    "--overlay": "#ffffff",
+    "--scrim": "rgba(27,29,33,.40)",
+    "--border": "rgba(27,29,33,.12)",
+    "--border-strong": "rgba(27,29,33,.24)",
+    "--text": "#1b1d21",
+    "--text-2": "#484c53",
+    "--muted": "#5c616a",
+    "--accent": "#0d6b64",
+    "--accent-hover": "#0a524d",
+    "--on-accent": "#ffffff",
+    "--accent-soft": "rgba(13,107,100,.08)",
+    "--accent-line": "rgba(13,107,100,.30)",
+    "--danger": "#b3261e",
+    "--danger-soft": "rgba(179,38,30,.07)",
+    "--danger-line": "rgba(179,38,30,.30)",
+    "--warn": "#8a5a00",
+    "--warn-soft": "rgba(138,90,0,.08)",
+    "--warn-line": "rgba(138,90,0,.30)",
+    "--ok": "#25704a",
+    "--ok-soft": "rgba(37,112,74,.08)",
+    "--ok-line": "rgba(37,112,74,.30)",
+    "--ring": "#0d6b64",
+    "--selection": "rgba(13,107,100,.20)",
+    "--scrollbar": "rgba(27,29,33,.20)",
+    "--scrollbar-hover": "rgba(27,29,33,.34)",
+    "--shadow-overlay": "0 8px 28px rgba(27,29,33,.14)",
   },
 };
 

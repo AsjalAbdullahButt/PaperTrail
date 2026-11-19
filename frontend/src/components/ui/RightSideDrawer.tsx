@@ -39,8 +39,7 @@ export default function RightSideDrawer({ open, onClose, title, children }: Prop
         style={{
           position: "absolute",
           inset: 0,
-          background: "rgba(0,0,0,.45)",
-          backdropFilter: "blur(2px)",
+          background: "var(--scrim)",
           animation: "rise .2s ease both",
         }}
       />
@@ -54,11 +53,9 @@ export default function RightSideDrawer({ open, onClose, title, children }: Prop
           height: "100%",
           overflowY: "auto",
           padding: "22px 22px 40px",
-          background: "var(--card-bg)",
-          borderLeft: "1px solid var(--card-border)",
-          backdropFilter: "blur(26px) saturate(150%)",
-          WebkitBackdropFilter: "blur(26px) saturate(150%)",
-          boxShadow: "-20px 0 60px var(--cardShadow)",
+          background: "var(--surface)",
+          borderLeft: "1px solid var(--border)",
+          boxShadow: "var(--shadow-overlay)",
           animation: "slideIn .25s cubic-bezier(.4,0,.2,1) both",
         }}
       >
@@ -70,7 +67,7 @@ export default function RightSideDrawer({ open, onClose, title, children }: Prop
             marginBottom: 18,
           }}
         >
-          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: "var(--text)", letterSpacing: "-.01em" }}>
+          <h2 style={{ margin: 0, fontSize: "var(--fs-md)", fontWeight: "var(--fw-semibold)", color: "var(--text)", letterSpacing: "-.01em" }}>
             {title}
           </h2>
           <button
@@ -79,11 +76,11 @@ export default function RightSideDrawer({ open, onClose, title, children }: Prop
             style={{
               width: 32,
               height: 32,
-              borderRadius: 10,
-              border: "1px solid var(--card-border)",
-              background: "var(--seg-bg)",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--border)",
+              background: "var(--raised)",
               color: "var(--text)",
-              fontSize: 18,
+              fontSize: "var(--fs-lg)",
               lineHeight: 1,
               cursor: "pointer",
               flex: "none",

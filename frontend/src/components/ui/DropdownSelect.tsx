@@ -72,13 +72,13 @@ export default function DropdownSelect({
     display: "block",
     width: "100%",
     padding: "9px 12px",
-    borderRadius: 9,
+    borderRadius: "var(--radius-sm)",
     border: "none",
-    background: active ? "var(--chip-bg)" : "none",
+    background: active ? "var(--accent-soft)" : "none",
     color: active ? "var(--accent)" : "var(--text)",
     fontFamily: "inherit",
-    fontSize: 13.5,
-    fontWeight: active ? 700 : 500,
+    fontSize: "var(--fs-sm)",
+    fontWeight: active ? "var(--fw-semibold)" : "var(--fw-medium)",
     textAlign: "left",
     cursor: "pointer",
   });
@@ -95,9 +95,9 @@ export default function DropdownSelect({
         style={{
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
           fontFamily: "inherit", cursor: "pointer", textAlign: "left",
-          color: "var(--text)", background: "var(--card-bg)",
-          border: `1px solid ${open ? "var(--accent)" : "var(--card-border)"}`,
-          borderRadius: 12, padding: "10px 12px", fontSize: 14,
+          color: "var(--text)", background: "var(--surface)",
+          border: `1px solid ${open ? "var(--accent)" : "var(--border)"}`,
+          borderRadius: "var(--radius-md)", padding: "10px 12px", fontSize: "var(--fs-sm)",
           ...style,
         }}
       >
@@ -114,9 +114,9 @@ export default function DropdownSelect({
           role="listbox"
           style={{
             position: "fixed", top: rect.bottom + 6, left: `min(${rect.left}px, calc(100vw - ${Math.max(rect.width, 160) + 8}px))`, width: Math.max(rect.width, 160),
-            maxHeight: 280, overflowY: "auto", padding: 6, borderRadius: 12,
-            background: "var(--menu-bg)", border: "1px solid var(--card-border)",
-            boxShadow: "var(--elev-2)", zIndex: 1000,
+            maxHeight: 280, overflowY: "auto", padding: 6, borderRadius: "var(--radius-md)",
+            background: "var(--overlay)", border: "1px solid var(--border)",
+            boxShadow: "var(--shadow-overlay)", zIndex: 1000,
             animation: "rise .12s ease both",
           }}
         >

@@ -57,11 +57,11 @@ export default function ForgotPasswordPage() {
           style={{
             marginBottom: 16,
             padding: "10px 14px",
-            borderRadius: 12,
-            fontSize: 13.5,
+            borderRadius: "var(--radius-md)",
+            fontSize: "var(--fs-sm)",
             color: "var(--accent)",
-            background: "var(--chip-bg)",
-            border: "1px solid var(--chip-border)",
+            background: "var(--accent-soft)",
+            border: "1px solid var(--accent-line)",
           }}
         >
           If that email is registered, a reset link is on its way.

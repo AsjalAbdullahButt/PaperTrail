@@ -73,16 +73,14 @@ function truncateLabel(label: string, max = 20): string {
 const cardStyle: CSSProperties = {
   marginTop: 22,
   padding: "18px 20px",
-  borderRadius: 20,
-  background: "var(--card-bg)",
-  border: "1px solid var(--card-border)",
-  backdropFilter: "blur(18px) saturate(140%)",
-  boxShadow: "var(--elev-1)",
+  borderRadius: "var(--radius-md)",
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
 };
 
 const titleStyle: CSSProperties = {
-  fontSize: 11.5,
-  fontWeight: 700,
+  fontSize: "var(--fs-xs)",
+  fontWeight: "var(--fw-semibold)",
   letterSpacing: ".05em",
   textTransform: "uppercase",
   color: "var(--muted)",
@@ -92,7 +90,7 @@ const placeholderStyle: CSSProperties = {
   padding: "26px 10px",
   textAlign: "center",
   color: "var(--muted)",
-  fontSize: 13.5,
+  fontSize: "var(--fs-sm)",
 };
 
 function LegendItem({ swatch, label }: { swatch: ReactNode; label: string }) {
@@ -106,9 +104,9 @@ function LegendItem({ swatch, label }: { swatch: ReactNode; label: string }) {
 
 function Legend() {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 10.5, color: "var(--muted)", flexWrap: "wrap" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: "var(--fs-xs)", color: "var(--muted)", flexWrap: "wrap" }}>
       <LegendItem
-        swatch={<span style={{ width: 12, height: 12, borderRadius: "50%", display: "inline-block", background: "linear-gradient(135deg,var(--accent),var(--accent2))" }} />}
+        swatch={<span style={{ width: 12, height: 12, borderRadius: "50%", display: "inline-block", background: "var(--accent)" }} />}
         label="Your question"
       />
       <LegendItem
@@ -179,7 +177,7 @@ export default function QueryMindMap({ queryId }: { queryId: string }) {
   }
 
   const nodeColor = (nd: MindMapNode) => {
-    if (nd.type === "query") return "url(#mm-grad)";
+    if (nd.type === "query") return "var(--accent)";
     const imp = nd.importance ?? 0;
     return imp > 0.5 ? "var(--accent)" : "var(--muted)";
   };
@@ -191,19 +189,13 @@ export default function QueryMindMap({ queryId }: { queryId: string }) {
         <Legend />
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Query concept map" style={{ maxWidth: "100%", animation: "rise .5s ease both" }}>
-        <defs>
-          <linearGradient id="mm-grad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="var(--accent)" />
-            <stop offset="100%" stopColor="var(--accent2)" />
-          </linearGradient>
-        </defs>
         {data.edges.map((e, i) => {
           const a = positioned.byId[e.source];
           const b = positioned.byId[e.target];
           if (!a || !b) return null;
           return (
             <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-              stroke="var(--card-border)" strokeWidth={1 + e.weight * 3} opacity={0.5 + e.weight * 0.4} />
+              stroke="var(--border)" strokeWidth={1 + e.weight * 3} opacity={0.5 + e.weight * 0.4} />
           );
         })}
         {positioned.nodes.map((nd) => {
@@ -222,9 +214,9 @@ export default function QueryMindMap({ queryId }: { queryId: string }) {
               style={{ cursor: "pointer" }}
             >
               <title>{tooltip}</title>
-              <circle cx={nd.x} cy={nd.y} r={r} fill={nodeColor(nd)} stroke="var(--card-bg)" strokeWidth={2} />
+              <circle cx={nd.x} cy={nd.y} r={r} fill={nodeColor(nd)} stroke="var(--surface)" strokeWidth={2} />
               {nd.type === "query" ? (
-                <text x={nd.x} y={nd.y - 22} textAnchor="middle" fontSize={11} fill="var(--text)" fontWeight={700}>
+                <text x={nd.x} y={nd.y - 22} textAnchor="middle" fontSize={11} fill="var(--text)" fontWeight={600}>
                   {nd.label}
                 </text>
               ) : (
@@ -244,7 +236,7 @@ export default function QueryMindMap({ queryId }: { queryId: string }) {
         })}
       </svg>
       {selected && selected.type === "chunk" && (
-        <div style={{ marginTop: 10, padding: "10px 13px", borderRadius: 12, background: "var(--seg-bg)", border: "1px solid var(--card-border)", fontSize: 12.5, color: "var(--muted)" }}>
+        <div style={{ marginTop: 10, padding: "10px 13px", borderRadius: "var(--radius-md)", background: "var(--raised)", border: "1px solid var(--border)", fontSize: "var(--fs-xs)", color: "var(--muted)" }}>
           <strong style={{ color: "var(--text)" }}>{selected.document || "Source"}</strong>
           {typeof selected.importance === "number" ? ` · importance ${Math.round(selected.importance * 100)}%` : ""}
           <div style={{ marginTop: 4 }}>{selected.label}</div>

@@ -8,7 +8,6 @@ import { useFloatingRect } from "@/hooks/useFloatingRect";
 import { useQueryStore } from "@/state/queryStore";
 import PaperTrailLogo from "@/components/layout/PaperTrailLogo";
 
-const ACCENT_GRADIENT = "linear-gradient(135deg,var(--accent),var(--accent2))";
 
 function escapeHtml(s: string): string {
   return s
@@ -41,7 +40,7 @@ function downloadAnswerAsPdf(
   win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>PaperTrail — ${escapeHtml(askedQuestion).slice(0, 60)}</title>
 <style>
   body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #16181d; padding: 48px; max-width: 720px; margin: 0 auto; line-height: 1.6; }
-  .brand { font-weight: 800; font-size: 15px; letter-spacing: -.02em; color: #10b981; margin-bottom: 22px; }
+  .brand { font-weight: 800; font-size: 15px; letter-spacing: -.02em; color: #0d6b64; margin-bottom: 22px; }
   h1 { font-size: 19px; margin: 0 0 20px; }
   .answer { font-size: 15px; white-space: pre-wrap; margin-bottom: 30px; }
   h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #666; border-top: 1px solid #ddd; padding-top: 18px; margin-top: 6px; }
@@ -137,7 +136,7 @@ function ExportMenu({
   const itemStyle: CSSProperties = {
     display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 12px",
     border: "none", background: "none", color: "var(--text)", fontFamily: "inherit",
-    fontSize: 13.5, fontWeight: 600, cursor: "pointer", textAlign: "left", borderRadius: 10,
+    fontSize: "var(--fs-sm)", fontWeight: "var(--fw-medium)", cursor: "pointer", textAlign: "left", borderRadius: "var(--radius-sm)",
   };
   const disabledItemStyle: CSSProperties = { ...itemStyle, color: "var(--muted)", cursor: "default", opacity: 0.5 };
 
@@ -148,9 +147,9 @@ function ExportMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         style={{
-          display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 12,
-          border: `1px solid ${open ? "var(--accent)" : "var(--card-border)"}`, background: "var(--seg-bg)",
-          color: "var(--text)", fontFamily: "inherit", fontWeight: 600, fontSize: 13.5, cursor: "pointer",
+          display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: "var(--radius-md)",
+          border: `1px solid ${open ? "var(--accent)" : "var(--border)"}`, background: "var(--raised)",
+          color: "var(--text)", fontFamily: "inherit", fontWeight: "var(--fw-medium)", fontSize: "var(--fs-sm)", cursor: "pointer",
         }}
       >
         <DownloadIcon />
@@ -165,9 +164,8 @@ function ExportMenu({
           role="menu"
           style={{
             // Right-align to the trigger but never spill past either viewport edge on a phone.
-            position: "fixed", top: rect.bottom + 8, left: `clamp(8px, ${rect.right - 250}px, calc(100vw - 258px))`, width: "min(250px, calc(100vw - 16px))", padding: 6, borderRadius: 14,
-            background: "var(--menu-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(22px) saturate(150%)",
-            WebkitBackdropFilter: "blur(22px) saturate(150%)", boxShadow: "var(--elev-2)", zIndex: 1000,
+            position: "fixed", top: rect.bottom + 8, left: `clamp(8px, ${rect.right - 250}px, calc(100vw - 258px))`, width: "min(250px, calc(100vw - 16px))", padding: 6, borderRadius: "var(--radius-md)",
+            background: "var(--overlay)", border: "1px solid var(--border)", boxShadow: "var(--shadow-overlay)", zIndex: 1000,
             animation: "rise .15s ease both",
           }}
         >
@@ -187,7 +185,7 @@ function ExportMenu({
           >
             <LinkIcon /> Copy share link
           </button>
-          <div style={{ height: 1, background: "var(--card-border)", margin: "6px 4px" }} />
+          <div style={{ height: 1, background: "var(--border)", margin: "6px 4px" }} />
           <button role="menuitem" style={itemStyle} onClick={() => { onExportZip(); setOpen(false); }}>
             <DownloadIcon /> Download account data (.zip)
           </button>
@@ -207,13 +205,13 @@ function HeaderButton({ label, onClick }: { label: string; onClick: () => void }
       onMouseLeave={() => setHover(false)}
       style={{
         padding: "9px 14px",
-        borderRadius: 12,
-        border: `1px solid ${hover ? "var(--accent)" : "var(--card-border)"}`,
-        background: "var(--seg-bg)",
+        borderRadius: "var(--radius-md)",
+        border: `1px solid ${hover ? "var(--accent)" : "var(--border)"}`,
+        background: "var(--raised)",
         color: "var(--text)",
         fontFamily: "inherit",
-        fontWeight: 600,
-        fontSize: 13.5,
+        fontWeight: "var(--fw-medium)",
+        fontSize: "var(--fs-sm)",
         cursor: "pointer",
         flex: "none",
       }}
@@ -231,8 +229,8 @@ function Spinner() {
         width: 14,
         height: 14,
         borderRadius: "50%",
-        border: "2px solid rgba(255,255,255,.45)",
-        borderTopColor: "#fff",
+        border: "2px solid currentColor",
+        borderTopColor: "transparent",
         display: "inline-block",
         animation: "spin .7s linear infinite",
       }}
@@ -273,16 +271,15 @@ export default function HomeHeader({
   const answerMode = useQueryStore((s) => s.answerMode);
 
   const accentBtn: CSSProperties = {
-    color: "var(--onAccent)",
-    background: ACCENT_GRADIENT,
-    boxShadow: "0 4px 14px var(--accentGlow)",
+    color: "var(--on-accent)",
+    background: "var(--accent)",
   };
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 16px", borderRadius: 18, background: "var(--card-bg)", border: "1px solid var(--card-border)", backdropFilter: "blur(18px) saturate(140%)", WebkitBackdropFilter: "blur(18px) saturate(140%)", flexWrap: "wrap" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 16px", borderRadius: "var(--radius-md)", background: "var(--surface)", border: "1px solid var(--border)", flexWrap: "wrap" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0 }}>
         <PaperTrailLogo />
-        <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: "-.02em", color: "var(--text)" }}>PaperTrail</span>
+        <span style={{ fontWeight: "var(--fw-semibold)", fontSize: "var(--fs-lg)", letterSpacing: "-.02em", color: "var(--text)" }}>PaperTrail</span>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto", flexWrap: "wrap" }}>
@@ -314,16 +311,16 @@ export default function HomeHeader({
         <button
           onClick={onToggleTheme}
           aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
-          style={{ position: "relative", width: 60, height: 30, borderRadius: 16, border: "1px solid var(--card-border)", background: "var(--seg-bg)", cursor: "pointer", padding: 0, flex: "none" }}
+          style={{ position: "relative", width: 60, height: 30, borderRadius: "var(--radius-md)", border: "1px solid var(--border)", background: "var(--raised)", cursor: "pointer", padding: 0, flex: "none" }}
         >
-          <span style={{ position: "absolute", top: 3, left: isDark ? 33 : 3, width: 24, height: 24, borderRadius: "50%", background: ACCENT_GRADIENT, boxShadow: "0 2px 8px var(--accentGlow)", transition: "left .28s cubic-bezier(.4,0,.2,1)" }} />
+          <span style={{ position: "absolute", top: 3, left: isDark ? 33 : 3, width: 24, height: 24, borderRadius: "50%", background: "var(--accent)", transition: "left .28s cubic-bezier(.4,0,.2,1)" }} />
         </button>
         <button
           onClick={() => fileRef.current?.click()}
           disabled={uploading}
-          style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 15px", borderRadius: 12, border: "none", cursor: uploading ? "default" : "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 13.5, opacity: uploading ? 0.7 : 1, ...accentBtn }}
+          style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 15px", borderRadius: "var(--radius-md)", border: "none", cursor: uploading ? "default" : "pointer", fontFamily: "inherit", fontWeight: "var(--fw-medium)", fontSize: "var(--fs-sm)", opacity: uploading ? 0.7 : 1, ...accentBtn }}
         >
-          {uploading ? <Spinner /> : <span style={{ fontSize: 15, lineHeight: 1, marginTop: -1 }}>+</span>}
+          {uploading ? <Spinner /> : <span style={{ fontSize: "var(--fs-md)", lineHeight: 1, marginTop: -1 }}>+</span>}
           {uploading ? "Uploading…" : "Upload document"}
         </button>
         <input ref={fileRef} type="file" accept=".pdf,.docx,.pptx,.txt,.md,.xlsx,.csv" onChange={onFileChange} style={{ display: "none" }} />

@@ -97,8 +97,8 @@ function renderInline(text: string, maxN: number, keyPrefix: string): ReactNode[
 }
 
 const headingStyle: Record<2 | 3, CSSProperties> = {
-  2: { fontSize: 17, fontWeight: 700, letterSpacing: "-.01em" },
-  3: { fontSize: 15, fontWeight: 700, letterSpacing: "-.005em" },
+  2: { fontSize: "var(--fs-md)", fontWeight: "var(--fw-semibold)", letterSpacing: "-.01em" },
+  3: { fontSize: "var(--fs-md)", fontWeight: "var(--fw-semibold)", letterSpacing: "-.005em" },
 };
 const listStyle: CSSProperties = { margin: "8px 0 0", paddingLeft: 22 };
 const listItemStyle: CSSProperties = { marginBottom: 6 };
@@ -157,13 +157,13 @@ export function CitationChip({ n }: { n: number }) {
         height: 20,
         padding: "0 5px",
         margin: "0 1px",
-        borderRadius: 6,
-        fontSize: 11.5,
-        fontWeight: 700,
+        borderRadius: "var(--radius-sm)",
+        fontSize: "var(--fs-xs)",
+        fontWeight: "var(--fw-semibold)",
         textDecoration: "none",
-        color: active ? "var(--onAccent)" : "var(--accent)",
-        background: active ? "var(--accent)" : "var(--chip-bg)",
-        border: "1px solid var(--chip-border)",
+        color: active ? "var(--on-accent)" : "var(--accent)",
+        background: active ? "var(--accent)" : "var(--accent-soft)",
+        border: "1px solid var(--accent-line)",
         outline: active ? "2px solid var(--accent)" : "none",
         outlineOffset: 1,
         verticalAlign: "middle",

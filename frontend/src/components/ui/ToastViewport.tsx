@@ -9,15 +9,13 @@ export default function ToastViewport({ toast }: { toast: Toast | null }) {
         <div
           style={{
             padding: "12px 16px",
-            borderRadius: 12,
-            fontSize: 13.5,
-            fontWeight: 600,
+            borderRadius: "var(--radius-md)",
+            fontSize: "var(--fs-sm)",
+            fontWeight: "var(--fw-medium)",
             color: "var(--text)",
-            background: "var(--card-bg)",
-            border: `1px solid ${toast.kind === "ok" ? "var(--chip-border)" : "rgba(255,120,120,.4)"}`,
-            backdropFilter: "blur(18px) saturate(150%)",
-            WebkitBackdropFilter: "blur(18px) saturate(150%)",
-            boxShadow: "var(--elev-2)",
+            background: "var(--surface)",
+            border: `1px solid ${toast.kind === "ok" ? "var(--accent-line)" : "var(--danger-line)"}`,
+            boxShadow: "var(--shadow-overlay)",
             animation: "rise .3s ease both",
           }}
         >
