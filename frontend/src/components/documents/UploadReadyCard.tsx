@@ -83,7 +83,7 @@ export default function UploadReadyCard({
             style={{
               margin: "var(--space-2) 0 0",
               padding: "var(--space-3) var(--space-4)",
-              borderLeft: "3px solid var(--accent)",
+              border: "1px solid var(--accent-line)",
               borderRadius: "var(--radius-sm)",
               background: "var(--accent-soft)",
               fontSize: "var(--fs-sm)",
@@ -106,7 +106,7 @@ export default function UploadReadyCard({
                 style={{
                   margin: 0,
                   padding: "var(--space-3) var(--space-4)",
-                  borderLeft: "3px solid var(--border-strong)",
+                  border: "1px solid var(--border)",
                   borderRadius: "var(--radius-sm)",
                   background: "var(--raised)",
                   fontSize: "var(--fs-sm)",

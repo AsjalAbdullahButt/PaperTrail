@@ -184,7 +184,7 @@ select {
    properties; the -webkit rules cover older Chromium and Safari. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar, rgba(128, 128, 128, 0.3)) transparent;
+  scrollbar-color: var(--scrollbar) transparent;
 }
 ::-webkit-scrollbar {
   width: 10px;
@@ -194,13 +194,13 @@ select {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--scrollbar, rgba(128, 128, 128, 0.3));
+  background: var(--scrollbar);
   border-radius: var(--radius-full);
   border: 2px solid transparent;
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-hover, rgba(128, 128, 128, 0.5));
+  background: var(--scrollbar-hover);
   background-clip: content-box;
 }
 
