@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { getMindMap, type MindMapData, type MindMapNode } from "@/api/backendClient";
 
 const W = 640;
@@ -70,32 +70,48 @@ function truncateLabel(label: string, max = 20): string {
   return label.length > max ? `${label.slice(0, max)}…` : label;
 }
 
-const cardStyle: CSSProperties = {
-  marginTop: 22,
-  padding: "18px 20px",
-  borderRadius: "var(--radius-md)",
-  background: "var(--surface)",
-  border: "1px solid var(--border)",
-};
+// Display sizing only. The layout above is untouched: it still runs in the
+// fixed W x H space. This crops the drawing to where the nodes (and their
+// labels) actually are, so a map of two nodes is small and a map of many fills
+// more of the card instead of every map being stretched to the card width.
+const VIEW_PAD = 24;
+const MIN_VIEW_W = 280;
+const MIN_VIEW_H = 96;
+const MAX_UPSCALE = 1.25; // never draw larger than 1.25x its natural size
 
-const titleStyle: CSSProperties = {
-  fontSize: "var(--fs-xs)",
-  fontWeight: "var(--fw-semibold)",
-  letterSpacing: ".05em",
-  textTransform: "uppercase",
-  color: "var(--muted)",
-};
-
-const placeholderStyle: CSSProperties = {
-  padding: "26px 10px",
-  textAlign: "center",
-  color: "var(--muted)",
-  fontSize: "var(--fs-sm)",
-};
+function viewBoxFor(nodes: Positioned[]): { x: number; y: number; w: number; h: number } {
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const nd of nodes) {
+    if (nd.type === "query") {
+      // The question label is centred above the node and is not truncated.
+      const half = Math.min(nd.label.length * 6.2, W) / 2;
+      minX = Math.min(minX, nd.x - Math.max(half, 16));
+      maxX = Math.max(maxX, nd.x + Math.max(half, 16));
+      minY = Math.min(minY, nd.y - 34);
+      maxY = Math.max(maxY, nd.y + 16);
+    } else {
+      // Chunk labels start to the right of the dot and are truncated to 20 chars.
+      minX = Math.min(minX, nd.x - 9);
+      maxX = Math.max(maxX, nd.x + 13 + truncateLabel(nd.label).length * 5.4);
+      minY = Math.min(minY, nd.y - 9);
+      maxY = Math.max(maxY, nd.y + 9);
+    }
+  }
+  let w = maxX - minX + VIEW_PAD * 2;
+  let h = maxY - minY + VIEW_PAD * 2;
+  let x = minX - VIEW_PAD;
+  let y = minY - VIEW_PAD;
+  if (w < MIN_VIEW_W) { x -= (MIN_VIEW_W - w) / 2; w = MIN_VIEW_W; }
+  if (h < MIN_VIEW_H) { y -= (MIN_VIEW_H - h) / 2; h = MIN_VIEW_H; }
+  return { x, y, w, h };
+}
 
 function LegendItem({ swatch, label }: { swatch: ReactNode; label: string }) {
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-1)" }}>
       {swatch}
       {label}
     </span>
@@ -104,7 +120,7 @@ function LegendItem({ swatch, label }: { swatch: ReactNode; label: string }) {
 
 function Legend() {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: "var(--fs-xs)", color: "var(--muted)", flexWrap: "wrap" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", fontSize: "var(--fs-xs)", color: "var(--text-2)", flexWrap: "wrap" }}>
       <LegendItem
         swatch={<span style={{ width: 12, height: 12, borderRadius: "50%", display: "inline-block", background: "var(--accent)" }} />}
         label="Your question"
@@ -149,18 +165,18 @@ export default function QueryMindMap({ queryId }: { queryId: string }) {
 
   if (loadError) {
     return (
-      <div style={cardStyle}>
-        <div style={titleStyle}>Concept map</div>
-        <div style={placeholderStyle}>Couldn&rsquo;t load the concept map for this answer.</div>
+      <div className="card" style={{ marginTop: "var(--space-5)" }}>
+        <div className="section-label">Concept map</div>
+        <div className="empty">Couldn&rsquo;t load the concept map for this answer.</div>
       </div>
     );
   }
 
   if (data && (!positioned || data.nodes.length <= 1)) {
     return (
-      <div style={cardStyle}>
-        <div style={titleStyle}>Concept map</div>
-        <div style={placeholderStyle}>
+      <div className="card" style={{ marginTop: "var(--space-5)" }}>
+        <div className="section-label">Concept map</div>
+        <div className="empty">
           Not enough content to map yet — ask a question that draws on more of your documents.
         </div>
       </div>
@@ -169,12 +185,14 @@ export default function QueryMindMap({ queryId }: { queryId: string }) {
 
   if (!data || !positioned) {
     return (
-      <div style={cardStyle}>
-        <div style={titleStyle}>Concept map</div>
-        <div style={placeholderStyle}>Loading concept map…</div>
+      <div className="card" style={{ marginTop: "var(--space-5)" }}>
+        <div className="section-label">Concept map</div>
+        <div className="empty">Loading concept map…</div>
       </div>
     );
   }
+
+  const vb = viewBoxFor(positioned.nodes);
 
   const nodeColor = (nd: MindMapNode) => {
     if (nd.type === "query") return "var(--accent)";
@@ -183,12 +201,18 @@ export default function QueryMindMap({ queryId }: { queryId: string }) {
   };
 
   return (
-    <div style={cardStyle}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
-        <div style={titleStyle}>Concept map</div>
+    <div className="card" style={{ marginTop: "var(--space-5)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "var(--space-3)", marginBottom: "var(--space-3)" }}>
+        <div className="section-label">Concept map</div>
         <Legend />
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Query concept map" style={{ maxWidth: "100%", animation: "rise .5s ease both" }}>
+      <svg
+        viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
+        width="100%"
+        role="img"
+        aria-label="Query concept map"
+        style={{ display: "block", margin: "0 auto", maxWidth: Math.round(vb.w * MAX_UPSCALE), animation: "rise var(--dur-base) var(--ease) both" }}
+      >
         {data.edges.map((e, i) => {
           const a = positioned.byId[e.source];
           const b = positioned.byId[e.target];
@@ -226,7 +250,7 @@ export default function QueryMindMap({ queryId }: { queryId: string }) {
                   fontSize={9}
                   fill="var(--text)"
                   opacity={isHovered ? 1 : 0.5}
-                  style={{ transition: "opacity .15s ease" }}
+                  style={{ transition: "opacity var(--dur-fast) var(--ease)" }}
                 >
                   {truncateLabel(nd.label)}
                 </text>
@@ -236,7 +260,7 @@ export default function QueryMindMap({ queryId }: { queryId: string }) {
         })}
       </svg>
       {selected && selected.type === "chunk" && (
-        <div style={{ marginTop: 10, padding: "10px 13px", borderRadius: "var(--radius-md)", background: "var(--raised)", border: "1px solid var(--border)", fontSize: "var(--fs-xs)", color: "var(--muted)" }}>
+        <div className="card card-compact" style={{ marginTop: "var(--space-3)", background: "var(--raised)", fontSize: "var(--fs-xs)", color: "var(--text-2)" }}>
           <strong style={{ color: "var(--text)" }}>{selected.document || "Source"}</strong>
           {typeof selected.importance === "number" ? ` · importance ${Math.round(selected.importance * 100)}%` : ""}
           <div style={{ marginTop: 4 }}>{selected.label}</div>
